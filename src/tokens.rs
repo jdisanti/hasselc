@@ -1,78 +1,75 @@
 #[derive(Debug)]
-pub enum Keyword {
-    Break,
-    Const,
-    Def,
-    End,
-    For,
-    If,
-    In,
-    LeftShift,
-    Org,
-    Return,
-    RotateLeft,
-    RotateRight,
-    To,
+pub enum Literal {
+    Int(i32),
+    Str(String),
 }
 
 #[derive(Debug)]
 pub enum Type {
-    Ptr,
     U8,
     U16,
     Void,
 }
 
 #[derive(Debug)]
-pub struct NameType(pub String, pub Type);
+pub struct NameType {
+    pub name: String,
+    pub type_name: Type,
+}
 
 #[derive(Debug)]
-pub enum Operator {
+pub enum BinaryOperator {
     Add,
-    Assign,
-    EqualTo,
-    GreaterThan,
-    GreaterThanEqualTo,
+    Sub,
+    Mul,
+    Div,
     LessThan,
-    LessThanEqualTo,
-    Subtract,
+    GreaterThan,
+    LessThanEqual,
+    GreaterThanEqual,
+    Equal,
+    NotEqual,
 }
 
 #[derive(Debug)]
-pub enum Constant {
-    Integer(i32),
-    Text(String),
-}
-
-#[derive(Debug)]
-pub enum Expr {
-    Void,
+pub enum Expression {
+    Number(i32),
     Name(String),
-    ConstantValue(Constant),
-    Command(Keyword),
-    CommandOnName(Keyword, String),
-    Return(Box<Expr>),
-    DeclareConst {
+    BinaryOp {
+        op: BinaryOperator,
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+    Assignment {
         name: String,
-        value: Constant
+        value: Box<Expression>,
+    },
+    CallFunction {
+        name: String,
+        arguments: Vec<Expression>,
+    },
+    DeclareConst {
+        name_type: NameType,
+        value: Box<Expression>,
     },
     DeclareFunction {
         name: String,
         parameters: Vec<NameType>,
         return_type: Type,
+        body: Vec<Expression>,
     },
-    Function {
-        declaration: Box<Expr>,
-        body: Vec<Expr>,
+    DeclareVariable {
+        name_type: NameType,
+        value: Box<Expression>,
     },
-    ForLoop {
-        index: NameType,
-        start: Constant,
-        finish: Constant,
-        body: Vec<Expr>,
+    LeftShift(String),
+    RotateLeft(String),
+    RotateRight(String),
+    Org {
+        org: i32,
     },
-    Org(i32),
+    Break,
+    Return {
+        value: Box<Expression>,
+    },
 }
-
-#[derive(Debug)]
-pub struct Program(pub Vec<Expr>);

@@ -1,41 +1,16 @@
 use std::str::FromStr;
-use tokens::{Constant, Expr, Keyword, NameType, Operator, Program, Type};
+use tokens::{BinaryOperator, Expression, Literal, NameType, Type};
 
 grammar;
 
-pub KeywordBreak: Keyword = { "break" => Keyword::Break, };
-pub KeywordOrg: Keyword = { "org" => Keyword::Org, };
-pub KeywordConst: Keyword = { "const" => Keyword::Const, };
-pub KeywordDef: Keyword = { "def" => Keyword::Def, };
-pub KeywordEnd: Keyword = { "end" => Keyword::End, };
-pub KeywordFor: Keyword = { "for" => Keyword::For, };
-pub KeywordIn: Keyword = { "in" => Keyword::In, };
-pub KeywordTo: Keyword = { "to" => Keyword::To, };
-pub KeywordLeftShift: Keyword = { "left_shift" => Keyword::LeftShift, };
-pub KeywordRotateLeft: Keyword = { "rotate_left" => Keyword::RotateLeft, };
-pub KeywordRotateRight: Keyword = { "rotate_right" => Keyword::RotateRight, };
-pub KeywordReturn: Keyword = { "return" => Keyword::Return, };
-
-pub operator: Operator = {
-    "==" => Operator::EqualTo,
-    ">=" => Operator::GreaterThanEqualTo,
-    "<=" => Operator::LessThanEqualTo,
-    ">" => Operator::GreaterThan,
-    "<" => Operator::LessThan,
-    "+" => Operator::Add,
-    "-" => Operator::Subtract,
-    "=" => Operator::Assign,
+Number: i32 = {
+    // Base 10
+    <s:r"[0-9]+"> => i32::from_str(s).unwrap(),
+    // Base 16
+    <s:r"0x[0-9A-Fa-f]+"> => i32::from_str_radix(&s[2..], 16).unwrap(),
 };
 
-Base10Number: i32 = <s:r"[0-9]+"> => i32::from_str(s).unwrap();
-Base16Number: i32 = <s:r"0x[0-9A-Fa-f]+"> => i32::from_str_radix(&s[2..], 16).unwrap();
-
-pub Number: i32 = {
-    <n:Base10Number> => n,
-    <n:Base16Number> => n,
-};
-
-pub Text: String = {
+Str: String = {
     r"\x22(?:[^\x22\\]|\\.)*\x22" => {
         let val = <>;
         let len = val.len();
@@ -43,31 +18,26 @@ pub Text: String = {
     }
 };
 
-pub Name: String = {
+Literal: Literal = {
+    Number => Literal::Int(<>),
+    Str => Literal::Str(<>),
+};
+
+Name: String = {
     r"[a-zA-Z_][\w]*" => String::from_str(<>).unwrap()
 };
 
-pub Constant: Constant = {
-    <n:Number> => Constant::Integer(n),
-    <s:Text> => Constant::Text(s),
-};
-
-pub Command: Expr = {
-    <b:KeywordBreak> => Expr::Command(b),
-};
-
-pub PrimitiveType: Type = {
+Type: Type = {
     "u8" => Type::U8,
     "u16" => Type::U16,
-    "ptr" => Type::Ptr,
     "void" => Type::Void,
 };
 
-pub NameType: NameType = {
-    <n:Name> ":" <t:PrimitiveType> => NameType(n, t),
+NameType: NameType = {
+    <n:Name> ":" <t:Type> => NameType { name: n, type_name: t },
 };
 
-pub ParameterList: Vec<NameType> = {
+ParameterList: Vec<NameType> = {
     <l:ParameterList> "," <p:NameType> => {
         let mut result = l;
         result.push(p);
@@ -76,86 +46,110 @@ pub ParameterList: Vec<NameType> = {
     NameType => vec![<>],
 };
 
-pub ReturnStatement: Expr = {
-    <r:KeywordReturn> => Expr::Return(Box::from(Expr::Void)),
-    <r:KeywordReturn> <n:Name> => Expr::Return(Box::from(Expr::Name(n))),
-    <r:KeywordReturn> <c:Constant> => Expr::Return(Box::from(Expr::ConstantValue(c))),
+ComparisonOp: BinaryOperator = {
+    "<" => BinaryOperator::LessThan,
+    ">" => BinaryOperator::GreaterThan,
+    "<=" => BinaryOperator::LessThanEqual,
+    ">=" => BinaryOperator::GreaterThanEqual,
+    "==" => BinaryOperator::Equal,
+    "!=" => BinaryOperator::NotEqual,
 };
 
-pub SimpleExpression: Expr = {
-    <c:Command> ";" => c,
-    <o:KeywordOrg> <n:Number> ";" => Expr::Org(n),
-    <c:KeywordConst> <n:Name> "=" <k:Constant> ";" => Expr::DeclareConst { name: n, value: k },
-    <k:KeywordLeftShift> <n:Name> ";" => Expr::CommandOnName(k, n),
-    <k:KeywordRotateLeft> <n:Name> ";" => Expr::CommandOnName(k, n),
-    <k:KeywordRotateRight> <n:Name> ";" => Expr::CommandOnName(k, n),
-    <r:ReturnStatement> ";" => r,
+Comparison: Box<Expression> = {
+    <l:Comparison> <o:ExprOp> <r:Factor> => Box::new(Expression::BinaryOp { op: o, left: l, right: r }),
+    Factor,
 };
 
-pub StructuralExpression: Expr = {
-    // Empty for loop
-    <k1:KeywordFor> <nt:NameType> <k2:KeywordIn> <r1:Constant> <k3:KeywordTo> <r2:Constant> <k4:KeywordEnd> => {
-        Expr::ForLoop {
-            index: nt,
-            start: r1,
-            finish: r2,
-            body: Vec::new(),
-        }
-    },
-    // For loop with a body
-    <k1:KeywordFor> <nt:NameType> <k2:KeywordIn> <r1:Constant> <k3:KeywordTo> <r2:Constant> <b:ExpressionList> <k4:KeywordEnd> => {
-        Expr::ForLoop {
-            index: nt,
-            start: r1,
-            finish: r2,
-            body: b,
-        }
-    },
+ExprOp: BinaryOperator = {
+    "+" => BinaryOperator::Add,
+    "-" => BinaryOperator::Sub,
 };
 
-pub ExpressionList: Vec<Expr> = {
-    <e:ExpressionList> <e2:SimpleExpression> => {
-        let mut result = e;
-        result.push(e2);
+Factor: Box<Expression> = {
+    <l:Factor> <o:FactorOp> <r:Term> => Box::new(Expression::BinaryOp { op: o, left: l, right: r }),
+    Term,
+};
+
+FactorOp: BinaryOperator = {
+    "*" => BinaryOperator::Mul,
+    "/" => BinaryOperator::Div,
+};
+
+Term: Box<Expression> = {
+    Number => Box::new(Expression::Number(<>)),
+    Name => Box::new(Expression::Name(String::from(<>))),
+    "(" <Expression> ")",
+};
+
+FunctionCall: Box<Expression> = {
+    <n:Name> "(" ")" => Box::new(Expression::CallFunction {
+        name: n,
+        arguments: Vec::new(),
+    }),
+    <n:Name> "(" <args:ExpressionCommaList> ")" => Box::new(Expression::CallFunction {
+        name: n,
+        arguments: args,
+    }),
+};
+
+pub Expression: Box<Expression> = {
+    <l:Expression> <o:ComparisonOp> <r:Comparison> => Box::new(Expression::BinaryOp { op: o, left: l, right: r }),
+    Comparison,
+    FunctionCall,
+};
+
+ExpressionCommaList: Vec<Expression> = {
+    <l:ExpressionCommaList> "," <e:Expression> => {
+        let mut result = l;
+        result.push(*e);
         result
     },
-    <e:ExpressionList> <e2:StructuralExpression> => {
-        let mut result = e;
-        result.push(e2);
+    Expression => vec![*<>],
+};
+
+Statement: Box<Expression> = {
+    "const" <nt:NameType> "=" <l:Expression> ";" => Box::new(Expression::DeclareConst { name_type: nt, value: l }),
+    "var" <nt:NameType> "=" <l:Expression> ";" => Box::new(Expression::DeclareVariable { name_type: nt, value: l }),
+    <n:Name> "=" <l:Expression> ";" => Box::new(Expression::Assignment { name: n, value: l }),
+    "left_shift" <n:Name> ";" => Box::new(Expression::LeftShift(n)),
+    "rotate_left" <n:Name> ";" => Box::new(Expression::RotateLeft(n)),
+    "rotate_right" <n:Name> ";" => Box::new(Expression::RotateRight(n)),
+    "break" ";" => Box::new(Expression::Break),
+    "return" <v:Expression> ";" => Box::new(Expression::Return { value: v }),
+    <f:FunctionCall> ";" => f,
+};
+
+StatementList: Vec<Expression> = {
+    <l:StatementList> <s:Statement> => {
+        let mut result = l;
+        result.push(*s);
         result
     },
-    StructuralExpression => vec![<>],
-    SimpleExpression => vec![<>],
+    Statement => vec![*<>],
 };
 
-pub FunctionDeclaration: Expr = {
-    <d:KeywordDef> <n:Name> "(" <v:ParameterList> ")" ":" <r:PrimitiveType> => {
-        Expr::DeclareFunction { name: n, parameters: v, return_type: r }
-    }
+TopLevelStatement: Box<Expression> = {
+    "org" <n:Number> ";" => Box::new(Expression::Org { org: n }),
+    "def" <n:Name> "(" ")" ":" <rt:Type> <b:StatementList> "end" => Box::new(Expression::DeclareFunction {
+        name: n,
+        parameters: Vec::new(),
+        return_type: rt,
+        body: b,
+    }),
+    "def" <n:Name> "(" <pl:ParameterList> ")" ":" <rt:Type> <b:StatementList> "end" => Box::new(Expression::DeclareFunction {
+        name: n,
+        parameters: pl,
+        return_type: rt,
+        body: b,
+    }),
+    Statement,
 };
 
-pub Function: Expr = {
-    // Empty function
-    <d:FunctionDeclaration> <e:KeywordEnd> => {
-        Expr::Function {
-            declaration: Box::from(d),
-            body: Vec::new(),
-        }
+pub Program: Vec<Expression> = {
+    <p:Program> <tl:TopLevelStatement> => {
+        let mut result = p;
+        result.push(*tl);
+        result
     },
-    // Function with a body
-    <d:FunctionDeclaration> <el:ExpressionList> <e:KeywordEnd> => {
-        Expr::Function {
-            declaration: Box::from(d),
-            body: el,
-        }
-    },
-};
-
-pub program: Program = {
-    <p:program> <f:Function> => {
-        let mut program = p;
-        program.0.push(f);
-        program
-    },
-    <el:ExpressionList> => Program(el),
+    TopLevelStatement => vec![*<>],
 };

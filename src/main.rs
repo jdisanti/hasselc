@@ -2,23 +2,22 @@ mod grammar;
 mod tokens;
 
 fn main() {
-    println!("{:?}", grammar::parse_Text("\"test\""));
-    println!("{:?}", grammar::parse_Text("\"test\\\"strings\\\"\""));
-    /*println!("{:?}", grammar::parse_expression("break;"));
-    println!("{:?}", grammar::parse_expression("org 0xC000;"));
-    println!("{:?}", grammar::parse_expression("const TEST = 0xFF;"));*/
+    println!("{:#?}", grammar::parse_Expression("
+        a - (5 + 9) * 10 / b == 132 + 5 * 6
+    "));
 
-    println!("{:#?}", grammar::parse_program("
+    println!("{:#?}", grammar::parse_Program("
     org 0xC000;
-    const IOP1_ADDR = 0xDFFE;
-    const IOP1_SET_VALUE = 0x05;
+    main();
 
-    def test(numerator: u8, divisor: u8): u8
-        left_shift numerator;
-        for i: u8 in 0 to 8
-            rotate_right numerator;
-        end
-        return 5;
+    def test(a: u8, b: u8): u8
+        var c: u8 = a + b;
+        return c;
+    end
+
+    def main(): void
+        var my_var: u8 = 5;
+        my_var = test(my_var, test(my_var, 12));
     end
     "));
 }
