@@ -4,6 +4,16 @@ use lalrpop_util::ErrorRecovery;
 
 grammar<'err>(errors: &'err mut Vec<ErrorRecovery<usize, (usize, &'input str), ()>>);
 
+match {
+    r"#[^\n]*"
+} else {
+    _
+}
+
+Comment: () = {
+    r"#[^\n]*"
+};
+
 Number: i32 = {
     // Base 10
     <s:r"[0-9]+"> => i32::from_str(s).unwrap(),
@@ -109,6 +119,7 @@ ExpressionCommaList: Vec<Expression> = {
 };
 
 Statement: Box<Expression> = {
+    Comment => Box::new(Expression::Comment),
     "const" <nt:NameType> "=" <l:Expression> ";" => Box::new(Expression::DeclareConst { name_type: nt, value: l }),
     "var" <nt:NameType> "=" <l:Expression> ";" => Box::new(Expression::DeclareVariable { name_type: nt, value: l }),
     <n:Name> "=" <l:Expression> ";" => Box::new(Expression::Assignment { name: n, value: l }),

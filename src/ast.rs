@@ -72,5 +72,6 @@ pub enum Expression {
     Return {
         value: Box<Expression>,
     },
+    Comment,
     Error,
 }
