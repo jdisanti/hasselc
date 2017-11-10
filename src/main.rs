@@ -1,12 +1,11 @@
+extern crate lalrpop_util;
+
 mod grammar;
-mod tokens;
+mod ast;
 
 fn main() {
-    println!("{:#?}", grammar::parse_Expression("
-        a - (5 + 9) * 10 / b == 132 + 5 * 6
-    "));
-
-    println!("{:#?}", grammar::parse_Program("
+    let mut errors = Vec::new();
+    println!("{:#?}", grammar::parse_Program(&mut errors, "
     org 0xC000;
     main();
 
@@ -20,4 +19,5 @@ fn main() {
         my_var = test(my_var, test(my_var, 12));
     end
     "));
+    println!("{:#?}", errors);
 }
