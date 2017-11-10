@@ -2,23 +2,39 @@ extern crate lalrpop_util;
 
 mod grammar;
 mod ast;
+mod ir;
+mod ir_gen;
 
 fn main() {
-    let mut errors = Vec::new();
-    println!("{:#?}", grammar::parse_Program(&mut errors, "
-    org 0xC000;
-    main(); # call main
+    let program = "
+        org 0xC000;
+        main(); # call main
 
-    def test(a: u8, b: u8): u8
-        var c: u8 = a + b;
-        return c;
-    end
+        def test(a: u8, b: u8): u8
+            var c: u8 = a + b;
+            return c;
+        end
 
-    # Our main function!
-    def main(): void
-        var my_var: u8 = 5;
-        my_var = test(my_var, test(my_var, 12));
-    end
-    "));
-    println!("{:#?}", errors);
+        # Our main function!
+        def main(): void
+            var my_var: u8 = 5;
+            my_var = test(my_var, test(my_var, 12));
+        end
+    ";
+
+    let ast = match ast::Expression::parse(program) {
+        Ok(ast) => ast,
+        Err(errors) => {
+            println!("Syntax error(s): {:#?}", errors);
+            return;
+        }
+    };
+
+    let ir = match ir_gen::generate_ir(ast) {
+        Ok(ir) => ir,
+        Err(_) => {
+            println!("Failed to generate IR");
+            return;
+        }
+    };
 }

@@ -75,3 +75,17 @@ pub enum Expression {
     Comment,
     Error,
 }
+
+type SyntaxError<'input> = ::lalrpop_util::ErrorRecovery<usize, (usize, &'input str), ()>;
+
+impl Expression {
+    pub fn parse<'a>(text: &'a str) -> Result<Vec<Expression>, Vec<SyntaxError<'a>>> {
+        let mut errors = Vec::new();
+        let ast = ::grammar::parse_Program(&mut errors, text);
+        if errors.is_empty() {
+            Ok(ast.unwrap())
+        } else {
+            Err(errors)
+        }
+    }
+}
