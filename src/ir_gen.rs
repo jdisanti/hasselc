@@ -4,26 +4,36 @@ use ast;
 use ir;
 
 pub fn generate_ir(input: &Vec<ast::Expression>) -> Result<Vec<ir::IR>, ()> {
-    let mut blocks: Vec<ir::IR> = vec![ir::IR::new_anonymous_block()];
     let global_symbol_table = Rc::new(RefCell::new(ir::SymbolTable::new()));
+    let mut blocks: Vec<ir::IR> = vec![ir::IR::new_anonymous_block(global_symbol_table.clone())];
 
     for ast_expr in input {
         match *ast_expr {
             ast::Expression::DeclareFunction { ref name, ref parameters, ref return_type, ref body } => {
                 let mut function = ir::IR::new_function_block(global_symbol_table.clone(),
                     name.clone(), parameters.clone(), return_type.clone());
+
+
                 if blocks.last_mut().unwrap().is_empty_anonymous() {
                     let old_block = blocks.pop().unwrap();
                     if let &Some(ref location) = old_block.location() {
                         function.set_location(*location);
                     }
                 }
-                let body_ir = {
-                    let mut symbol_table = function.symbol_table_mut();
-                    generate_statement_irs(&mut symbol_table, body)?
+
+                // TODO: error if global symbol table already has this name
+                let metadata = ir::FunctionMetadata {
+                    location: *function.location(),
+                    parameters: parameters.clone(),
+                    return_type: return_type.clone(),
                 };
+                global_symbol_table.borrow_mut().functions.insert(ir::SymbolRef(name.clone()), Rc::new(metadata));
+
+                let symbol_table = function.symbol_table();
+                let body_ir = generate_statement_irs(&mut *symbol_table.borrow_mut(), body)?;
                 function.body_mut().extend(body_ir);
                 blocks.push(function);
+
             },
             ast::Expression::Org { ref org } => {
                 blocks.last_mut().unwrap().set_location(ir::Location::Global(*org as u16));

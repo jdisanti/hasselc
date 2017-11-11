@@ -14,10 +14,17 @@ pub enum Location {
 }
 
 #[derive(Debug)]
+pub struct FunctionMetadata {
+    pub location: Option<Location>,
+    pub parameters: Vec<NameType>,
+    pub return_type: Type,
+}
+
+#[derive(Debug)]
 pub struct SymbolTable {
     parent: Option<Rc<RefCell<SymbolTable>>>,
     pub constants: HashMap<SymbolRef, Literal>,
-    pub functions: HashMap<SymbolRef, Location>,
+    pub functions: HashMap<SymbolRef, Rc<FunctionMetadata>>,
     pub variables: HashMap<SymbolRef, (Type, Location)>,
     next_local_stack_offset: u8,
 }
@@ -52,12 +59,24 @@ impl SymbolTable {
         symbol_ref
     } 
 
+    pub fn create_temporary_location(&mut self, typ: Type) -> Location {
+        let symbol = self.create_temporary(typ);
+        self.variable(&symbol).unwrap().1
+    }
+
     pub fn parent(&self) -> Option<Rc<RefCell<SymbolTable>>> {
         self.parent.clone()
     }
 
-    pub fn function(&self, symbol_ref: &SymbolRef) -> Option<&Location> {
-        self.functions.get(symbol_ref)
+    pub fn function(&self, symbol_ref: &SymbolRef) -> Option<Rc<FunctionMetadata>> {
+        let function = self.functions.get(symbol_ref);
+        if function.is_some() {
+            function.map(|f| f.clone())
+        } else if let &Some(ref parent) = &self.parent {
+            parent.borrow().function(symbol_ref)
+        } else {
+            None
+        }
     }
 
     pub fn variable(&self, symbol_ref: &SymbolRef) -> Option<(Type, Location)> {
@@ -105,22 +124,23 @@ pub enum Statement {
 #[derive(Debug)]
 pub enum IR {
     AnonymousBlock {
+        symbol_table: Rc<RefCell<SymbolTable>>,
         location: Option<Location>,
         body: Vec<Statement>,
     },
     FunctionBlock {
         location: Option<Location>,
         name: String,
-        local_symbols: SymbolTable,
-        parameters: Vec<NameType>,
+        local_symbols: Rc<RefCell<SymbolTable>>,
         body: Vec<Statement>,
         return_type: Type,
     }
 }
 
 impl IR {
-    pub fn new_anonymous_block() -> IR {
+    pub fn new_anonymous_block(global_symbol_table: Rc<RefCell<SymbolTable>>) -> IR {
         IR::AnonymousBlock {
+            symbol_table: global_symbol_table,
             location: None,
             body: Vec::new(),
         }
@@ -139,8 +159,7 @@ impl IR {
         IR::FunctionBlock {
             location: None,
             name: name,
-            local_symbols: symbol_table,
-            parameters: parameters,
+            local_symbols: Rc::new(RefCell::new(symbol_table)),
             body: Vec::new(),
             return_type: return_type,
         }
@@ -149,14 +168,14 @@ impl IR {
     pub fn is_empty_anonymous(&self) -> bool {
         match self {
             &IR::AnonymousBlock { ref body, .. } => body.is_empty(),
-            &IR::FunctionBlock { ref body, .. } => false,
+            &IR::FunctionBlock { .. } => false,
         }
     }
 
-    pub fn symbol_table_mut(&mut self) -> &mut SymbolTable {
+    pub fn symbol_table(&mut self) -> Rc<RefCell<SymbolTable>> {
         match self {
             &mut IR::AnonymousBlock { .. } => unreachable!(),
-            &mut IR::FunctionBlock { ref mut local_symbols, .. } => local_symbols,
+            &mut IR::FunctionBlock { ref mut local_symbols, .. } => local_symbols.clone(),
         }
     }
 
@@ -164,13 +183,6 @@ impl IR {
         match *self {
             IR::AnonymousBlock { ref location, .. } => location,
             IR::FunctionBlock { ref location, .. } => location,
-        }
-    }
-
-    pub fn has_location(&self) -> bool {
-        match *self {
-            IR::AnonymousBlock { ref location, .. } => location.is_some(),
-            IR::FunctionBlock { ref location, .. } => location.is_some(),
         }
     }
 

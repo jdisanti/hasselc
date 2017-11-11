@@ -4,6 +4,8 @@ mod grammar;
 mod ast;
 mod ir;
 mod ir_gen;
+mod llir;
+mod llir_gen;
 
 fn main() {
     let program = "
@@ -17,8 +19,9 @@ fn main() {
 
         # Our main function!
         def main(): void
-            var my_var: u8 = 5;
-            my_var = test(my_var, test(my_var, 12));
+            var my_var: u8 = 1;
+            my_var = test(42, 10);
+            #my_var = test(my_var, test(my_var, 12));
         end
     ";
 
@@ -38,5 +41,14 @@ fn main() {
             return;
         }
     };
-    println!("IR: {:#?}", ir);
+    println!("\n\n\n\nIR: {:#?}", ir);
+
+    let llir = match llir_gen::generate_llir(&ir) {
+        Ok(llir) => llir,
+        Err(_) => {
+            println!("Failed to generate LLIR");
+            return;
+        }
+    };
+    println!("\n\n\n\nLLIR: {:#?}", llir);
 }
