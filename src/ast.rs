@@ -4,20 +4,37 @@ pub enum Literal {
     Str(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Type {
     U8,
     U16,
     Void,
 }
 
-#[derive(Debug)]
+impl Type {
+    pub fn size(&self) -> usize {
+        match *self {
+            Type::U8 => 1,
+            Type::U16 => 2,
+            Type::Void => 0,
+        }
+    }
+
+    pub fn is_void(&self) -> bool {
+        match *self {
+            Type::Void => true,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct NameType {
     pub name: String,
     pub type_name: Type,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum BinaryOperator {
     Add,
     Sub,

@@ -29,12 +29,14 @@ fn main() {
             return;
         }
     };
+    println!("AST: {:#?}", ast);
 
-    let ir = match ir_gen::generate_ir(ast) {
+    let ir = match ir_gen::generate_ir(&ast) {
         Ok(ir) => ir,
         Err(_) => {
             println!("Failed to generate IR");
             return;
         }
     };
+    println!("IR: {:#?}", ir);
 }
