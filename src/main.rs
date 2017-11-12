@@ -8,6 +8,7 @@ mod llir;
 mod llir_gen;
 mod code;
 mod code_gen;
+mod code_opt;
 
 fn main() {
     let program = "
@@ -76,4 +77,17 @@ fn main() {
         }
     };
     println!("\n\n\n\nCODE: {:#?}", code);
+
+    let optimized = match code_opt::optimize_code(&code) {
+        Ok(opt) => opt,
+        Err(_) => {
+            println!("Failed to optimize code");
+            return;
+        }
+    };
+    println!("\n\n\n\nOPTIMIZED: {:#?}", optimized);
+
+    let unoptimized_count = code.iter().map(|b| b.body.len()).fold(0, |acc, n| acc + n) as isize;
+    let optimized_count = optimized.iter().map(|b| b.body.len()).fold(0, |acc, n| acc + n)as isize;
+    println!("Removed {} instructions", unoptimized_count - optimized_count);
 }

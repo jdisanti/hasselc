@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum Global {
     Resolved(u16),
     UnresolvedBlock,
@@ -18,7 +18,7 @@ impl fmt::Debug for Global {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum Parameter {
     Implicit,
     Accumulator,
@@ -58,6 +58,7 @@ pub enum Code {
     Sta(Parameter),
     Ldx(Parameter),
     Stx(Parameter),
+    Sty(Parameter),
     Tax(Parameter),
     Txa(Parameter),
     Sbc(Parameter),
@@ -75,6 +76,7 @@ impl Code {
             Code::Sta(ref p) => p,
             Code::Ldx(ref p) => p,
             Code::Stx(ref p) => p,
+            Code::Sty(ref p) => p,
             Code::Tax(ref p) => p,
             Code::Txa(ref p) => p,
             Code::Sbc(ref p) => p,
@@ -82,6 +84,13 @@ impl Code {
             Code::Sec(ref p) => p,
             Code::Jsr(ref p) => p,
             Code::Rts(ref p) => p,
+        }
+    }
+
+    pub fn is_branch(&self) -> bool {
+        match *self {
+            Code::Jsr(_) | Code::Rts(_) => true,
+            _ => false,
         }
     }
 }
@@ -94,6 +103,7 @@ impl fmt::Debug for Code {
             Code::Sta(ref p) => write!(f, "STA {:?}", p)?,
             Code::Ldx(ref p) => write!(f, "LDX {:?}", p)?,
             Code::Stx(ref p) => write!(f, "STX {:?}", p)?,
+            Code::Sty(ref p) => write!(f, "STY {:?}", p)?,
             Code::Tax(ref p) => write!(f, "TAX {:?}", p)?,
             Code::Txa(ref p) => write!(f, "TXA {:?}", p)?,
             Code::Sbc(ref p) => write!(f, "SBC {:?}", p)?,
@@ -106,6 +116,7 @@ impl fmt::Debug for Code {
     }
 }
 
+#[derive(Clone)]
 pub struct CodeBlock {
     pub location: Global,
     pub name: Option<String>,
