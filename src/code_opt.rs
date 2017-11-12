@@ -34,44 +34,52 @@ fn optimize_run(run: &[Code]) -> Result<Vec<Code>, ()> {
     let mut result = Vec::new();
     result.extend(run.iter().cloned());
 
-    try_redundant_load_accum(&mut result);
-    try_unchanged_stack_pointer(&mut result);
+    loop {
+        let mut optimized = false;
+        optimized = try_redundant_load_accum(&mut result) || optimized;
+        optimized = try_unchanged_stack_pointer(&mut result) || optimized;
+        if !optimized {
+            break;
+        }
+    }
 
     Ok(result)
 }
 
-fn try_redundant_load_accum(run: &mut Vec<Code>) {
+// Reduces:
+//   Sta X
+//   Lda X
+// To:
+//   Sta X
+fn try_redundant_load_accum(run: &mut Vec<Code>) -> bool {
     for i in 0..run.len() {
-        if run.len() >= i + 3 {
+        if run.len() >= i + 2 {
             let matches = {
-                let load_param = match run[i] {
-                    Code::Lda(ref p) => p,
-                    _ => continue,
-                };
-
-                let store_param = match run[i + 1] {
+                let store_param = match run[i] {
                     Code::Sta(ref p) => p,
                     _ => continue,
                 };
 
-                let second_load_param = match run[i + 2] {
+                let load_param = match run[i + 1] {
                     Code::Lda(ref p) => p,
                     _ => continue,
                 };
 
-                load_param != store_param && store_param == second_load_param
+                store_param == load_param
             };
             if matches {
-                run.remove(i + 2);
+                run.remove(i + 1);
+                return true;
             }
         }
     }
+    false
 }
 
 // Looks through run of instructions, and if the stack pointer is loaded,
 // and then loaded again without any changes being made to it, then that
 // second load is removed.
-fn try_unchanged_stack_pointer(run: &mut Vec<Code>) {
+fn try_unchanged_stack_pointer(run: &mut Vec<Code>) -> bool {
     let mut to_remove = Vec::new();
     for x in 0..(run.len() - 1) {
         if let Code::Ldx(ref first_load) = run[x] {
@@ -92,7 +100,8 @@ fn try_unchanged_stack_pointer(run: &mut Vec<Code>) {
             }
         }
     }
-    for index in to_remove {
-        run.remove(index);
+    for index in &to_remove {
+        run.remove(*index);
     }
+    !to_remove.is_empty()
 }
