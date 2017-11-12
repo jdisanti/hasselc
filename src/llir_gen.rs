@@ -2,7 +2,6 @@ use ast;
 use llir;
 use ir;
 
-const DATA_STACK_POINTER_LOCATION: llir::Location = llir::Location::Global(0x0000);
 const RETURN_LOCATION_LO: llir::Location = llir::Location::Global(0x0001);
 const RETURN_LOCATION_HI: llir::Location = llir::Location::Global(0x0002);
 

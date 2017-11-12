@@ -68,10 +68,6 @@ impl SymbolTable {
         self.variable(&symbol).unwrap().1
     }
 
-    pub fn parent(&self) -> Option<Rc<RefCell<SymbolTable>>> {
-        self.parent.clone()
-    }
-
     pub fn function(&self, symbol_ref: &SymbolRef) -> Option<FunctionMetadataPtr> {
         let function = self.functions.get(symbol_ref);
         if function.is_some() {

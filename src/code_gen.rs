@@ -8,18 +8,24 @@ const RETURN_LOCATION_HI: u16 = 0x0002;
 pub fn generate_code(input: &Vec<llir::Block>) -> Result<Vec<code::CodeBlock>, ()> {
     let mut code_blocks = Vec::new();
     for llir_block in input {
-        let mut code_block = code::CodeBlock::new(llir_block.name.clone(), match llir_block.location {
-            llir::Location::Global(val) => Some(val),
-            _ => None,
-        });
+        let mut code_block = code::CodeBlock::new(
+            llir_block.name.clone(),
+            match llir_block.location {
+                llir::Location::Global(val) => Some(val),
+                _ => None,
+            },
+        );
         code_block.body = generate_body(input, &llir_block.statements)?;
         code_blocks.push(code_block);
     }
     Ok(code_blocks)
 }
 
-fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> Result<Vec<code::Code>, ()> {
-    use code::{Code, Parameter, Global};
+fn generate_body(
+    blocks: &Vec<llir::Block>,
+    input: &Vec<llir::Statement>,
+) -> Result<Vec<code::Code>, ()> {
+    use code::{Code, Global, Parameter};
 
     let mut body = Vec::new();
     for statement in input {
@@ -30,24 +36,35 @@ fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> Res
                 body.push(Code::Adc(Parameter::Immediate(match *val {
                     llir::SPOffset::Immediate(val) => val as u8,
                     llir::SPOffset::FrameSize(ref name) => lookup_frame_size(blocks, name)? as u8,
-                    llir::SPOffset::NegativeFrameSize(ref name) => -lookup_frame_size(blocks, name)? as u8,
+                    llir::SPOffset::NegativeFrameSize(ref name) => {
+                        -lookup_frame_size(blocks, name)? as u8
+                    }
                 })));
                 body.push(Code::Sta(addr_param(DATA_STACK_POINTER_LOCATION)));
-            },
-            llir::Statement::Store { ref dest, ref value } => {
+            }
+            llir::Statement::Store {
+                ref dest,
+                ref value,
+            } => {
                 generate_store(&mut body, blocks, dest, value)?;
-            },
+            }
             llir::Statement::JumpRoutine { ref location } => {
                 body.push(Code::Jsr(Parameter::Absolute(match *location {
                     llir::Location::Global(addr) => Global::Resolved(addr),
-                    llir::Location::UnresolvedGlobal(ref name) => Global::UnresolvedName(name.clone()),
-                    _ => unreachable!()
+                    llir::Location::UnresolvedGlobal(ref name) => {
+                        Global::UnresolvedName(name.clone())
+                    }
+                    _ => unreachable!(),
                 })));
-            },
+            }
             llir::Statement::Return => body.push(Code::Rts(Parameter::Implicit)),
-            llir::Statement::Add { ref dest, ref left, ref right } => {
+            llir::Statement::Add {
+                ref dest,
+                ref left,
+                ref right,
+            } => {
                 generate_add(&mut body, blocks, dest, left, right)?;
-            },
+            }
             _ => {
                 println!("WARN: Unimplemented generate_body: {:?}", statement);
             }
@@ -66,20 +83,31 @@ fn lookup_frame_size(blocks: &Vec<llir::Block>, name: &String) -> Result<i8, ()>
     unimplemented!()
 }
 
-fn generate_store(body: &mut Vec<code::Code>, blocks: &Vec<llir::Block>, dest: &llir::Location, value: &llir::Value) -> Result<(), ()> {
+fn generate_store(
+    body: &mut Vec<code::Code>,
+    blocks: &Vec<llir::Block>,
+    dest: &llir::Location,
+    value: &llir::Value,
+) -> Result<(), ()> {
     load_into_accum(body, blocks, value)?;
     store_accum(body, blocks, dest)?;
     Ok(())
 }
 
-fn generate_add(body: &mut Vec<code::Code>, blocks: &Vec<llir::Block>, dest: &llir::Location, left: &llir::Value, right: &llir::Value) -> Result<(), ()> {
+fn generate_add(
+    body: &mut Vec<code::Code>,
+    blocks: &Vec<llir::Block>,
+    dest: &llir::Location,
+    left: &llir::Value,
+    right: &llir::Value,
+) -> Result<(), ()> {
     use code::{Code, Parameter};
     load_into_accum(body, blocks, left)?;
     match *right {
         llir::Value::Immediate(val) => {
             body.push(Code::Clc(Parameter::Implicit));
             body.push(Code::Adc(Parameter::Immediate(val)));
-        },
+        }
         llir::Value::Memory(ref location) => {
             load_stack_pointer_if_necessary(body, location)?;
             body.push(Code::Clc(Parameter::Implicit));
@@ -90,23 +118,31 @@ fn generate_add(body: &mut Vec<code::Code>, blocks: &Vec<llir::Block>, dest: &ll
     Ok(())
 }
 
-fn load_stack_pointer_if_necessary(body: &mut Vec<code::Code>, location: &llir::Location) -> Result<(), ()> {
+fn load_stack_pointer_if_necessary(
+    body: &mut Vec<code::Code>,
+    location: &llir::Location,
+) -> Result<(), ()> {
     use code::Code;
     match *location {
         llir::Location::DataStackOffset(_) | llir::Location::FrameOffset(_, _) => {
             body.push(Code::Ldx(addr_param(DATA_STACK_POINTER_LOCATION)));
-        },
-        _ => { }
+        }
+        _ => {}
     }
     Ok(())
 }
 
-fn location_to_parameter(blocks: &Vec<llir::Block>, location: &llir::Location) -> Result<code::Parameter, ()> {
+fn location_to_parameter(
+    blocks: &Vec<llir::Block>,
+    location: &llir::Location,
+) -> Result<code::Parameter, ()> {
     use code::Parameter;
     match *location {
         llir::Location::Global(addr) => Ok(addr_param(addr)),
         llir::Location::DataStackOffset(offset) => Ok(Parameter::ZeroPageX(offset)),
-        llir::Location::FrameOffset(ref frame, offset) => Ok(Parameter::ZeroPageX(offset - lookup_frame_size(blocks, frame)?)),
+        llir::Location::FrameOffset(ref frame, offset) => Ok(Parameter::ZeroPageX(
+            offset - lookup_frame_size(blocks, frame)?,
+        )),
         _ => {
             println!("WARN: Unimplemented location_to_parameter: {:?}", location);
             unimplemented!()
@@ -114,46 +150,54 @@ fn location_to_parameter(blocks: &Vec<llir::Block>, location: &llir::Location) -
     }
 }
 
-fn store_accum(body: &mut Vec<code::Code>, blocks: &Vec<llir::Block>, location: &llir::Location) -> Result<(), ()> {
+fn store_accum(
+    body: &mut Vec<code::Code>,
+    blocks: &Vec<llir::Block>,
+    location: &llir::Location,
+) -> Result<(), ()> {
     use code::Code;
     load_stack_pointer_if_necessary(body, location)?;
     body.push(Code::Sta(location_to_parameter(blocks, location)?));
     Ok(())
 }
 
-fn load_into_accum(body: &mut Vec<code::Code>, blocks: &Vec<llir::Block>, value: &llir::Value) -> Result<(), ()> {
+fn load_into_accum(
+    body: &mut Vec<code::Code>,
+    blocks: &Vec<llir::Block>,
+    value: &llir::Value,
+) -> Result<(), ()> {
     use code::{Code, Parameter};
     match *value {
         llir::Value::Immediate(val) => {
             body.push(Code::Lda(Parameter::Immediate(val)));
-        },
-        llir::Value::Memory(ref location) => {
-            match *location {
-                llir::Location::Global(addr) => {
-                    body.push(Code::Lda(addr_param(addr)));
-                }
-                llir::Location::DataStackOffset(offset) => {
-                    body.push(Code::Ldx(addr_param(DATA_STACK_POINTER_LOCATION)));
-                    body.push(Code::Lda(Parameter::ZeroPageX(offset)));
-                }
-                llir::Location::FrameOffset(ref frame, offset) => {
-                    body.push(Code::Ldx(addr_param(DATA_STACK_POINTER_LOCATION)));
-                    body.push(Code::Lda(Parameter::ZeroPageX(offset - lookup_frame_size(blocks, frame)?)));
-                }
-                _ => {
-                    println!("WARN: Unimplemented load_into_accum location: {:?}", location);
-                }
+        }
+        llir::Value::Memory(ref location) => match *location {
+            llir::Location::Global(addr) => {
+                body.push(Code::Lda(addr_param(addr)));
             }
-        }
-        _ => {
-            println!("WARN: Unimplemented load_into_accum value: {:?}", value);
-        }
+            llir::Location::DataStackOffset(offset) => {
+                body.push(Code::Ldx(addr_param(DATA_STACK_POINTER_LOCATION)));
+                body.push(Code::Lda(Parameter::ZeroPageX(offset)));
+            }
+            llir::Location::FrameOffset(ref frame, offset) => {
+                body.push(Code::Ldx(addr_param(DATA_STACK_POINTER_LOCATION)));
+                body.push(Code::Lda(Parameter::ZeroPageX(
+                    offset - lookup_frame_size(blocks, frame)?,
+                )));
+            }
+            _ => {
+                println!(
+                    "WARN: Unimplemented load_into_accum location: {:?}",
+                    location
+                );
+            }
+        },
     }
     Ok(())
 }
 
 fn addr_param(addr: u16) -> code::Parameter {
-    use code::{Code, Parameter, Global};
+    use code::{Global, Parameter};
     if addr < 256u16 {
         Parameter::ZeroPage(addr as u8)
     } else {

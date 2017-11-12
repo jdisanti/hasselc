@@ -42,12 +42,12 @@ pub enum Statement {
 impl fmt::Debug for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            Statement::AddToDataStackPointer(ref offset) => { write!(f, "add_dsp {:?}", offset); }
-            Statement::Store { ref dest, ref value } => { write!(f, "store {:?} => {:?}", value, dest); }
-            Statement::Add { ref dest, ref left, ref right } => { write!(f, "store {:?} + {:?} => {:?}", left, right, dest); }
-            Statement::Subtract { ref dest, ref left, ref right } => { write!(f, "store {:?} - {:?} => {:?}", left, right, dest); }
-            Statement::JumpRoutine { ref location } => { write!(f, "jsr {:?}", location); }
-            Statement::Return => { write!(f, "rts"); }
+            Statement::AddToDataStackPointer(ref offset) => { write!(f, "add_dsp {:?}", offset)? }
+            Statement::Store { ref dest, ref value } => { write!(f, "store {:?} => {:?}", value, dest)? }
+            Statement::Add { ref dest, ref left, ref right } => { write!(f, "store {:?} + {:?} => {:?}", left, right, dest)? }
+            Statement::Subtract { ref dest, ref left, ref right } => { write!(f, "store {:?} - {:?} => {:?}", left, right, dest)? }
+            Statement::JumpRoutine { ref location } => { write!(f, "jsr {:?}", location)? }
+            Statement::Return => { write!(f, "rts")? }
         }
         Ok(())
     }

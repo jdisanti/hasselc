@@ -113,13 +113,13 @@ fn generate_statement_ir(symbol_table: &mut ir::SymbolTable, input: &ast::Expres
             symbol_table.variables.insert(symbol_ref,
                 (name_type.type_name, ir::Location::Global(location as u16)));
         },
-        ast::Expression::LeftShift(ref name) => {
+        ast::Expression::LeftShift(ref _name) => {
             // TODO
         },
-        ast::Expression::RotateLeft(ref name) => {
+        ast::Expression::RotateLeft(ref _name) => {
             // TODO
         },
-        ast::Expression::RotateRight(ref name) => {
+        ast::Expression::RotateRight(ref _name) => {
             // TODO
         },
         ast::Expression::Return { ref value } => {

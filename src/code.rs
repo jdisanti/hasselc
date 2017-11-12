@@ -10,9 +10,9 @@ pub enum Global {
 impl fmt::Debug for Global {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            Global::Resolved(val) => { write!(f, "${:04X}", val)? },
-            Global::UnresolvedBlock => { write!(f, "UNRESOLVED_BLOCK")? },
-            Global::UnresolvedName(ref name) => { write!(f, "{}", name)? },
+            Global::Resolved(val) => write!(f, "${:04X}", val)?,
+            Global::UnresolvedBlock => write!(f, "UNRESOLVED_BLOCK")?,
+            Global::UnresolvedName(ref name) => write!(f, "{}", name)?,
         }
         Ok(())
     }
@@ -38,14 +38,14 @@ pub enum Parameter {
 impl fmt::Debug for Parameter {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            Parameter::Implicit => { },
-            Parameter::Accumulator => { write!(f, "A")? },
-            Parameter::Immediate(val) => { write!(f, "#{}", val)? },
-            Parameter::ZeroPage(offset) => { write!(f, "${:02X}", offset)? },
-            Parameter::ZeroPageX(offset) => { write!(f, "${:02X},X", offset)? },
-            Parameter::ZeroPageY(offset) => { write!(f, "${:02X},Y", offset)? },
-            Parameter::Absolute(ref gbl) => { write!(f, "{:?}", gbl)? },
-            _ => unimplemented!()
+            Parameter::Implicit => {}
+            Parameter::Accumulator => write!(f, "A")?,
+            Parameter::Immediate(val) => write!(f, "#{}", val)?,
+            Parameter::ZeroPage(offset) => write!(f, "${:02X}", offset)?,
+            Parameter::ZeroPageX(offset) => write!(f, "${:02X},X", offset)?,
+            Parameter::ZeroPageY(offset) => write!(f, "${:02X},Y", offset)?,
+            Parameter::Absolute(ref gbl) => write!(f, "{:?}", gbl)?,
+            _ => unimplemented!(),
         }
         Ok(())
     }
@@ -89,18 +89,18 @@ impl Code {
 impl fmt::Debug for Code {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            Code::Adc(ref p) => { write!(f, "ADC {:?}", p)? },
-            Code::Lda(ref p) => { write!(f, "LDA {:?}", p)? },
-            Code::Sta(ref p) => { write!(f, "STA {:?}", p)? },
-            Code::Ldx(ref p) => { write!(f, "LDX {:?}", p)? },
-            Code::Stx(ref p) => { write!(f, "STX {:?}", p)? },
-            Code::Tax(ref p) => { write!(f, "TAX {:?}", p)? },
-            Code::Txa(ref p) => { write!(f, "TXA {:?}", p)? },
-            Code::Sbc(ref p) => { write!(f, "SBC {:?}", p)? },
-            Code::Clc(ref p) => { write!(f, "CLC {:?}", p)? },
-            Code::Sec(ref p) => { write!(f, "SEC {:?}", p)? },
-            Code::Jsr(ref p) => { write!(f, "JSR {:?}", p)? },
-            Code::Rts(ref p) => { write!(f, "RTS {:?}", p)? },
+            Code::Adc(ref p) => write!(f, "ADC {:?}", p)?,
+            Code::Lda(ref p) => write!(f, "LDA {:?}", p)?,
+            Code::Sta(ref p) => write!(f, "STA {:?}", p)?,
+            Code::Ldx(ref p) => write!(f, "LDX {:?}", p)?,
+            Code::Stx(ref p) => write!(f, "STX {:?}", p)?,
+            Code::Tax(ref p) => write!(f, "TAX {:?}", p)?,
+            Code::Txa(ref p) => write!(f, "TXA {:?}", p)?,
+            Code::Sbc(ref p) => write!(f, "SBC {:?}", p)?,
+            Code::Clc(ref p) => write!(f, "CLC {:?}", p)?,
+            Code::Sec(ref p) => write!(f, "SEC {:?}", p)?,
+            Code::Jsr(ref p) => write!(f, "JSR {:?}", p)?,
+            Code::Rts(ref p) => write!(f, "RTS {:?}", p)?,
         }
         Ok(())
     }
@@ -109,7 +109,7 @@ impl fmt::Debug for Code {
 pub struct CodeBlock {
     pub location: Global,
     pub name: Option<String>,
-    pub body: Vec<Code>
+    pub body: Vec<Code>,
 }
 
 impl CodeBlock {

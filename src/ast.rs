@@ -19,13 +19,6 @@ impl Type {
             Type::Void => 0,
         }
     }
-
-    pub fn is_void(&self) -> bool {
-        match *self {
-            Type::Void => true,
-            _ => false,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -79,20 +72,13 @@ pub enum Expression {
         name_type: NameType,
         value: Box<Expression>,
     },
-    DeclareRegister {
-        name_type: NameType,
-        location: i32,
-    },
+    DeclareRegister { name_type: NameType, location: i32 },
     LeftShift(String),
     RotateLeft(String),
     RotateRight(String),
-    Org {
-        org: i32,
-    },
+    Org { org: i32 },
     Break,
-    Return {
-        value: Box<Expression>,
-    },
+    Return { value: Box<Expression> },
     Comment,
     Error,
 }
