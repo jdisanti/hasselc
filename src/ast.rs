@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Literal {
     Int(i32),
     Str(String),
@@ -41,7 +41,7 @@ pub enum BinaryOperator {
     NotEqual,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     Number(i32),
     Name(String),

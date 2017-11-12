@@ -1,6 +1,7 @@
 use llir::{Block, Statement, Value};
+use error;
 
-pub fn optimize_llir(llir: &Vec<Block>) -> Result<Vec<Block>, ()> {
+pub fn optimize_llir(llir: &Vec<Block>) -> error::Result<Vec<Block>> {
     let mut result = Vec::new();
     for block in llir {
         result.push(optimize_llir_block(block)?);
@@ -8,7 +9,7 @@ pub fn optimize_llir(llir: &Vec<Block>) -> Result<Vec<Block>, ()> {
     Ok(result)
 }
 
-fn optimize_llir_block(llir: &Block) -> Result<Block, ()> {
+fn optimize_llir_block(llir: &Block) -> error::Result<Block> {
     let mut optimized = llir.clone();
     optimized.statements.clear();
 
@@ -33,7 +34,7 @@ fn optimize_llir_block(llir: &Block) -> Result<Block, ()> {
     Ok(optimized)
 }
 
-fn optimize_run(run: &[Statement], full_block: &Vec<Statement>) -> Result<Vec<Statement>, ()> {
+fn optimize_run(run: &[Statement], full_block: &Vec<Statement>) -> error::Result<Vec<Statement>> {
     let mut result = Vec::new();
     result.extend(run.iter().cloned());
 

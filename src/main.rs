@@ -1,4 +1,9 @@
+#![recursion_limit = "1024"]
+
 extern crate lalrpop_util;
+
+#[macro_use]
+extern crate error_chain;
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 mod grammar;
@@ -12,6 +17,8 @@ mod llir_opt;
 mod code;
 mod code_gen;
 mod code_opt;
+mod compiler;
+mod error;
 
 fn main() {
     /*let program = "
@@ -52,67 +59,33 @@ fn main() {
         end
     ";
 
-    let ast = match ast::Expression::parse(program) {
-        Ok(ast) => ast,
-        Err(errors) => {
-            println!("Syntax error(s): {:#?}", errors);
-            return;
+    match compiler::compile(program, true, true) {
+        Ok(compiler_output) => {
+            println!("AST: {:#?}", compiler_output.ast);
+            println!("\n\n\n\nIR: {:#?}", compiler_output.ir);
+            println!("\n\n\n\nLLIR: {:#?}", compiler_output.llir);
+            println!("\n\n\n\nOPTIMIZED LLIR: {:#?}", compiler_output.llir_opt);
+            println!("\n\n\n\nCODE: {:#?}", compiler_output.code);
+            println!("\n\n\n\nOPTIMIZED: {:#?}", compiler_output.code_opt);
+            let unoptimized_count = compiler_output
+                .code
+                .unwrap()
+                .iter()
+                .map(|b| b.body.len())
+                .fold(0, |acc, n| acc + n) as isize;
+            let optimized_count = compiler_output
+                .code_opt
+                .unwrap()
+                .iter()
+                .map(|b| b.body.len())
+                .fold(0, |acc, n| acc + n) as isize;
+            println!(
+                "Removed {} instructions",
+                unoptimized_count - optimized_count
+            );
         }
-    };
-    println!("AST: {:#?}", ast);
-
-    let ir = match ir_gen::generate_ir(&ast) {
-        Ok(ir) => ir,
-        Err(_) => {
-            println!("Failed to generate IR");
-            return;
+        Err(error) => {
+            println!("{:#?}", error);
         }
-    };
-    println!("\n\n\n\nIR: {:#?}", ir);
-
-    let llir = match llir_gen::generate_llir(&ir) {
-        Ok(llir) => llir,
-        Err(_) => {
-            println!("Failed to generate LLIR");
-            return;
-        }
-    };
-    println!("\n\n\n\nLLIR: {:#?}", llir);
-
-    let optimized_llir = match llir_opt::optimize_llir(&llir) {
-        Ok(llir) => llir,
-        Err(_) => {
-            println!("Failed to optimize LLIR");
-            return;
-        }
-    };
-    println!("\n\n\n\nOPTIMIZED LLIR: {:#?}", optimized_llir);
-
-    let code = match code_gen::generate_code(&optimized_llir) {
-        Ok(code) => code,
-        Err(_) => {
-            println!("Failed to generate code");
-            return;
-        }
-    };
-    println!("\n\n\n\nCODE: {:#?}", code);
-
-    let optimized = match code_opt::optimize_code(&code) {
-        Ok(opt) => opt,
-        Err(_) => {
-            println!("Failed to optimize code");
-            return;
-        }
-    };
-    println!("\n\n\n\nOPTIMIZED: {:#?}", optimized);
-
-    let unoptimized_count = code.iter().map(|b| b.body.len()).fold(0, |acc, n| acc + n) as isize;
-    let optimized_count = optimized
-        .iter()
-        .map(|b| b.body.len())
-        .fold(0, |acc, n| acc + n) as isize;
-    println!(
-        "Removed {} instructions",
-        unoptimized_count - optimized_count
-    );
+    }
 }

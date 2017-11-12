@@ -1,11 +1,12 @@
 use llir;
 use code;
+use error;
 
 pub const DATA_STACK_POINTER_LOCATION: u16 = 0x0000;
 const RETURN_LOCATION_LO: u16 = 0x0001;
 const RETURN_LOCATION_HI: u16 = 0x0002;
 
-pub fn generate_code(input: &Vec<llir::Block>) -> Result<Vec<code::CodeBlock>, ()> {
+pub fn generate_code(input: &Vec<llir::Block>) -> error::Result<Vec<code::CodeBlock>> {
     let mut code_blocks = Vec::new();
     for llir_block in input {
         let mut code_block = code::CodeBlock::new(
@@ -21,7 +22,7 @@ pub fn generate_code(input: &Vec<llir::Block>) -> Result<Vec<code::CodeBlock>, (
     Ok(code_blocks)
 }
 
-fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> Result<Vec<code::Code>, ()> {
+fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> error::Result<Vec<code::Code>> {
     use code::{Code, Global, Parameter};
 
     let mut body = Vec::new();
@@ -66,7 +67,7 @@ fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> Res
     Ok(body)
 }
 
-fn lookup_frame_size(blocks: &Vec<llir::Block>, name: &String) -> Result<i8, ()> {
+fn lookup_frame_size(blocks: &Vec<llir::Block>, name: &String) -> error::Result<i8> {
     for block in blocks {
         if block.name.is_some() && block.name.as_ref().unwrap() == name {
             return Ok(block.frame_size);
@@ -81,7 +82,7 @@ fn generate_store(
     blocks: &Vec<llir::Block>,
     dest: &llir::Location,
     value: &llir::Value,
-) -> Result<(), ()> {
+) -> error::Result<()> {
     load_into_accum(body, blocks, value)?;
     store_accum(body, blocks, dest)?;
     Ok(())
@@ -93,7 +94,7 @@ fn generate_add(
     dest: &llir::Location,
     left: &llir::Value,
     right: &llir::Value,
-) -> Result<(), ()> {
+) -> error::Result<()> {
     use code::{Code, Parameter};
     load_into_accum(body, blocks, left)?;
     match *right {
@@ -111,7 +112,7 @@ fn generate_add(
     Ok(())
 }
 
-fn load_stack_pointer_if_necessary(body: &mut Vec<code::Code>, location: &llir::Location) -> Result<(), ()> {
+fn load_stack_pointer_if_necessary(body: &mut Vec<code::Code>, location: &llir::Location) -> error::Result<()> {
     use code::Code;
     match *location {
         llir::Location::DataStackOffset(_) | llir::Location::FrameOffset(_, _) => {
@@ -122,7 +123,7 @@ fn load_stack_pointer_if_necessary(body: &mut Vec<code::Code>, location: &llir::
     Ok(())
 }
 
-fn location_to_parameter(blocks: &Vec<llir::Block>, location: &llir::Location) -> Result<code::Parameter, ()> {
+fn location_to_parameter(blocks: &Vec<llir::Block>, location: &llir::Location) -> error::Result<code::Parameter> {
     use code::Parameter;
     match *location {
         llir::Location::Global(addr) => Ok(addr_param(addr)),
@@ -137,14 +138,14 @@ fn location_to_parameter(blocks: &Vec<llir::Block>, location: &llir::Location) -
     }
 }
 
-fn store_accum(body: &mut Vec<code::Code>, blocks: &Vec<llir::Block>, location: &llir::Location) -> Result<(), ()> {
+fn store_accum(body: &mut Vec<code::Code>, blocks: &Vec<llir::Block>, location: &llir::Location) -> error::Result<()> {
     use code::Code;
     load_stack_pointer_if_necessary(body, location)?;
     body.push(Code::Sta(location_to_parameter(blocks, location)?));
     Ok(())
 }
 
-fn load_into_accum(body: &mut Vec<code::Code>, blocks: &Vec<llir::Block>, value: &llir::Value) -> Result<(), ()> {
+fn load_into_accum(body: &mut Vec<code::Code>, blocks: &Vec<llir::Block>, value: &llir::Value) -> error::Result<()> {
     use code::{Code, Parameter};
     match *value {
         llir::Value::Immediate(val) => {

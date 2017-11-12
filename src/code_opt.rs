@@ -1,7 +1,8 @@
 use code::{Code, CodeBlock, Global, Parameter};
 use code_gen::DATA_STACK_POINTER_LOCATION;
+use error;
 
-pub fn optimize_code(code: &Vec<CodeBlock>) -> Result<Vec<CodeBlock>, ()> {
+pub fn optimize_code(code: &Vec<CodeBlock>) -> error::Result<Vec<CodeBlock>> {
     let mut result = Vec::new();
     for code_block in code {
         result.push(optimize_code_block(code_block)?);
@@ -9,7 +10,7 @@ pub fn optimize_code(code: &Vec<CodeBlock>) -> Result<Vec<CodeBlock>, ()> {
     Ok(result)
 }
 
-fn optimize_code_block(code_block: &CodeBlock) -> Result<CodeBlock, ()> {
+fn optimize_code_block(code_block: &CodeBlock) -> error::Result<CodeBlock> {
     let mut optimized = code_block.clone();
     optimized.body.clear();
 
@@ -31,7 +32,7 @@ fn optimize_code_block(code_block: &CodeBlock) -> Result<CodeBlock, ()> {
     Ok(optimized)
 }
 
-fn optimize_run(run: &[Code]) -> Result<Vec<Code>, ()> {
+fn optimize_run(run: &[Code]) -> error::Result<Vec<Code>> {
     let mut result = Vec::new();
     result.extend(run.iter().cloned());
 

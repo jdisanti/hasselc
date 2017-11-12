@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-use std::rc::Rc;
-use std::cell::RefCell;
+use std::sync::{Arc, RwLock};
 use ast::{BinaryOperator, Literal, NameType, Type};
 
 #[derive(Eq, PartialEq, Hash, Debug, Clone)]
@@ -13,7 +12,7 @@ pub enum Location {
     FrameOffset(i8),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionMetadata {
     pub name: String,
     pub location: Option<Location>,
@@ -22,11 +21,11 @@ pub struct FunctionMetadata {
     pub frame_size: i8,
 }
 
-pub type FunctionMetadataPtr = Rc<RefCell<FunctionMetadata>>;
+pub type FunctionMetadataPtr = Arc<RwLock<FunctionMetadata>>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SymbolTable {
-    parent: Option<Rc<RefCell<SymbolTable>>>,
+    parent: Option<Arc<RwLock<SymbolTable>>>,
     pub constants: HashMap<SymbolRef, Literal>,
     pub functions: HashMap<SymbolRef, FunctionMetadataPtr>,
     pub variables: HashMap<SymbolRef, (Type, Location)>,
@@ -44,7 +43,7 @@ impl SymbolTable {
         }
     }
 
-    pub fn new_from_parent(parent: Rc<RefCell<SymbolTable>>) -> SymbolTable {
+    pub fn new_from_parent(parent: Arc<RwLock<SymbolTable>>) -> SymbolTable {
         let mut symbol_table = SymbolTable::new();
         symbol_table.parent = Some(parent);
         symbol_table
@@ -76,7 +75,7 @@ impl SymbolTable {
         if function.is_some() {
             function.map(|f| f.clone())
         } else if let &Some(ref parent) = &self.parent {
-            parent.borrow().function(symbol_ref)
+            parent.read().unwrap().function(symbol_ref)
         } else {
             None
         }
@@ -87,14 +86,14 @@ impl SymbolTable {
         if variable.is_some() {
             variable.map(|v| *v)
         } else if let &Some(ref parent) = &self.parent {
-            parent.borrow().variable(symbol_ref)
+            parent.read().unwrap().variable(symbol_ref)
         } else {
             None
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Number(i32),
     Symbol(SymbolRef),
@@ -109,7 +108,7 @@ pub enum Expr {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Statement {
     Assign { symbol: SymbolRef, value: Expr },
     Break,
@@ -121,23 +120,23 @@ pub enum Statement {
 }
 
 // Intermediate representation
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum IR {
     AnonymousBlock {
-        symbol_table: Rc<RefCell<SymbolTable>>,
+        symbol_table: Arc<RwLock<SymbolTable>>,
         location: Option<Location>,
         body: Vec<Statement>,
     },
     FunctionBlock {
         location: Option<Location>,
-        local_symbols: Rc<RefCell<SymbolTable>>,
+        local_symbols: Arc<RwLock<SymbolTable>>,
         body: Vec<Statement>,
         metadata: FunctionMetadataPtr,
     },
 }
 
 impl IR {
-    pub fn new_anonymous_block(global_symbol_table: Rc<RefCell<SymbolTable>>) -> IR {
+    pub fn new_anonymous_block(global_symbol_table: Arc<RwLock<SymbolTable>>) -> IR {
         IR::AnonymousBlock {
             symbol_table: global_symbol_table,
             location: None,
@@ -146,14 +145,14 @@ impl IR {
     }
 
     pub fn new_function_block(
-        parent_symbol_table: Rc<RefCell<SymbolTable>>,
+        parent_symbol_table: Arc<RwLock<SymbolTable>>,
         location: Option<Location>,
         metadata: FunctionMetadataPtr,
     ) -> IR {
         let mut symbol_table = SymbolTable::new_from_parent(parent_symbol_table);
 
         let mut frame_offset = 0i8;
-        for parameter in &metadata.borrow().parameters {
+        for parameter in &metadata.read().unwrap().parameters {
             symbol_table.variables.insert(
                 SymbolRef(parameter.name.clone()),
                 (parameter.type_name, Location::FrameOffset(frame_offset)),
@@ -164,7 +163,7 @@ impl IR {
 
         IR::FunctionBlock {
             location: location,
-            local_symbols: Rc::new(RefCell::new(symbol_table)),
+            local_symbols: Arc::new(RwLock::new(symbol_table)),
             body: Vec::new(),
             metadata: metadata,
         }
@@ -177,7 +176,7 @@ impl IR {
         }
     }
 
-    pub fn symbol_table(&mut self) -> Rc<RefCell<SymbolTable>> {
+    pub fn symbol_table(&mut self) -> Arc<RwLock<SymbolTable>> {
         match self {
             &mut IR::AnonymousBlock { .. } => unreachable!(),
             &mut IR::FunctionBlock {

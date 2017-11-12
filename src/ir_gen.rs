@@ -1,10 +1,10 @@
-use std::rc::Rc;
-use std::cell::RefCell;
+use std::sync::{Arc, RwLock};
 use ast;
 use ir;
+use error;
 
-pub fn generate_ir(input: &Vec<ast::Expression>) -> Result<Vec<ir::IR>, ()> {
-    let global_symbol_table = Rc::new(RefCell::new(ir::SymbolTable::new()));
+pub fn generate_ir(input: &Vec<ast::Expression>) -> error::Result<Vec<ir::IR>> {
+    let global_symbol_table = Arc::new(RwLock::new(ir::SymbolTable::new()));
     let mut blocks: Vec<ir::IR> = vec![ir::IR::new_anonymous_block(global_symbol_table.clone())];
 
     for ast_expr in input {
@@ -22,7 +22,7 @@ pub fn generate_ir(input: &Vec<ast::Expression>) -> Result<Vec<ir::IR>, ()> {
                 }
 
                 // TODO: error if global symbol table already has this name
-                let metadata = Rc::new(RefCell::new(ir::FunctionMetadata {
+                let metadata = Arc::new(RwLock::new(ir::FunctionMetadata {
                     name: name.clone(),
                     location: location,
                     parameters: parameters.clone(),
@@ -32,12 +32,13 @@ pub fn generate_ir(input: &Vec<ast::Expression>) -> Result<Vec<ir::IR>, ()> {
 
                 let mut function = ir::IR::new_function_block(global_symbol_table.clone(), location, metadata.clone());
                 global_symbol_table
-                    .borrow_mut()
+                    .write()
+                    .unwrap()
                     .functions
                     .insert(ir::SymbolRef(name.clone()), metadata.clone());
 
                 let symbol_table = function.symbol_table();
-                let body_ir = generate_statement_irs(&mut *symbol_table.borrow_mut(), body)?;
+                let body_ir = generate_statement_irs(&mut *symbol_table.write().unwrap(), body)?;
                 function.body_mut().extend(body_ir);
                 blocks.push(function);
             }
@@ -53,7 +54,7 @@ pub fn generate_ir(input: &Vec<ast::Expression>) -> Result<Vec<ir::IR>, ()> {
             ast::Expression::Number(_) => unreachable!("number"),
             ast::Expression::Name(_) => unreachable!("name"),
             _ => {
-                let stmt = generate_statement_ir(&mut *global_symbol_table.borrow_mut(), ast_expr)?;
+                let stmt = generate_statement_ir(&mut *global_symbol_table.write().unwrap(), ast_expr)?;
                 blocks.last_mut().unwrap().body_mut().extend(stmt);
             }
         }
@@ -65,7 +66,7 @@ pub fn generate_ir(input: &Vec<ast::Expression>) -> Result<Vec<ir::IR>, ()> {
 fn generate_statement_irs(
     symbol_table: &mut ir::SymbolTable,
     input: &Vec<ast::Expression>,
-) -> Result<Vec<ir::Statement>, ()> {
+) -> error::Result<Vec<ir::Statement>> {
     let mut statements: Vec<ir::Statement> = vec![];
 
     for ast_expr in input {
@@ -78,7 +79,7 @@ fn generate_statement_irs(
 fn generate_statement_ir(
     symbol_table: &mut ir::SymbolTable,
     input: &ast::Expression,
-) -> Result<Vec<ir::Statement>, ()> {
+) -> error::Result<Vec<ir::Statement>> {
     let mut statements: Vec<ir::Statement> = vec![];
     match *input {
         ast::Expression::Assignment {
