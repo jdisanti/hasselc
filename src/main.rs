@@ -6,23 +6,39 @@ mod ir;
 mod ir_gen;
 mod llir;
 mod llir_gen;
+mod code;
+mod code_gen;
 
 fn main() {
     let program = "
-        org 0xC000;
-        main(); # call main
+        # Declare stack frame locations
+        register data_stack_pointer: u8 @ 0x0000;
 
-        def test(a: u8, b: u8): u8
-            var c: u8 = a + b;
-            return c;
+        # Initialize the stack
+        org 0xC000;
+        data_stack_pointer = 3;
+
+        test(3);
+
+        def test(a: u8): u8
+            var foo: u8 = 10 + a;
+            return 4 + a + foo;
         end
+
+        # Call main
+        #main();
+
+        #def test(a: u8, b: u8): u8
+        #    var c: u8 = a + b;
+        #    return c;
+        #end
 
         # Our main function!
-        def main(): void
-            var my_var: u8 = 1;
-            my_var = test(42, 10);
-            #my_var = test(my_var, test(my_var, 12));
-        end
+        #def main(): void
+        #    var my_var: u8 = 1;
+        #    my_var = test(42, 10);
+        #    #my_var = test(my_var, test(my_var, 12));
+        #end
     ";
 
     let ast = match ast::Expression::parse(program) {
@@ -51,4 +67,13 @@ fn main() {
         }
     };
     println!("\n\n\n\nLLIR: {:#?}", llir);
+    
+    let code = match code_gen::generate_code(&llir) {
+        Ok(code) => code,
+        Err(_) => {
+            println!("Failed to generate code");
+            return;
+        }
+    };
+    println!("\n\n\n\nCODE: {:#?}", code);
 }

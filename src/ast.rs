@@ -79,6 +79,10 @@ pub enum Expression {
         name_type: NameType,
         value: Box<Expression>,
     },
+    DeclareRegister {
+        name_type: NameType,
+        location: i32,
+    },
     LeftShift(String),
     RotateLeft(String),
     RotateRight(String),

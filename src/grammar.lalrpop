@@ -146,6 +146,10 @@ StatementList: Vec<Expression> = {
 
 TopLevelStatement: Box<Expression> = {
     "org" <n:Number> ";" => Box::new(Expression::Org { org: n }),
+    "register" <nt:NameType> "@" <l:Number> ";" => Box::new(Expression::DeclareRegister {
+        name_type: nt,
+        location: l,
+    }),
     "def" <n:Name> "(" ")" ":" <rt:Type> <b:StatementList> "end" => Box::new(Expression::DeclareFunction {
         name: n,
         parameters: Vec::new(),

@@ -10,23 +10,27 @@ pub struct SymbolRef(pub String);
 pub enum Location {
     UndeterminedGlobal,
     Global(u16),
-    StackOffset(u8),
+    FrameOffset(i8),
 }
 
 #[derive(Debug)]
 pub struct FunctionMetadata {
+    pub name: String,
     pub location: Option<Location>,
     pub parameters: Vec<NameType>,
     pub return_type: Type,
+    pub frame_size: i8,
 }
+
+pub type FunctionMetadataPtr = Rc<RefCell<FunctionMetadata>>;
 
 #[derive(Debug)]
 pub struct SymbolTable {
     parent: Option<Rc<RefCell<SymbolTable>>>,
     pub constants: HashMap<SymbolRef, Literal>,
-    pub functions: HashMap<SymbolRef, Rc<FunctionMetadata>>,
+    pub functions: HashMap<SymbolRef, FunctionMetadataPtr>,
     pub variables: HashMap<SymbolRef, (Type, Location)>,
-    next_local_stack_offset: u8,
+    next_frame_offset: i8,
 }
 
 impl SymbolTable {
@@ -36,7 +40,7 @@ impl SymbolTable {
             constants: HashMap::new(),
             functions: HashMap::new(),
             variables: HashMap::new(),
-            next_local_stack_offset: 0,
+            next_frame_offset: 0,
         }
     }
 
@@ -46,16 +50,16 @@ impl SymbolTable {
         symbol_table
     }
 
-    pub fn next_local_stack_offset(&mut self, local_size: usize) -> u8 {
-        let result = self.next_local_stack_offset;
-        self.next_local_stack_offset += local_size as u8;
+    pub fn next_frame_offset(&mut self, local_size: usize) -> i8 {
+        let result = self.next_frame_offset;
+        self.next_frame_offset += local_size as i8;
         result
     }
 
     pub fn create_temporary(&mut self, typ: Type) -> SymbolRef {
-        let next_location = self.next_local_stack_offset(typ.size());
+        let next_location = self.next_frame_offset(typ.size());
         let symbol_ref = SymbolRef(format!("tmp#{}", next_location));
-        self.variables.insert(symbol_ref.clone(), (typ, Location::StackOffset(next_location)));
+        self.variables.insert(symbol_ref.clone(), (typ, Location::FrameOffset(next_location)));
         symbol_ref
     } 
 
@@ -68,7 +72,7 @@ impl SymbolTable {
         self.parent.clone()
     }
 
-    pub fn function(&self, symbol_ref: &SymbolRef) -> Option<Rc<FunctionMetadata>> {
+    pub fn function(&self, symbol_ref: &SymbolRef) -> Option<FunctionMetadataPtr> {
         let function = self.functions.get(symbol_ref);
         if function.is_some() {
             function.map(|f| f.clone())
@@ -130,10 +134,9 @@ pub enum IR {
     },
     FunctionBlock {
         location: Option<Location>,
-        name: String,
         local_symbols: Rc<RefCell<SymbolTable>>,
         body: Vec<Statement>,
-        return_type: Type,
+        metadata: FunctionMetadataPtr,
     }
 }
 
@@ -147,21 +150,22 @@ impl IR {
     }
 
     pub fn new_function_block(parent_symbol_table: Rc<RefCell<SymbolTable>>,
-            name: String, parameters: Vec<NameType>, return_type: Type) -> IR {
+            location: Option<Location>, metadata: FunctionMetadataPtr) -> IR {
         let mut symbol_table = SymbolTable::new_from_parent(parent_symbol_table);
 
-        for parameter in &parameters {
-            let next_location = symbol_table.next_local_stack_offset(parameter.type_name.size());
+        let mut frame_offset = 0i8;
+        for parameter in &metadata.borrow().parameters {
             symbol_table.variables.insert(SymbolRef(parameter.name.clone()),
-                (parameter.type_name, Location::StackOffset(next_location)));
+                (parameter.type_name, Location::FrameOffset(frame_offset)));
+            frame_offset += parameter.type_name.size() as i8;
         }
+        symbol_table.next_frame_offset = frame_offset;
 
         IR::FunctionBlock {
-            location: None,
-            name: name,
+            location: location,
             local_symbols: Rc::new(RefCell::new(symbol_table)),
             body: Vec::new(),
-            return_type: return_type,
+            metadata: metadata,
         }
     }
 

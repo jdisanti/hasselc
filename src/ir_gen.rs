@@ -10,30 +10,28 @@ pub fn generate_ir(input: &Vec<ast::Expression>) -> Result<Vec<ir::IR>, ()> {
     for ast_expr in input {
         match *ast_expr {
             ast::Expression::DeclareFunction { ref name, ref parameters, ref return_type, ref body } => {
-                let mut function = ir::IR::new_function_block(global_symbol_table.clone(),
-                    name.clone(), parameters.clone(), return_type.clone());
-
-
+                let mut location = None;
                 if blocks.last_mut().unwrap().is_empty_anonymous() {
                     let old_block = blocks.pop().unwrap();
-                    if let &Some(ref location) = old_block.location() {
-                        function.set_location(*location);
-                    }
+                    location = *old_block.location();
                 }
 
                 // TODO: error if global symbol table already has this name
-                let metadata = ir::FunctionMetadata {
-                    location: *function.location(),
+                let metadata = Rc::new(RefCell::new(ir::FunctionMetadata {
+                    name: name.clone(),
+                    location: location,
                     parameters: parameters.clone(),
                     return_type: return_type.clone(),
-                };
-                global_symbol_table.borrow_mut().functions.insert(ir::SymbolRef(name.clone()), Rc::new(metadata));
+                    frame_size: 127, // 127 is an intentional non-sensical value
+                }));
+
+                let mut function = ir::IR::new_function_block(global_symbol_table.clone(), location, metadata.clone());
+                global_symbol_table.borrow_mut().functions.insert(ir::SymbolRef(name.clone()), metadata.clone());
 
                 let symbol_table = function.symbol_table();
                 let body_ir = generate_statement_irs(&mut *symbol_table.borrow_mut(), body)?;
                 function.body_mut().extend(body_ir);
                 blocks.push(function);
-
             },
             ast::Expression::Org { ref org } => {
                 blocks.last_mut().unwrap().set_location(ir::Location::Global(*org as u16));
@@ -97,14 +95,23 @@ fn generate_statement_ir(symbol_table: &mut ir::SymbolTable, input: &ast::Expres
                 // TODO: duplicate symbol error
                 unimplemented!()
             }
-            let next_location = symbol_table.next_local_stack_offset(name_type.type_name.size());
+            let next_location = symbol_table.next_frame_offset(name_type.type_name.size());
             symbol_table.variables.insert(symbol_ref.clone(),
-                (name_type.type_name, ir::Location::StackOffset(next_location)));
+                (name_type.type_name, ir::Location::FrameOffset(next_location as i8)));
             let assignment = ir::Statement::Assign {
                 symbol: symbol_ref,
                 value: generate_expression(value),
             };
             statements.push(assignment);
+        },
+        ast::Expression::DeclareRegister { ref name_type, location } => {
+            let symbol_ref = ir::SymbolRef(name_type.name.clone());
+            if symbol_table.variable(&symbol_ref).is_some() {
+                // TODO: duplicate symbol error
+                unimplemented!()
+            }
+            symbol_table.variables.insert(symbol_ref,
+                (name_type.type_name, ir::Location::Global(location as u16)));
         },
         ast::Expression::LeftShift(ref name) => {
             // TODO
