@@ -1,10 +1,11 @@
 use std::fmt;
+use std::sync::Arc;
 
 #[derive(Clone, Eq, PartialEq)]
 pub enum Global {
     Resolved(u16),
     UnresolvedBlock,
-    UnresolvedName(String),
+    UnresolvedName(Arc<String>),
 }
 
 impl fmt::Debug for Global {
@@ -119,12 +120,12 @@ impl fmt::Debug for Code {
 #[derive(Clone)]
 pub struct CodeBlock {
     pub location: Global,
-    pub name: Option<String>,
+    pub name: Option<Arc<String>>,
     pub body: Vec<Code>,
 }
 
 impl CodeBlock {
-    pub fn new(name: Option<String>, location: Option<u16>) -> CodeBlock {
+    pub fn new(name: Option<Arc<String>>, location: Option<u16>) -> CodeBlock {
         CodeBlock {
             location: match location {
                 Some(val) => Global::Resolved(val),

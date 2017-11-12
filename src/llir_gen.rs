@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use ast;
 use llir;
 use ir;
@@ -43,7 +44,7 @@ pub fn generate_llir(input: &Vec<ir::IR>) -> error::Result<Vec<llir::Block>> {
                         _ => unreachable!(),
                     },
                 );
-                block.statements = generate_body(&mut *local_symbols.write().unwrap(), Some(&name), body)?;
+                block.statements = generate_body(&mut *local_symbols.write().unwrap(), Some(name), body)?;
                 block.frame_size = calculate_frame_size(&*local_symbols.read().unwrap());
                 blocks.push(block);
             }
@@ -62,7 +63,7 @@ fn calculate_frame_size(symbol_table: &ir::SymbolTable) -> i8 {
 
 fn generate_body(
     symbol_table: &mut ir::SymbolTable,
-    frame: Option<&String>,
+    frame: Option<Arc<String>>,
     input: &Vec<ir::Statement>,
 ) -> error::Result<Vec<llir::Statement>> {
     let mut statements = Vec::new();
@@ -71,7 +72,7 @@ fn generate_body(
             ir::Statement::Call(ref expr) => {
                 drop(resolve_expr_to_value(
                     &mut statements,
-                    frame,
+                    frame.clone(),
                     symbol_table,
                     expr,
                 )?);
@@ -81,9 +82,9 @@ fn generate_body(
                 ref value,
             } => {
                 if let Some((ref _typ, ref location)) = symbol_table.variable(symbol) {
-                    let resolved_value = resolve_expr_to_value(&mut statements, frame, symbol_table, value)?;
+                    let resolved_value = resolve_expr_to_value(&mut statements, frame.clone(), symbol_table, value)?;
                     statements.push(llir::Statement::Store {
-                        dest: convert_location(frame, location),
+                        dest: convert_location(frame.clone(), location),
                         value: resolved_value,
                     });
                 } else {
@@ -92,7 +93,7 @@ fn generate_body(
                 }
             }
             ir::Statement::Return(ref expr) => {
-                let value = resolve_expr_to_value(&mut statements, frame, symbol_table, expr)?;
+                let value = resolve_expr_to_value(&mut statements, frame.clone(), symbol_table, expr)?;
                 // TODO: 16-bit values
                 statements.push(llir::Statement::Store {
                     dest: RETURN_LOCATION_LO,
@@ -108,7 +109,7 @@ fn generate_body(
 
 fn resolve_expr_to_value(
     statements: &mut Vec<llir::Statement>,
-    frame: Option<&String>,
+    frame: Option<Arc<String>>,
     symbol_table: &mut ir::SymbolTable,
     expr: &ir::Expr,
 ) -> error::Result<llir::Value> {
@@ -116,7 +117,9 @@ fn resolve_expr_to_value(
         ir::Expr::Number(num) => Ok(llir::Value::Immediate(num as u8)),
         ir::Expr::Symbol(ref sref) => {
             if let Some((_, ref sym_loc)) = symbol_table.variable(sref) {
-                Ok(llir::Value::Memory(convert_location(frame, sym_loc)))
+                Ok(llir::Value::Memory(
+                    convert_location(frame.clone(), sym_loc),
+                ))
             } else {
                 // TODO: error: could not resolve variable
                 unimplemented!()
@@ -128,11 +131,11 @@ fn resolve_expr_to_value(
             ref right,
         } => {
             let dest = convert_location(
-                frame,
+                frame.clone(),
                 &symbol_table.create_temporary_location(ast::Type::U8),
             );
-            let left_value = resolve_expr_to_value(statements, frame, symbol_table, &**left)?;
-            let right_value = resolve_expr_to_value(statements, frame, symbol_table, &**right)?;
+            let left_value = resolve_expr_to_value(statements, frame.clone(), symbol_table, &**left)?;
+            let right_value = resolve_expr_to_value(statements, frame.clone(), symbol_table, &**right)?;
             match *op {
                 ast::BinaryOperator::Add => {
                     statements.push(llir::Statement::Add {
@@ -168,7 +171,7 @@ fn resolve_expr_to_value(
                 for argument in arguments {
                     argument_values.push(resolve_expr_to_value(
                         statements,
-                        frame,
+                        frame.clone(),
                         symbol_table,
                         argument,
                     )?)
@@ -181,7 +184,7 @@ fn resolve_expr_to_value(
                     for (i, argument_value) in argument_values.into_iter().enumerate() {
                         statements.push(llir::Statement::Store {
                             dest: llir::Location::FrameOffset(metadata.name.clone(), frame_offset),
-                            value: offset_call(&metadata.name, argument_value),
+                            value: offset_call(metadata.name.clone(), argument_value),
                         });
                         let name_type = &metadata.parameters[i];
                         frame_offset += name_type.type_name.size() as i8;
@@ -207,11 +210,11 @@ fn resolve_expr_to_value(
     }
 }
 
-fn offset_call(calling_frame: &String, value: llir::Value) -> llir::Value {
+fn offset_call(calling_frame: Arc<String>, value: llir::Value) -> llir::Value {
     match value {
         llir::Value::Memory(location) => llir::Value::Memory(match location {
             llir::Location::FrameOffset(frame, offset) => {
-                llir::Location::FrameOffsetBeforeCall(frame, calling_frame.clone(), offset)
+                llir::Location::FrameOffsetBeforeCall(frame, calling_frame, offset)
             }
             _ => location,
         }),
@@ -219,7 +222,7 @@ fn offset_call(calling_frame: &String, value: llir::Value) -> llir::Value {
     }
 }
 
-fn convert_location(frame: Option<&String>, input: &ir::Location) -> llir::Location {
+fn convert_location(frame: Option<Arc<String>>, input: &ir::Location) -> llir::Location {
     let location = match *input {
         ir::Location::UndeterminedGlobal => unreachable!(),
         ir::Location::Global(addr) => llir::Location::Global(addr),

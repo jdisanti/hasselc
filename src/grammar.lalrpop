@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::sync::Arc;
 use ast::{BinaryOperator, Expression, Literal, NameType, Type};
 use lalrpop_util::ErrorRecovery;
 
@@ -21,11 +22,11 @@ Number: i32 = {
     <s:r"0x[0-9A-Fa-f]+"> => i32::from_str_radix(&s[2..], 16).unwrap(),
 };
 
-Str: String = {
+Str: Arc<String> = {
     r"\x22(?:[^\x22\\]|\\.)*\x22" => {
         let val = <>;
         let len = val.len();
-        String::from_str(&val[1..len-1]).unwrap()
+        Arc::new(String::from_str(&val[1..len-1]).unwrap())
     }
 };
 
@@ -34,8 +35,8 @@ Literal: Literal = {
     Str => Literal::Str(<>),
 };
 
-Name: String = {
-    r"[a-zA-Z_][\w]*" => String::from_str(<>).unwrap()
+Name: Arc<String> = {
+    r"[a-zA-Z_][\w]*" => Arc::new(String::from_str(<>).unwrap())
 };
 
 Type: Type = {
@@ -88,7 +89,7 @@ FactorOp: BinaryOperator = {
 
 Term: Box<Expression> = {
     Number => Box::new(Expression::Number(<>)),
-    Name => Box::new(Expression::Name(String::from(<>))),
+    Name => Box::new(Expression::Name(<>)),
     "(" <Expression> ")",
 };
 

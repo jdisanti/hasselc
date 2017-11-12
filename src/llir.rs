@@ -1,4 +1,5 @@
 use std::fmt;
+use std::sync::Arc;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Index {
@@ -9,13 +10,13 @@ pub enum Index {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Location {
     DataStackOffset(i8),
-    FrameOffset(String, i8),
-    FrameOffsetBeforeCall(String, String, i8),
+    FrameOffset(Arc<String>, i8),
+    FrameOffsetBeforeCall(Arc<String>, Arc<String>, i8),
     Global(u16),
     GlobalIndexed(u16, Index),
     UnresolvedBlock,
-    UnresolvedGlobal(String),
-    UnresolvedGlobalIndexed(String, Index),
+    UnresolvedGlobal(Arc<String>),
+    UnresolvedGlobalIndexed(Arc<String>, Index),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -27,8 +28,8 @@ pub enum Value {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum SPOffset {
     Immediate(i8),
-    FrameSize(String),
-    NegativeFrameSize(String),
+    FrameSize(Arc<String>),
+    NegativeFrameSize(Arc<String>),
 }
 
 #[derive(Clone, Eq, PartialEq)]
@@ -90,13 +91,13 @@ impl fmt::Debug for Statement {
 #[derive(Debug, Clone)]
 pub struct Block {
     pub location: Location,
-    pub name: Option<String>,
+    pub name: Option<Arc<String>>,
     pub statements: Vec<Statement>,
     pub frame_size: i8,
 }
 
 impl Block {
-    pub fn new(name: Option<String>, location: Location) -> Block {
+    pub fn new(name: Option<Arc<String>>, location: Location) -> Block {
         Block {
             location: location,
             name: name,

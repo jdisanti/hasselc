@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use llir;
 use code;
 use error;
@@ -33,8 +34,8 @@ fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> err
                 body.push(Code::Clc(Parameter::Implicit));
                 body.push(Code::Adc(Parameter::Immediate(match *val {
                     llir::SPOffset::Immediate(val) => val as u8,
-                    llir::SPOffset::FrameSize(ref name) => lookup_frame_size(blocks, name)? as u8,
-                    llir::SPOffset::NegativeFrameSize(ref name) => -lookup_frame_size(blocks, name)? as u8,
+                    llir::SPOffset::FrameSize(ref name) => lookup_frame_size(blocks, name.clone())? as u8,
+                    llir::SPOffset::NegativeFrameSize(ref name) => -lookup_frame_size(blocks, name.clone())? as u8,
                 })));
                 body.push(Code::Sta(addr_param(DATA_STACK_POINTER_LOCATION)));
             }
@@ -67,9 +68,9 @@ fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> err
     Ok(body)
 }
 
-fn lookup_frame_size(blocks: &Vec<llir::Block>, name: &String) -> error::Result<i8> {
+fn lookup_frame_size(blocks: &Vec<llir::Block>, name: Arc<String>) -> error::Result<i8> {
     for block in blocks {
-        if block.name.is_some() && block.name.as_ref().unwrap() == name {
+        if block.name.is_some() && block.name.as_ref().unwrap() == &name {
             return Ok(block.frame_size);
         }
     }
@@ -129,7 +130,7 @@ fn location_to_parameter(blocks: &Vec<llir::Block>, location: &llir::Location) -
         llir::Location::Global(addr) => Ok(addr_param(addr)),
         llir::Location::DataStackOffset(offset) => Ok(Parameter::ZeroPageX(offset)),
         llir::Location::FrameOffset(ref frame, offset) => Ok(Parameter::ZeroPageX(
-            offset - lookup_frame_size(blocks, frame)?,
+            offset - lookup_frame_size(blocks, frame.clone())?,
         )),
         _ => {
             println!("WARN: Unimplemented location_to_parameter: {:?}", location);
@@ -162,12 +163,12 @@ fn load_into_accum(body: &mut Vec<code::Code>, blocks: &Vec<llir::Block>, value:
             llir::Location::FrameOffset(ref frame, offset) => {
                 body.push(Code::Ldx(addr_param(DATA_STACK_POINTER_LOCATION)));
                 body.push(Code::Lda(Parameter::ZeroPageX(
-                    offset - lookup_frame_size(blocks, frame)?,
+                    offset - lookup_frame_size(blocks, frame.clone())?,
                 )));
             }
             llir::Location::FrameOffsetBeforeCall(ref original_frame, ref calling_frame, offset) => {
-                let original_frame_size = lookup_frame_size(blocks, original_frame)?;
-                let call_to_frame_size = lookup_frame_size(blocks, calling_frame)?;
+                let original_frame_size = lookup_frame_size(blocks, original_frame.clone())?;
+                let call_to_frame_size = lookup_frame_size(blocks, calling_frame.clone())?;
                 body.push(Code::Ldx(addr_param(DATA_STACK_POINTER_LOCATION)));
                 body.push(Code::Lda(Parameter::ZeroPageX(
                     offset - call_to_frame_size - original_frame_size,

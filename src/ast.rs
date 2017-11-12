@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
 #[derive(Debug, Clone)]
 pub enum Literal {
     Int(i32),
-    Str(String),
+    Str(Arc<String>),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -23,7 +25,7 @@ impl Type {
 
 #[derive(Debug, Clone)]
 pub struct NameType {
-    pub name: String,
+    pub name: Arc<String>,
     pub type_name: Type,
 }
 
@@ -44,18 +46,18 @@ pub enum BinaryOperator {
 #[derive(Debug, Clone)]
 pub enum Expression {
     Number(i32),
-    Name(String),
+    Name(Arc<String>),
     BinaryOp {
         op: BinaryOperator,
         left: Box<Expression>,
         right: Box<Expression>,
     },
     Assignment {
-        name: String,
+        name: Arc<String>,
         value: Box<Expression>,
     },
     CallFunction {
-        name: String,
+        name: Arc<String>,
         arguments: Vec<Expression>,
     },
     DeclareConst {
@@ -63,7 +65,7 @@ pub enum Expression {
         value: Box<Expression>,
     },
     DeclareFunction {
-        name: String,
+        name: Arc<String>,
         parameters: Vec<NameType>,
         return_type: Type,
         body: Vec<Expression>,
@@ -73,9 +75,9 @@ pub enum Expression {
         value: Box<Expression>,
     },
     DeclareRegister { name_type: NameType, location: i32 },
-    LeftShift(String),
-    RotateLeft(String),
-    RotateRight(String),
+    LeftShift(Arc<String>),
+    RotateLeft(Arc<String>),
+    RotateRight(Arc<String>),
     Org { org: i32 },
     Break,
     Return { value: Box<Expression> },

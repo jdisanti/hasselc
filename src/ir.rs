@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 use ast::{BinaryOperator, Literal, NameType, Type};
 
 #[derive(Eq, PartialEq, Hash, Debug, Clone)]
-pub struct SymbolRef(pub String);
+pub struct SymbolRef(pub Arc<String>);
 
 #[derive(Debug, Copy, Clone)]
 pub enum Location {
@@ -14,7 +14,7 @@ pub enum Location {
 
 #[derive(Debug, Clone)]
 pub struct FunctionMetadata {
-    pub name: String,
+    pub name: Arc<String>,
     pub location: Option<Location>,
     pub parameters: Vec<NameType>,
     pub return_type: Type,
@@ -57,7 +57,7 @@ impl SymbolTable {
 
     pub fn create_temporary(&mut self, typ: Type) -> SymbolRef {
         let next_location = self.next_frame_offset(typ.size());
-        let symbol_ref = SymbolRef(format!("tmp#{}", next_location));
+        let symbol_ref = SymbolRef(Arc::new(format!("tmp#{}", next_location)));
         self.variables.insert(
             symbol_ref.clone(),
             (typ, Location::FrameOffset(next_location)),

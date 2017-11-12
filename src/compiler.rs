@@ -25,7 +25,7 @@ fn offset_to_row_col(program: &str, offset: usize) -> (usize, usize) {
     let mut col: usize = 1;
 
     for i in 0..offset {
-        if &program[i..i+1] == "\n" {
+        if &program[i..i + 1] == "\n" {
             row += 1;
             col = 1;
         } else {
@@ -61,7 +61,8 @@ pub fn compile(program: &str, optimize_llir: bool, optimize_code: bool) -> error
                             let (row, col) = offset_to_row_col(program, start);
                             messages.push(format!(
                                 "{}:{}: unexpected token \"{}\". Expected one of: {:?}",
-                                row, col,
+                                row,
+                                col,
                                 token.1,
                                 expected
                             ));
