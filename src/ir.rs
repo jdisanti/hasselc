@@ -59,9 +59,12 @@ impl SymbolTable {
     pub fn create_temporary(&mut self, typ: Type) -> SymbolRef {
         let next_location = self.next_frame_offset(typ.size());
         let symbol_ref = SymbolRef(format!("tmp#{}", next_location));
-        self.variables.insert(symbol_ref.clone(), (typ, Location::FrameOffset(next_location)));
+        self.variables.insert(
+            symbol_ref.clone(),
+            (typ, Location::FrameOffset(next_location)),
+        );
         symbol_ref
-    } 
+    }
 
     pub fn create_temporary_location(&mut self, typ: Type) -> Location {
         let symbol = self.create_temporary(typ);
@@ -108,10 +111,7 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub enum Statement {
-    Assign {
-        symbol: SymbolRef,
-        value: Expr,
-    },
+    Assign { symbol: SymbolRef, value: Expr },
     Break,
     Call(Expr),
     LeftShift(SymbolRef),
@@ -133,7 +133,7 @@ pub enum IR {
         local_symbols: Rc<RefCell<SymbolTable>>,
         body: Vec<Statement>,
         metadata: FunctionMetadataPtr,
-    }
+    },
 }
 
 impl IR {
@@ -145,14 +145,19 @@ impl IR {
         }
     }
 
-    pub fn new_function_block(parent_symbol_table: Rc<RefCell<SymbolTable>>,
-            location: Option<Location>, metadata: FunctionMetadataPtr) -> IR {
+    pub fn new_function_block(
+        parent_symbol_table: Rc<RefCell<SymbolTable>>,
+        location: Option<Location>,
+        metadata: FunctionMetadataPtr,
+    ) -> IR {
         let mut symbol_table = SymbolTable::new_from_parent(parent_symbol_table);
 
         let mut frame_offset = 0i8;
         for parameter in &metadata.borrow().parameters {
-            symbol_table.variables.insert(SymbolRef(parameter.name.clone()),
-                (parameter.type_name, Location::FrameOffset(frame_offset)));
+            symbol_table.variables.insert(
+                SymbolRef(parameter.name.clone()),
+                (parameter.type_name, Location::FrameOffset(frame_offset)),
+            );
             frame_offset += parameter.type_name.size() as i8;
         }
         symbol_table.next_frame_offset = frame_offset;
@@ -175,7 +180,10 @@ impl IR {
     pub fn symbol_table(&mut self) -> Rc<RefCell<SymbolTable>> {
         match self {
             &mut IR::AnonymousBlock { .. } => unreachable!(),
-            &mut IR::FunctionBlock { ref mut local_symbols, .. } => local_symbols.clone(),
+            &mut IR::FunctionBlock {
+                ref mut local_symbols,
+                ..
+            } => local_symbols.clone(),
         }
     }
 
@@ -188,8 +196,16 @@ impl IR {
 
     pub fn set_location(&mut self, new_location: Location) {
         match self {
-            &mut IR::AnonymousBlock { ref mut location, .. } => { location.get_or_insert(new_location); }
-            &mut IR::FunctionBlock { ref mut location, .. } => { location.get_or_insert(new_location); }
+            &mut IR::AnonymousBlock {
+                ref mut location, ..
+            } => {
+                location.get_or_insert(new_location);
+            }
+            &mut IR::FunctionBlock {
+                ref mut location, ..
+            } => {
+                location.get_or_insert(new_location);
+            }
         }
     }
 

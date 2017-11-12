@@ -10,6 +10,7 @@ pub enum Index {
 pub enum Location {
     DataStackOffset(i8),
     FrameOffset(String, i8),
+    FrameOffsetBeforeCall(String, String, i8),
     Global(u16),
     GlobalIndexed(u16, Index),
     UnresolvedBlock,
@@ -34,8 +35,16 @@ pub enum SPOffset {
 pub enum Statement {
     AddToDataStackPointer(SPOffset),
     Store { dest: Location, value: Value },
-    Add { dest: Location, left: Value, right: Value },
-    Subtract { dest: Location, left: Value, right: Value },
+    Add {
+        dest: Location,
+        left: Value,
+        right: Value,
+    },
+    Subtract {
+        dest: Location,
+        left: Value,
+        right: Value,
+    },
     JumpRoutine { location: Location },
     Return,
 }
@@ -56,12 +65,23 @@ impl Statement {
 impl fmt::Debug for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            Statement::AddToDataStackPointer(ref offset) => { write!(f, "add_dsp {:?}", offset)? }
-            Statement::Store { ref dest, ref value } => { write!(f, "store {:?} => {:?}", value, dest)? }
-            Statement::Add { ref dest, ref left, ref right } => { write!(f, "store {:?} + {:?} => {:?}", left, right, dest)? }
-            Statement::Subtract { ref dest, ref left, ref right } => { write!(f, "store {:?} - {:?} => {:?}", left, right, dest)? }
-            Statement::JumpRoutine { ref location } => { write!(f, "jsr {:?}", location)? }
-            Statement::Return => { write!(f, "rts")? }
+            Statement::AddToDataStackPointer(ref offset) => write!(f, "add_dsp {:?}", offset)?,
+            Statement::Store {
+                ref dest,
+                ref value,
+            } => write!(f, "store {:?} => {:?}", value, dest)?,
+            Statement::Add {
+                ref dest,
+                ref left,
+                ref right,
+            } => write!(f, "store {:?} + {:?} => {:?}", left, right, dest)?,
+            Statement::Subtract {
+                ref dest,
+                ref left,
+                ref right,
+            } => write!(f, "store {:?} - {:?} => {:?}", left, right, dest)?,
+            Statement::JumpRoutine { ref location } => write!(f, "jsr {:?}", location)?,
+            Statement::Return => write!(f, "rts")?,
         }
         Ok(())
     }

@@ -1,7 +1,7 @@
 use llir;
 use code;
 
-const DATA_STACK_POINTER_LOCATION: u16 = 0x0000;
+pub const DATA_STACK_POINTER_LOCATION: u16 = 0x0000;
 const RETURN_LOCATION_LO: u16 = 0x0001;
 const RETURN_LOCATION_HI: u16 = 0x0002;
 
@@ -21,10 +21,7 @@ pub fn generate_code(input: &Vec<llir::Block>) -> Result<Vec<code::CodeBlock>, (
     Ok(code_blocks)
 }
 
-fn generate_body(
-    blocks: &Vec<llir::Block>,
-    input: &Vec<llir::Statement>,
-) -> Result<Vec<code::Code>, ()> {
+fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> Result<Vec<code::Code>, ()> {
     use code::{Code, Global, Parameter};
 
     let mut body = Vec::new();
@@ -36,9 +33,7 @@ fn generate_body(
                 body.push(Code::Adc(Parameter::Immediate(match *val {
                     llir::SPOffset::Immediate(val) => val as u8,
                     llir::SPOffset::FrameSize(ref name) => lookup_frame_size(blocks, name)? as u8,
-                    llir::SPOffset::NegativeFrameSize(ref name) => {
-                        -lookup_frame_size(blocks, name)? as u8
-                    }
+                    llir::SPOffset::NegativeFrameSize(ref name) => -lookup_frame_size(blocks, name)? as u8,
                 })));
                 body.push(Code::Sta(addr_param(DATA_STACK_POINTER_LOCATION)));
             }
@@ -51,9 +46,7 @@ fn generate_body(
             llir::Statement::JumpRoutine { ref location } => {
                 body.push(Code::Jsr(Parameter::Absolute(match *location {
                     llir::Location::Global(addr) => Global::Resolved(addr),
-                    llir::Location::UnresolvedGlobal(ref name) => {
-                        Global::UnresolvedName(name.clone())
-                    }
+                    llir::Location::UnresolvedGlobal(ref name) => Global::UnresolvedName(name.clone()),
                     _ => unreachable!(),
                 })));
             }
@@ -118,10 +111,7 @@ fn generate_add(
     Ok(())
 }
 
-fn load_stack_pointer_if_necessary(
-    body: &mut Vec<code::Code>,
-    location: &llir::Location,
-) -> Result<(), ()> {
+fn load_stack_pointer_if_necessary(body: &mut Vec<code::Code>, location: &llir::Location) -> Result<(), ()> {
     use code::Code;
     match *location {
         llir::Location::DataStackOffset(_) | llir::Location::FrameOffset(_, _) => {
@@ -132,10 +122,7 @@ fn load_stack_pointer_if_necessary(
     Ok(())
 }
 
-fn location_to_parameter(
-    blocks: &Vec<llir::Block>,
-    location: &llir::Location,
-) -> Result<code::Parameter, ()> {
+fn location_to_parameter(blocks: &Vec<llir::Block>, location: &llir::Location) -> Result<code::Parameter, ()> {
     use code::Parameter;
     match *location {
         llir::Location::Global(addr) => Ok(addr_param(addr)),
@@ -150,22 +137,14 @@ fn location_to_parameter(
     }
 }
 
-fn store_accum(
-    body: &mut Vec<code::Code>,
-    blocks: &Vec<llir::Block>,
-    location: &llir::Location,
-) -> Result<(), ()> {
+fn store_accum(body: &mut Vec<code::Code>, blocks: &Vec<llir::Block>, location: &llir::Location) -> Result<(), ()> {
     use code::Code;
     load_stack_pointer_if_necessary(body, location)?;
     body.push(Code::Sta(location_to_parameter(blocks, location)?));
     Ok(())
 }
 
-fn load_into_accum(
-    body: &mut Vec<code::Code>,
-    blocks: &Vec<llir::Block>,
-    value: &llir::Value,
-) -> Result<(), ()> {
+fn load_into_accum(body: &mut Vec<code::Code>, blocks: &Vec<llir::Block>, value: &llir::Value) -> Result<(), ()> {
     use code::{Code, Parameter};
     match *value {
         llir::Value::Immediate(val) => {
@@ -183,6 +162,14 @@ fn load_into_accum(
                 body.push(Code::Ldx(addr_param(DATA_STACK_POINTER_LOCATION)));
                 body.push(Code::Lda(Parameter::ZeroPageX(
                     offset - lookup_frame_size(blocks, frame)?,
+                )));
+            }
+            llir::Location::FrameOffsetBeforeCall(ref original_frame, ref calling_frame, offset) => {
+                let original_frame_size = lookup_frame_size(blocks, original_frame)?;
+                let call_to_frame_size = lookup_frame_size(blocks, calling_frame)?;
+                body.push(Code::Ldx(addr_param(DATA_STACK_POINTER_LOCATION)));
+                body.push(Code::Lda(Parameter::ZeroPageX(
+                    offset - call_to_frame_size - original_frame_size,
                 )));
             }
             _ => {

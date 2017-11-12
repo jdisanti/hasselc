@@ -18,14 +18,17 @@ fn optimize_llir_block(llir: &Block) -> Result<Block, ()> {
     for i in 0..statements.len() {
         if statements[i].is_branch() {
             if i != last_branch {
-                optimized.statements.extend(optimize_run(&statements[last_branch..i], statements)?);
+                optimized
+                    .statements
+                    .extend(optimize_run(&statements[last_branch..i], statements)?);
             }
             last_branch = i;
         }
     }
-    optimized
-        .statements
-        .extend(optimize_run(&statements[last_branch..statements.len()], statements)?);
+    optimized.statements.extend(optimize_run(
+        &statements[last_branch..statements.len()],
+        statements,
+    )?);
 
     Ok(optimized)
 }
@@ -34,7 +37,7 @@ fn optimize_run(run: &[Statement], full_block: &Vec<Statement>) -> Result<Vec<St
     let mut result = Vec::new();
     result.extend(run.iter().cloned());
 
-    while try_redundant_stores(&mut result, full_block) { }
+    while try_redundant_stores(&mut result, full_block) {}
 
     Ok(result)
 }
@@ -54,12 +57,13 @@ fn try_redundant_stores(run: &mut Vec<Statement>, full_block: &Vec<Statement>) -
             };
 
             let (second_load, second_store) = match run[i + 1] {
-                Statement::Store { ref value, ref dest } => {
-                    match *value {
-                        Value::Memory(ref loc) => (loc, dest),
-                        _ => continue,
-                    }
-                }
+                Statement::Store {
+                    ref value,
+                    ref dest,
+                } => match *value {
+                    Value::Memory(ref loc) => (loc, dest),
+                    _ => continue,
+                },
                 _ => continue,
             };
 
@@ -68,28 +72,33 @@ fn try_redundant_stores(run: &mut Vec<Statement>, full_block: &Vec<Statement>) -
             let mut uses = 0;
             for statement in full_block {
                 match *statement {
-                    Statement::Store { ref value, .. } => {
-                        match *value {
-                            Value::Memory(ref loc) => {
-                                if second_load == loc {
-                                    uses += 1;
-                                }
-                            }
-                            _ => continue
-                        }
-                    }
-                    _ => continue
+                    Statement::Store { ref value, .. } => match *value {
+                        Value::Memory(ref loc) => if second_load == loc {
+                            uses += 1;
+                        },
+                        _ => continue,
+                    },
+                    _ => continue,
                 }
             }
 
-            (uses == 1 && first_store == second_load, second_store.clone())
+            (
+                uses == 1 && first_store == second_load,
+                second_store.clone(),
+            )
         };
         if matches {
             run[i] = match run[i] {
-                Statement::Add { ref left, ref right, .. } => {
-                    Statement::Add { dest: second_store, left: left.clone(), right: right.clone() }
-                }
-                _ => unreachable!()
+                Statement::Add {
+                    ref left,
+                    ref right,
+                    ..
+                } => Statement::Add {
+                    dest: second_store,
+                    left: left.clone(),
+                    right: right.clone(),
+                },
+                _ => unreachable!(),
             };
             run.remove(i + 1);
             return true;

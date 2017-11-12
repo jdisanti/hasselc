@@ -1,4 +1,5 @@
-use code::{Code, CodeBlock};
+use code::{Code, CodeBlock, Global, Parameter};
+use code_gen::DATA_STACK_POINTER_LOCATION;
 
 pub fn optimize_code(code: &Vec<CodeBlock>) -> Result<Vec<CodeBlock>, ()> {
     let mut result = Vec::new();
@@ -87,6 +88,19 @@ fn try_unchanged_stack_pointer(run: &mut Vec<Code>) -> bool {
                 match run[y] {
                     // TODO: Code::Inx(_) => break,
                     // TODO: Code::Dex(_) => break,
+                    // If we overwrite the stack pointer in memory, then we need to reload it
+                    Code::Sta(ref p) => match *p {
+                        Parameter::Absolute(ref gbl) => match *gbl {
+                            Global::Resolved(val) => if val == DATA_STACK_POINTER_LOCATION {
+                                break;
+                            },
+                            _ => {}
+                        },
+                        Parameter::ZeroPage(offset) => if offset as u16 == DATA_STACK_POINTER_LOCATION {
+                            break;
+                        },
+                        _ => {}
+                    },
                     Code::Tax(_) => break,
                     Code::Ldx(ref p) => if p == first_load {
                         if !to_remove.contains(&y) {
