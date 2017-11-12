@@ -1,12 +1,12 @@
 use std::fmt;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Index {
     Immediate(u8),
     DataStack(u8),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Location {
     DataStackOffset(i8),
     FrameOffset(String, i8),
@@ -17,19 +17,20 @@ pub enum Location {
     UnresolvedGlobalIndexed(String, Index),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Value {
     Immediate(u8),
     Memory(Location),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum SPOffset {
     Immediate(i8),
     FrameSize(String),
     NegativeFrameSize(String),
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub enum Statement {
     AddToDataStackPointer(SPOffset),
     Store { dest: Location, value: Value },
@@ -37,6 +38,19 @@ pub enum Statement {
     Subtract { dest: Location, left: Value, right: Value },
     JumpRoutine { location: Location },
     Return,
+}
+
+impl Statement {
+    pub fn is_branch(&self) -> bool {
+        match *self {
+            Statement::AddToDataStackPointer { .. } => false,
+            Statement::Store { .. } => false,
+            Statement::Add { .. } => false,
+            Statement::Subtract { .. } => false,
+            Statement::JumpRoutine { .. } => true,
+            Statement::Return { .. } => true,
+        }
+    }
 }
 
 impl fmt::Debug for Statement {
@@ -53,7 +67,7 @@ impl fmt::Debug for Statement {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Block {
     pub location: Location,
     pub name: Option<String>,

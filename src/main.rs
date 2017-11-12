@@ -6,6 +6,7 @@ mod ir;
 mod ir_gen;
 mod llir;
 mod llir_gen;
+mod llir_opt;
 mod code;
 mod code_gen;
 mod code_opt;
@@ -68,8 +69,17 @@ fn main() {
         }
     };
     println!("\n\n\n\nLLIR: {:#?}", llir);
+
+    let optimized_llir = match llir_opt::optimize_llir(&llir) {
+        Ok(llir) => llir,
+        Err(_) => {
+            println!("Failed to optimize LLIR");
+            return;
+        }
+    };
+    println!("\n\n\n\nOPTIMIZED LLIR: {:#?}", optimized_llir);
     
-    let code = match code_gen::generate_code(&llir) {
+    let code = match code_gen::generate_code(&optimized_llir) {
         Ok(code) => code,
         Err(_) => {
             println!("Failed to generate code");

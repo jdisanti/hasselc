@@ -46,17 +46,17 @@ fn try_redundant_load_accum(run: &mut Vec<Code>) {
             let matches = {
                 let load_param = match run[i] {
                     Code::Lda(ref p) => p,
-                    _ => return,
+                    _ => continue,
                 };
 
                 let store_param = match run[i + 1] {
                     Code::Sta(ref p) => p,
-                    _ => return,
+                    _ => continue,
                 };
 
                 let second_load_param = match run[i + 2] {
                     Code::Lda(ref p) => p,
-                    _ => return,
+                    _ => continue,
                 };
 
                 load_param != store_param && store_param == second_load_param
