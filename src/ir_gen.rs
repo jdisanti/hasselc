@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 use ast;
 use ir;
-use error;
+use error::{self, ErrorKind};
 
 pub fn generate_ir(input: &Vec<ast::Expression>) -> error::Result<Vec<ir::IR>> {
     let global_symbol_table = Arc::new(RwLock::new(ir::SymbolTable::new()));
@@ -16,7 +16,11 @@ pub fn generate_ir(input: &Vec<ast::Expression>) -> error::Result<Vec<ir::IR>> {
                     location = *old_block.location();
                 }
 
-                // TODO: error if global symbol table already has this name
+                let symbol_ref = ir::SymbolRef(Arc::clone(&data.name));
+                if global_symbol_table.read().unwrap().has_symbol(&symbol_ref) {
+                    return Err(ErrorKind::DuplicateSymbol(data.tag, Arc::clone(&symbol_ref.0)).into())
+                }
+
                 let metadata = Arc::new(RwLock::new(ir::FunctionMetadata {
                     name: Arc::clone(&data.name),
                     location: location,
@@ -30,7 +34,7 @@ pub fn generate_ir(input: &Vec<ast::Expression>) -> error::Result<Vec<ir::IR>> {
                     .write()
                     .unwrap()
                     .functions
-                    .insert(ir::SymbolRef(Arc::clone(&data.name)), Arc::clone(&metadata));
+                    .insert(symbol_ref, Arc::clone(&metadata));
 
                 let symbol_table = function.symbol_table();
                 let body_ir = generate_statement_irs(&mut *symbol_table.write().unwrap(), &data.body)?;
@@ -85,8 +89,7 @@ fn generate_statement_ir(
                     value: generate_expression(&data.value),
                 });
             } else {
-                // TODO: symbol not found error
-                unimplemented!()
+                return Err(ErrorKind::SymbolNotFound(data.tag, Arc::clone(&data.name)).into())
             }
         }
         ast::Expression::Break => {

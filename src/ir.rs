@@ -49,6 +49,16 @@ impl SymbolTable {
         symbol_table
     }
 
+    pub fn has_symbol(&self, symbol_ref: &SymbolRef) -> bool {
+        let parent_has_symbol = if let Some(ref parent) = self.parent {
+            parent.read().unwrap().has_symbol(symbol_ref)
+        } else {
+            false
+        };
+        parent_has_symbol || self.constants.contains_key(symbol_ref) || self.functions.contains_key(symbol_ref)
+            || self.variables.contains_key(symbol_ref)
+    }
+
     pub fn next_frame_offset(&mut self, local_size: usize) -> i8 {
         let result = self.next_frame_offset;
         self.next_frame_offset += local_size as i8;

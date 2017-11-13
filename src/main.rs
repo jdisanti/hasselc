@@ -100,7 +100,7 @@ fn main() {
             );
         }
         Err(error) => {
-            println!("{:#?}", error);
+            println!("{}", error.0);
         }
     }
 }
