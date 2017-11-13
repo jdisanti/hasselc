@@ -90,6 +90,7 @@ FactorOp: BinaryOperator = {
 Term: Box<Expression> = {
     Number => Box::new(Expression::Number(<>)),
     Name => Box::new(Expression::Name(<>)),
+    FunctionCall,
     "(" <Expression> ")",
 };
 
@@ -107,7 +108,6 @@ FunctionCall: Box<Expression> = {
 Expression: Box<Expression> = {
     <l:Expression> <o:ComparisonOp> <r:Comparison> => Box::new(Expression::BinaryOp { op: o, left: l, right: r }),
     Comparison,
-    FunctionCall,
 };
 
 ExpressionCommaList: Vec<Expression> = {
@@ -131,10 +131,13 @@ Statement: Box<Expression> = {
     "return" <v:Expression> ";" => Box::new(Expression::Return { value: v }),
     "goto" <n:Name> ";" => Box::new(Expression::GoTo(n)),
     <f:FunctionCall> ";" => f,
-    ! => {
-        errors.push(<>);
-        Box::new(Expression::Error)
-    },
+    // Error recovery was causing infinite loops
+    // See: https://github.com/nikomatsakis/lalrpop/issues/240
+    // Can uncomment the following when that's fixed
+    //! => {
+    //    errors.push(<>);
+    //    Box::new(Expression::Error)
+    //},
 };
 
 StatementList: Vec<Expression> = {

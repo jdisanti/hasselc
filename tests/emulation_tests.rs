@@ -148,3 +148,15 @@ pub fn simple_arg_test_optimized() {
     assert_eq!(30u8, emulator.cpu.bus.read_byte(0x0201));
     assert_eq!(40u8, emulator.cpu.bus.read_byte(0x0001));
 }
+
+#[test]
+pub fn multiple_calls_test_unoptimized() {
+    let emulator = run_test("multiple_calls_test_unoptimized", include_bytes!("./multiple_calls_test.hsl"), false, false);
+    assert_eq!(45u8, emulator.cpu.bus.read_byte(0x0200));
+}
+
+#[test]
+pub fn multiple_calls_test_optimized() {
+    let emulator = run_test("multiple_calls_test_optimized", include_bytes!("./multiple_calls_test.hsl"), true, true);
+    assert_eq!(45u8, emulator.cpu.bus.read_byte(0x0200));
+}

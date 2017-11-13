@@ -1,4 +1,6 @@
 use std::sync::Arc;
+use lalrpop_util;
+use error;
 
 #[derive(Debug, Clone)]
 pub enum Literal {
@@ -89,13 +91,68 @@ pub enum Expression {
 type SyntaxError<'input> = ::lalrpop_util::ErrorRecovery<usize, (usize, &'input str), ()>;
 
 impl Expression {
-    pub fn parse<'a>(text: &'a str) -> Result<Vec<Expression>, Vec<SyntaxError<'a>>> {
-        let mut errors = Vec::new();
+    pub fn parse<'a>(text: &'a str) -> error::Result<Vec<Expression>> {
+        let mut errors: Vec<lalrpop_util::ErrorRecovery<usize, (usize, &'a str), ()>> = Vec::new();
         let ast = ::grammar::parse_Program(&mut errors, text);
         if errors.is_empty() {
-            Ok(ast.unwrap())
+            match ast {
+                Ok(expression) => Ok(expression),
+                Err(err) => Err(translate_errors(text, [err].iter()).into()),
+            }
         } else {
-            Err(errors)
+            Err(translate_errors(text, errors.iter().map(|err| &err.error)).into())
         }
     }
+}
+
+fn offset_to_row_col(program: &str, offset: usize) -> (usize, usize) {
+    let mut row: usize = 1;
+    let mut col: usize = 1;
+
+    for i in 0..offset {
+        if &program[i..i + 1] == "\n" {
+            row += 1;
+            col = 1;
+        } else {
+            col += 1;
+        }
+    }
+
+    (row, col)
+}
+
+fn translate_errors<'a, I>(program: &str, errors: I) -> error::ErrorKind
+        where I: Iterator<Item = &'a lalrpop_util::ParseError<usize, (usize, &'a str), ()>> {
+    let mut messages = Vec::new();
+    for error in errors {
+        match *error {
+            lalrpop_util::ParseError::InvalidToken { location } => {
+                let (row, col) = offset_to_row_col(program, location);
+                messages.push(format!("{}:{}: invalid token", row, col));
+            }
+            lalrpop_util::ParseError::UnrecognizedToken { ref token, ref expected } => match *token {
+                Some((start, token, _end)) => {
+                    let (row, col) = offset_to_row_col(program, start);
+                    messages.push(format!(
+                        "{}:{}: unexpected token \"{}\". Expected one of: {:?}",
+                        row,
+                        col,
+                        token.1,
+                        expected
+                    ));
+                }
+                None => {
+                    messages.push(format!("unexpected EOF"));
+                }
+            },
+            lalrpop_util::ParseError::ExtraToken { ref token } => {
+                let (row, col) = offset_to_row_col(program, token.0);
+                messages.push(format!("{}:{}: extra token \"{}\"", row, col, (token.1).1));
+            }
+            lalrpop_util::ParseError::User { ref error } => {
+                messages.push(format!("{:?}", error));
+            }
+        }
+    }
+    return error::ErrorKind::ParseError(messages).into();
 }
