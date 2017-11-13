@@ -61,7 +61,9 @@ fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> err
                 generate_add(&mut body, blocks, dest, left, right)?;
             }
             llir::Statement::GoTo(ref name) => {
-                body.push(Code::Jmp(Parameter::Absolute(Global::UnresolvedName(name.clone()))));
+                body.push(Code::Jmp(
+                    Parameter::Absolute(Global::UnresolvedName(name.clone())),
+                ));
             }
             _ => {
                 println!("WARN: Unimplemented generate_body: {:?}", statement);

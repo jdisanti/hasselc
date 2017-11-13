@@ -123,7 +123,12 @@ fn run_test(name: &str, program_raw: &[u8], optimize_llir: bool, optimize_code: 
 
 #[test]
 pub fn test1_unoptimized() {
-    let emulator = run_test("test1_unoptimized", include_bytes!("./test1.hsl"), false, false);
+    let emulator = run_test(
+        "test1_unoptimized",
+        include_bytes!("./test1.hsl"),
+        false,
+        false,
+    );
     assert_eq!(20u8, emulator.cpu.bus.read_byte(0x0001));
 }
 
@@ -135,7 +140,12 @@ pub fn test1_optimized() {
 
 #[test]
 pub fn simple_arg_test_unoptimized() {
-    let emulator = run_test("simple_arg_test_unoptimized", include_bytes!("./simple_arg_test.hsl"), false, false);
+    let emulator = run_test(
+        "simple_arg_test_unoptimized",
+        include_bytes!("./simple_arg_test.hsl"),
+        false,
+        false,
+    );
     assert_eq!(20u8, emulator.cpu.bus.read_byte(0x0200));
     assert_eq!(30u8, emulator.cpu.bus.read_byte(0x0201));
     assert_eq!(40u8, emulator.cpu.bus.read_byte(0x0001));
@@ -143,7 +153,12 @@ pub fn simple_arg_test_unoptimized() {
 
 #[test]
 pub fn simple_arg_test_optimized() {
-    let emulator = run_test("simple_arg_test_optimized", include_bytes!("./simple_arg_test.hsl"), true, true);
+    let emulator = run_test(
+        "simple_arg_test_optimized",
+        include_bytes!("./simple_arg_test.hsl"),
+        true,
+        true,
+    );
     assert_eq!(20u8, emulator.cpu.bus.read_byte(0x0200));
     assert_eq!(30u8, emulator.cpu.bus.read_byte(0x0201));
     assert_eq!(40u8, emulator.cpu.bus.read_byte(0x0001));
@@ -151,12 +166,22 @@ pub fn simple_arg_test_optimized() {
 
 #[test]
 pub fn multiple_calls_test_unoptimized() {
-    let emulator = run_test("multiple_calls_test_unoptimized", include_bytes!("./multiple_calls_test.hsl"), false, false);
+    let emulator = run_test(
+        "multiple_calls_test_unoptimized",
+        include_bytes!("./multiple_calls_test.hsl"),
+        false,
+        false,
+    );
     assert_eq!(45u8, emulator.cpu.bus.read_byte(0x0200));
 }
 
 #[test]
 pub fn multiple_calls_test_optimized() {
-    let emulator = run_test("multiple_calls_test_optimized", include_bytes!("./multiple_calls_test.hsl"), true, true);
+    let emulator = run_test(
+        "multiple_calls_test_optimized",
+        include_bytes!("./multiple_calls_test.hsl"),
+        true,
+        true,
+    );
     assert_eq!(45u8, emulator.cpu.bus.read_byte(0x0200));
 }

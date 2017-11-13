@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use lalrpop_util;
+use src_tag::SrcTag;
 use error;
 
 #[derive(Debug, Clone)]
@@ -46,37 +47,177 @@ pub enum BinaryOperator {
 }
 
 #[derive(Debug, Clone)]
-pub enum Expression {
-    Number(i32),
-    Name(Arc<String>),
-    BinaryOp {
-        op: BinaryOperator,
-        left: Box<Expression>,
-        right: Box<Expression>,
-    },
-    Assignment {
-        name: Arc<String>,
-        value: Box<Expression>,
-    },
-    CallFunction {
-        name: Arc<String>,
-        arguments: Vec<Expression>,
-    },
-    DeclareConst {
-        name_type: NameType,
-        value: Box<Expression>,
-    },
-    DeclareFunction {
+pub struct NumberData {
+    pub tag: SrcTag,
+    pub value: i32,
+}
+
+impl NumberData {
+    pub fn new(tag: SrcTag, value: i32) -> NumberData {
+        NumberData {
+            tag: tag,
+            value: value,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NameData {
+    pub tag: SrcTag,
+    pub name: Arc<String>,
+}
+
+impl NameData {
+    pub fn new(tag: SrcTag, name: Arc<String>) -> NameData {
+        NameData {
+            tag: tag,
+            name: name,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BinaryOpData {
+    pub tag: SrcTag,
+    pub op: BinaryOperator,
+    pub left: Box<Expression>,
+    pub right: Box<Expression>,
+}
+
+impl BinaryOpData {
+    pub fn new(tag: SrcTag, op: BinaryOperator, left: Box<Expression>, right: Box<Expression>) -> BinaryOpData {
+        BinaryOpData {
+            tag: tag,
+            op: op,
+            left: left,
+            right: right,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AssignmentData {
+    pub tag: SrcTag,
+    pub name: Arc<String>,
+    pub value: Box<Expression>,
+}
+
+impl AssignmentData {
+    pub fn new(tag: SrcTag, name: Arc<String>, value: Box<Expression>) -> AssignmentData {
+        AssignmentData {
+            tag: tag,
+            name: name,
+            value: value,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CallFunctionData {
+    pub tag: SrcTag,
+    pub name: Arc<String>,
+    pub arguments: Vec<Expression>,
+}
+
+impl CallFunctionData {
+    pub fn new(tag: SrcTag, name: Arc<String>, arguments: Vec<Expression>) -> CallFunctionData {
+        CallFunctionData {
+            tag: tag,
+            name: name,
+            arguments: arguments,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DeclareConstData {
+    pub tag: SrcTag,
+    pub name_type: NameType,
+    pub value: Box<Expression>,
+}
+
+impl DeclareConstData {
+    pub fn new(tag: SrcTag, name_type: NameType, value: Box<Expression>) -> DeclareConstData {
+        DeclareConstData {
+            tag: tag,
+            name_type: name_type,
+            value: value,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DeclareFunctionData {
+    pub tag: SrcTag,
+    pub name: Arc<String>,
+    pub parameters: Vec<NameType>,
+    pub return_type: Type,
+    pub body: Vec<Expression>,
+}
+
+impl DeclareFunctionData {
+    pub fn new(
+        tag: SrcTag,
         name: Arc<String>,
         parameters: Vec<NameType>,
         return_type: Type,
         body: Vec<Expression>,
-    },
-    DeclareVariable {
-        name_type: NameType,
-        value: Box<Expression>,
-    },
-    DeclareRegister { name_type: NameType, location: i32 },
+    ) -> DeclareFunctionData {
+        DeclareFunctionData {
+            tag: tag,
+            name: name,
+            parameters: parameters,
+            return_type: return_type,
+            body: body,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DeclareVariableData {
+    pub tag: SrcTag,
+    pub name_type: NameType,
+    pub value: Box<Expression>,
+}
+
+impl DeclareVariableData {
+    pub fn new(tag: SrcTag, name_type: NameType, value: Box<Expression>) -> DeclareVariableData {
+        DeclareVariableData {
+            tag: tag,
+            name_type: name_type,
+            value: value,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DeclareRegisterData {
+    pub tag: SrcTag,
+    pub name_type: NameType,
+    pub location: i32,
+}
+
+impl DeclareRegisterData {
+    pub fn new(tag: SrcTag, name_type: NameType, location: i32) -> DeclareRegisterData {
+        DeclareRegisterData {
+            tag: tag,
+            name_type: name_type,
+            location: location,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Expression {
+    Number(NumberData),
+    Name(NameData),
+    BinaryOp(BinaryOpData),
+    Assignment(AssignmentData),
+    CallFunction(CallFunctionData),
+    DeclareConst(DeclareConstData),
+    DeclareFunction(DeclareFunctionData),
+    DeclareVariable(DeclareVariableData),
+    DeclareRegister(DeclareRegisterData),
     LeftShift(Arc<String>),
     RotateLeft(Arc<String>),
     RotateRight(Arc<String>),
@@ -87,8 +228,6 @@ pub enum Expression {
     Comment,
     Error,
 }
-
-type SyntaxError<'input> = ::lalrpop_util::ErrorRecovery<usize, (usize, &'input str), ()>;
 
 impl Expression {
     pub fn parse<'a>(text: &'a str) -> error::Result<Vec<Expression>> {
@@ -105,34 +244,23 @@ impl Expression {
     }
 }
 
-fn offset_to_row_col(program: &str, offset: usize) -> (usize, usize) {
-    let mut row: usize = 1;
-    let mut col: usize = 1;
-
-    for i in 0..offset {
-        if &program[i..i + 1] == "\n" {
-            row += 1;
-            col = 1;
-        } else {
-            col += 1;
-        }
-    }
-
-    (row, col)
-}
-
 fn translate_errors<'a, I>(program: &str, errors: I) -> error::ErrorKind
-        where I: Iterator<Item = &'a lalrpop_util::ParseError<usize, (usize, &'a str), ()>> {
+where
+    I: Iterator<Item = &'a lalrpop_util::ParseError<usize, (usize, &'a str), ()>>,
+{
     let mut messages = Vec::new();
     for error in errors {
         match *error {
             lalrpop_util::ParseError::InvalidToken { location } => {
-                let (row, col) = offset_to_row_col(program, location);
+                let (row, col) = SrcTag(location).row_col(program);
                 messages.push(format!("{}:{}: invalid token", row, col));
             }
-            lalrpop_util::ParseError::UnrecognizedToken { ref token, ref expected } => match *token {
+            lalrpop_util::ParseError::UnrecognizedToken {
+                ref token,
+                ref expected,
+            } => match *token {
                 Some((start, token, _end)) => {
-                    let (row, col) = offset_to_row_col(program, start);
+                    let (row, col) = SrcTag(start).row_col(program);
                     messages.push(format!(
                         "{}:{}: unexpected token \"{}\". Expected one of: {:?}",
                         row,
@@ -146,7 +274,7 @@ fn translate_errors<'a, I>(program: &str, errors: I) -> error::ErrorKind
                 }
             },
             lalrpop_util::ParseError::ExtraToken { ref token } => {
-                let (row, col) = offset_to_row_col(program, token.0);
+                let (row, col) = SrcTag(token.0).row_col(program);
                 messages.push(format!("{}:{}: extra token \"{}\"", row, col, (token.1).1));
             }
             lalrpop_util::ParseError::User { ref error } => {

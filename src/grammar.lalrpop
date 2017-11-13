@@ -1,6 +1,22 @@
 use std::str::FromStr;
 use std::sync::Arc;
-use ast::{BinaryOperator, Expression, Literal, NameType, Type};
+use ast::{
+    AssignmentData,
+    BinaryOpData,
+    BinaryOperator,
+    CallFunctionData,
+    DeclareConstData,
+    DeclareFunctionData,
+    DeclareVariableData,
+    DeclareRegisterData,
+    Expression,
+    Literal,
+    NameData,
+    NameType,
+    NumberData,
+    Type,
+};
+use src_tag::SrcTag;
 use lalrpop_util::ErrorRecovery;
 
 grammar<'err>(errors: &'err mut Vec<ErrorRecovery<usize, (usize, &'input str), ()>>);
@@ -68,7 +84,7 @@ ComparisonOp: BinaryOperator = {
 };
 
 Comparison: Box<Expression> = {
-    <l:Comparison> <o:ExprOp> <r:Factor> => Box::new(Expression::BinaryOp { op: o, left: l, right: r }),
+    <t:@L> <l:Comparison> <o:ExprOp> <r:Factor> => Box::new(Expression::BinaryOp(BinaryOpData::new(SrcTag(t), o, l, r))),
     Factor,
 };
 
@@ -78,7 +94,7 @@ ExprOp: BinaryOperator = {
 };
 
 Factor: Box<Expression> = {
-    <l:Factor> <o:FactorOp> <r:Term> => Box::new(Expression::BinaryOp { op: o, left: l, right: r }),
+    <t:@L> <l:Factor> <o:FactorOp> <r:Term> => Box::new(Expression::BinaryOp(BinaryOpData::new(SrcTag(t), o, l, r))),
     Term,
 };
 
@@ -88,25 +104,19 @@ FactorOp: BinaryOperator = {
 };
 
 Term: Box<Expression> = {
-    Number => Box::new(Expression::Number(<>)),
-    Name => Box::new(Expression::Name(<>)),
+    <t:@L> <n:Number> => Box::new(Expression::Number(NumberData::new(SrcTag(t), n))),
+    <t:@L> <n:Name> => Box::new(Expression::Name(NameData::new(SrcTag(t), n))),
     FunctionCall,
     "(" <Expression> ")",
 };
 
 FunctionCall: Box<Expression> = {
-    <n:Name> "(" ")" => Box::new(Expression::CallFunction {
-        name: n,
-        arguments: Vec::new(),
-    }),
-    <n:Name> "(" <args:ExpressionCommaList> ")" => Box::new(Expression::CallFunction {
-        name: n,
-        arguments: args,
-    }),
+    <t:@L> <n:Name> "(" ")" => Box::new(Expression::CallFunction(CallFunctionData::new(SrcTag(t), n, Vec::new()))),
+    <t:@L> <n:Name> "(" <args:ExpressionCommaList> ")" => Box::new(Expression::CallFunction(CallFunctionData::new(SrcTag(t), n, args))),
 };
 
 Expression: Box<Expression> = {
-    <l:Expression> <o:ComparisonOp> <r:Comparison> => Box::new(Expression::BinaryOp { op: o, left: l, right: r }),
+    <t:@L> <l:Expression> <o:ComparisonOp> <r:Comparison> => Box::new(Expression::BinaryOp(BinaryOpData::new(SrcTag(t), o, l, r))),
     Comparison,
 };
 
@@ -121,9 +131,12 @@ ExpressionCommaList: Vec<Expression> = {
 
 Statement: Box<Expression> = {
     Comment => Box::new(Expression::Comment),
-    "const" <nt:NameType> "=" <l:Expression> ";" => Box::new(Expression::DeclareConst { name_type: nt, value: l }),
-    "var" <nt:NameType> "=" <l:Expression> ";" => Box::new(Expression::DeclareVariable { name_type: nt, value: l }),
-    <n:Name> "=" <l:Expression> ";" => Box::new(Expression::Assignment { name: n, value: l }),
+    <t:@L> "const" <nt:NameType> "=" <l:Expression> ";" =>
+        Box::new(Expression::DeclareConst(DeclareConstData::new(SrcTag(t), nt, l))),
+    <t:@L> "var" <nt:NameType> "=" <l:Expression> ";" =>
+        Box::new(Expression::DeclareVariable(DeclareVariableData::new(SrcTag(t), nt, l))),
+    <t:@L> <n:Name> "=" <l:Expression> ";" =>
+        Box::new(Expression::Assignment(AssignmentData::new(SrcTag(t), n, l))),
     "left_shift" <n:Name> ";" => Box::new(Expression::LeftShift(n)),
     "rotate_left" <n:Name> ";" => Box::new(Expression::RotateLeft(n)),
     "rotate_right" <n:Name> ";" => Box::new(Expression::RotateRight(n)),
@@ -151,22 +164,12 @@ StatementList: Vec<Expression> = {
 
 TopLevelStatement: Box<Expression> = {
     "org" <n:Number> ";" => Box::new(Expression::Org { org: n }),
-    "register" <nt:NameType> "@" <l:Number> ";" => Box::new(Expression::DeclareRegister {
-        name_type: nt,
-        location: l,
-    }),
-    "def" <n:Name> "(" ")" ":" <rt:Type> <b:StatementList> "end" => Box::new(Expression::DeclareFunction {
-        name: n,
-        parameters: Vec::new(),
-        return_type: rt,
-        body: b,
-    }),
-    "def" <n:Name> "(" <pl:ParameterList> ")" ":" <rt:Type> <b:StatementList> "end" => Box::new(Expression::DeclareFunction {
-        name: n,
-        parameters: pl,
-        return_type: rt,
-        body: b,
-    }),
+    <t:@L> "register" <nt:NameType> "@" <l:Number> ";" =>
+        Box::new(Expression::DeclareRegister(DeclareRegisterData::new(SrcTag(t), nt, l))),
+    <t:@L> "def" <n:Name> "(" ")" ":" <rt:Type> <b:StatementList> "end" =>
+        Box::new(Expression::DeclareFunction(DeclareFunctionData::new(SrcTag(t), n, Vec::new(), rt, b))),
+    <t:@L> "def" <n:Name> "(" <pl:ParameterList> ")" ":" <rt:Type> <b:StatementList> "end" =>
+        Box::new(Expression::DeclareFunction(DeclareFunctionData::new(SrcTag(t), n, pl, rt, b))),
     Statement,
 };
 
