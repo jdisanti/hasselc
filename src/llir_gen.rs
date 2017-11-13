@@ -101,6 +101,9 @@ fn generate_body(
                 });
                 statements.push(llir::Statement::Return);
             }
+            ir::Statement::GoTo(ref name) => {
+                statements.push(llir::Statement::GoTo(name.clone()));
+            }
             _ => { /* TODO */ }
         }
     }

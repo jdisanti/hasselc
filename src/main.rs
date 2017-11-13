@@ -8,17 +8,25 @@ extern crate error_chain;
 #[cfg_attr(rustfmt, rustfmt_skip)]
 mod grammar;
 
-mod ast;
-mod ir;
+pub mod ast;
+pub mod ir;
 mod ir_gen;
-mod llir;
+pub mod llir;
 mod llir_gen;
 mod llir_opt;
-mod code;
+pub mod code;
 mod code_gen;
 mod code_opt;
-mod compiler;
-mod error;
+pub mod compiler;
+pub mod error;
+
+fn to_asm(blocks: &Vec<code::CodeBlock>) -> String {
+    let mut asm = String::new();
+    for block in blocks {
+        asm.push_str(&block.to_asm().unwrap());
+    }
+    asm
+}
 
 fn main() {
     /*let program = "
@@ -65,8 +73,14 @@ fn main() {
             println!("\n\n\n\nIR: {:#?}", compiler_output.ir);
             println!("\n\n\n\nLLIR: {:#?}", compiler_output.llir);
             println!("\n\n\n\nOPTIMIZED LLIR: {:#?}", compiler_output.llir_opt);
-            println!("\n\n\n\nCODE: {:#?}", compiler_output.code);
-            println!("\n\n\n\nOPTIMIZED: {:#?}", compiler_output.code_opt);
+            println!(
+                "\n\n\n\nCODE:\n\n{}",
+                to_asm(compiler_output.code.as_ref().unwrap())
+            );
+            println!(
+                "\n\n\n\nOPTIMIZED:\n\n{}",
+                to_asm(compiler_output.code_opt.as_ref().unwrap())
+            );
             let unoptimized_count = compiler_output
                 .code
                 .unwrap()

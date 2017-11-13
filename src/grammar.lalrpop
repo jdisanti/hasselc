@@ -129,6 +129,7 @@ Statement: Box<Expression> = {
     "rotate_right" <n:Name> ";" => Box::new(Expression::RotateRight(n)),
     "break" ";" => Box::new(Expression::Break),
     "return" <v:Expression> ";" => Box::new(Expression::Return { value: v }),
+    "goto" <n:Name> ";" => Box::new(Expression::GoTo(n)),
     <f:FunctionCall> ";" => f,
     ! => {
         errors.push(<>);

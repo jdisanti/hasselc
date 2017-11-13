@@ -1,25 +1,25 @@
-use std::fmt;
+use std::fmt::Write;
 use std::sync::Arc;
+use error;
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Global {
     Resolved(u16),
     UnresolvedBlock,
     UnresolvedName(Arc<String>),
 }
 
-impl fmt::Debug for Global {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+impl Global {
+    fn to_asm(&self) -> String {
         match *self {
-            Global::Resolved(val) => write!(f, "${:04X}", val)?,
-            Global::UnresolvedBlock => write!(f, "UNRESOLVED_BLOCK")?,
-            Global::UnresolvedName(ref name) => write!(f, "{}", name)?,
+            Global::Resolved(val) => format!("${:04X}", val),
+            Global::UnresolvedBlock => format!("UNRESOLVED_BLOCK"),
+            Global::UnresolvedName(ref name) => format!("{}", name),
         }
-        Ok(())
     }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Parameter {
     Implicit,
     Accumulator,
@@ -36,23 +36,22 @@ pub enum Parameter {
     IndirectY(i8),
 }
 
-impl fmt::Debug for Parameter {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+impl Parameter {
+    fn to_asm(&self) -> String {
         match *self {
-            Parameter::Implicit => {}
-            Parameter::Accumulator => write!(f, "A")?,
-            Parameter::Immediate(val) => write!(f, "#{}", val)?,
-            Parameter::ZeroPage(offset) => write!(f, "${:02X}", offset)?,
-            Parameter::ZeroPageX(offset) => write!(f, "${:02X},X", offset)?,
-            Parameter::ZeroPageY(offset) => write!(f, "${:02X},Y", offset)?,
-            Parameter::Absolute(ref gbl) => write!(f, "{:?}", gbl)?,
+            Parameter::Implicit => String::from(""),
+            Parameter::Accumulator => format!("A"),
+            Parameter::Immediate(val) => format!("#{}", val),
+            Parameter::ZeroPage(offset) => format!("${:02X}", offset),
+            Parameter::ZeroPageX(offset) => format!("${:02X}, X", offset),
+            Parameter::ZeroPageY(offset) => format!("${:02X}, Y", offset),
+            Parameter::Absolute(ref gbl) => gbl.to_asm(),
             _ => unimplemented!(),
         }
-        Ok(())
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Code {
     Adc(Parameter),
     Lda(Parameter),
@@ -66,6 +65,7 @@ pub enum Code {
     Clc(Parameter),
     Sec(Parameter),
     Jsr(Parameter),
+    Jmp(Parameter),
     Rts(Parameter),
 }
 
@@ -84,40 +84,39 @@ impl Code {
             Code::Clc(ref p) => p,
             Code::Sec(ref p) => p,
             Code::Jsr(ref p) => p,
+            Code::Jmp(ref p) => p,
             Code::Rts(ref p) => p,
         }
     }
 
     pub fn is_branch(&self) -> bool {
         match *self {
-            Code::Jsr(_) | Code::Rts(_) => true,
+            Code::Jsr(_) | Code::Rts(_) | Code::Jmp(_) => true,
             _ => false,
         }
     }
-}
 
-impl fmt::Debug for Code {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    pub fn to_asm(&self) -> String {
         match *self {
-            Code::Adc(ref p) => write!(f, "ADC {:?}", p)?,
-            Code::Lda(ref p) => write!(f, "LDA {:?}", p)?,
-            Code::Sta(ref p) => write!(f, "STA {:?}", p)?,
-            Code::Ldx(ref p) => write!(f, "LDX {:?}", p)?,
-            Code::Stx(ref p) => write!(f, "STX {:?}", p)?,
-            Code::Sty(ref p) => write!(f, "STY {:?}", p)?,
-            Code::Tax(ref p) => write!(f, "TAX {:?}", p)?,
-            Code::Txa(ref p) => write!(f, "TXA {:?}", p)?,
-            Code::Sbc(ref p) => write!(f, "SBC {:?}", p)?,
-            Code::Clc(ref p) => write!(f, "CLC {:?}", p)?,
-            Code::Sec(ref p) => write!(f, "SEC {:?}", p)?,
-            Code::Jsr(ref p) => write!(f, "JSR {:?}", p)?,
-            Code::Rts(ref p) => write!(f, "RTS {:?}", p)?,
+            Code::Adc(ref p) => format!("ADC    {}", p.to_asm()),
+            Code::Lda(ref p) => format!("LDA    {}", p.to_asm()),
+            Code::Sta(ref p) => format!("STA    {}", p.to_asm()),
+            Code::Ldx(ref p) => format!("LDX    {}", p.to_asm()),
+            Code::Stx(ref p) => format!("STX    {}", p.to_asm()),
+            Code::Sty(ref p) => format!("STY    {}", p.to_asm()),
+            Code::Tax(ref p) => format!("TAX    {}", p.to_asm()),
+            Code::Txa(ref p) => format!("TXA    {}", p.to_asm()),
+            Code::Sbc(ref p) => format!("SBC    {}", p.to_asm()),
+            Code::Clc(ref p) => format!("CLC    {}", p.to_asm()),
+            Code::Sec(ref p) => format!("SEC    {}", p.to_asm()),
+            Code::Jsr(ref p) => format!("JSR    {}", p.to_asm()),
+            Code::Jmp(ref p) => format!("JMP    {}", p.to_asm()),
+            Code::Rts(ref p) => format!("RTS    {}", p.to_asm()),
         }
-        Ok(())
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CodeBlock {
     pub location: Global,
     pub name: Option<Arc<String>>,
@@ -135,19 +134,18 @@ impl CodeBlock {
             body: Vec::new(),
         }
     }
-}
 
-impl fmt::Debug for CodeBlock {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        writeln!(f, "CodeBlock {{")?;
-        writeln!(f, "    location: {:?}", self.location)?;
-        writeln!(f, "    name: {:?}", self.name)?;
-        writeln!(f, "    body: [")?;
-        for code in &self.body {
-            writeln!(f, "        {:?}", code)?;
+    pub fn to_asm(&self) -> error::Result<String> {
+        let mut asm = String::new();
+        if let Global::Resolved(addr) = self.location {
+            write!(asm, ".org ${:04X}\n\n", addr)?;
         }
-        writeln!(f, "    ]")?;
-        write!(f, "}}")?;
-        Ok(())
+        if let Some(ref name) = self.name {
+            write!(asm, "\n{}:\n", name)?;
+        }
+        for code in &self.body {
+            write!(asm, "    {}\n", code.to_asm())?;
+        }
+        Ok(asm)
     }
 }

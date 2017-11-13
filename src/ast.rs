@@ -81,6 +81,7 @@ pub enum Expression {
     Org { org: i32 },
     Break,
     Return { value: Box<Expression> },
+    GoTo(Arc<String>),
     Comment,
     Error,
 }

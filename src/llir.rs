@@ -47,6 +47,7 @@ pub enum Statement {
         right: Value,
     },
     JumpRoutine { location: Location },
+    GoTo(Arc<String>),
     Return,
 }
 
@@ -58,6 +59,7 @@ impl Statement {
             Statement::Add { .. } => false,
             Statement::Subtract { .. } => false,
             Statement::JumpRoutine { .. } => true,
+            Statement::GoTo { .. } => true,
             Statement::Return { .. } => true,
         }
     }
@@ -82,6 +84,7 @@ impl fmt::Debug for Statement {
                 ref right,
             } => write!(f, "store {:?} - {:?} => {:?}", left, right, dest)?,
             Statement::JumpRoutine { ref location } => write!(f, "jsr {:?}", location)?,
+            Statement::GoTo(ref name) => write!(f, "goto {}", name)?,
             Statement::Return => write!(f, "rts")?,
         }
         Ok(())

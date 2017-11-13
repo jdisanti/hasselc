@@ -1,0 +1,18 @@
+# Declare stack frame locations
+register data_stack_pointer: u8 @ 0x0000;
+
+# Initialize the stack
+org 0xE000;
+data_stack_pointer = 3;
+
+test(3); # Expected: returns 20
+goto halt;
+
+def halt(): void
+    goto halt;
+end
+
+def test(a: u8): u8
+    var foo: u8 = 10 + a;
+    return 4 + a + foo;
+end

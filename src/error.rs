@@ -8,6 +8,7 @@ error_chain! {
     }
 
     foreign_links {
+        FmtError(::std::fmt::Error);
     }
 
     errors {

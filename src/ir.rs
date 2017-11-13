@@ -117,6 +117,7 @@ pub enum Statement {
     RotateLeft(SymbolRef),
     RotateRight(SymbolRef),
     Return(Expr),
+    GoTo(Arc<String>),
 }
 
 // Intermediate representation

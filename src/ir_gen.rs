@@ -165,6 +165,9 @@ fn generate_statement_ir(
         ast::Expression::Return { ref value } => {
             statements.push(ir::Statement::Return(generate_expression(value)));
         }
+        ast::Expression::GoTo(ref name) => {
+            statements.push(ir::Statement::GoTo(name.clone()));
+        }
         ast::Expression::Comment => {}
         ast::Expression::BinaryOp { .. } => unreachable!("binary_op"),
         ast::Expression::DeclareFunction { .. } => unreachable!("declare_function"),
