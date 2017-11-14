@@ -32,7 +32,9 @@ pub fn compile(program: &str, optimize_llir: bool, optimize_code: bool) -> error
     compiler_output.ast = Some(ast::Expression::parse(program)?);
 
     compiler_output.ir = Some(ir_gen::generate_ir(compiler_output.ast.as_ref().unwrap())
-        .map_err(|err| error::to_compiler_error(program, err, compiler_output.clone()))?);
+        .map_err(|err| {
+            error::to_compiler_error(program, err, compiler_output.clone())
+        })?);
     compiler_output.llir = Some(llir_gen::generate_llir(
         compiler_output.ir.as_ref().unwrap(),
     )?);

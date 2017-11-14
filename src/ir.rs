@@ -126,7 +126,7 @@ pub enum Statement {
     LeftShift(SymbolRef),
     RotateLeft(SymbolRef),
     RotateRight(SymbolRef),
-    Return(Expr),
+    Return(Option<Expr>),
     GoTo(Arc<String>),
 }
 

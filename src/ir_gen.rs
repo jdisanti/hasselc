@@ -18,7 +18,7 @@ pub fn generate_ir(input: &Vec<ast::Expression>) -> error::Result<Vec<ir::IR>> {
 
                 let symbol_ref = ir::SymbolRef(Arc::clone(&data.name));
                 if global_symbol_table.read().unwrap().has_symbol(&symbol_ref) {
-                    return Err(ErrorKind::DuplicateSymbol(data.tag, Arc::clone(&symbol_ref.0)).into())
+                    return Err(ErrorKind::DuplicateSymbol(data.tag, Arc::clone(&symbol_ref.0)).into());
                 }
 
                 let metadata = Arc::new(RwLock::new(ir::FunctionMetadata {
@@ -41,11 +41,14 @@ pub fn generate_ir(input: &Vec<ast::Expression>) -> error::Result<Vec<ir::IR>> {
                 function.body_mut().extend(body_ir);
                 blocks.push(function);
             }
-            ast::Expression::Org { ref org } => {
+            ast::Expression::Org(ref data) => {
+                if data.address < 0x200 || data.address > 0xFFFF {
+                    return Err(ErrorKind::OrgOutOfRange(data.tag).into());
+                }
                 blocks
                     .last_mut()
                     .unwrap()
-                    .set_location(ir::Location::Global(*org as u16));
+                    .set_location(ir::Location::Global(data.address as u16));
             }
             ast::Expression::Comment => {}
             ast::Expression::Error => unreachable!("error"),
@@ -89,7 +92,7 @@ fn generate_statement_ir(
                     value: generate_expression(&data.value),
                 });
             } else {
-                return Err(ErrorKind::SymbolNotFound(data.tag, Arc::clone(&data.name)).into())
+                return Err(ErrorKind::SymbolNotFound(data.tag, Arc::clone(&data.name)).into());
             }
         }
         ast::Expression::Break => {
@@ -134,7 +137,10 @@ fn generate_statement_ir(
             symbol_table.variables.insert(
                 symbol_ref,
                 // TODO: error for out of range location
-                (data.name_type.type_name, ir::Location::Global(data.location as u16)),
+                (
+                    data.name_type.type_name,
+                    ir::Location::Global(data.location as u16),
+                ),
             );
         }
         ast::Expression::LeftShift(ref _name) => {
@@ -146,8 +152,13 @@ fn generate_statement_ir(
         ast::Expression::RotateRight(ref _name) => {
             // TODO
         }
-        ast::Expression::Return { ref value } => {
-            statements.push(ir::Statement::Return(generate_expression(value)));
+        ast::Expression::Return(ref return_data) => {
+            statements.push(ir::Statement::Return(
+                return_data
+                    .value
+                    .as_ref()
+                    .map(|expr| generate_expression(expr)),
+            ));
         }
         ast::Expression::GoTo(ref name) => {
             statements.push(ir::Statement::GoTo(name.clone()));

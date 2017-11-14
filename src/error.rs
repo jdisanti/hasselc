@@ -30,6 +30,10 @@ error_chain! {
             description("Symbol not found")
             display("Symbol not found: \"{}\"", name)
         }
+        OrgOutOfRange(src_tag: SrcTag) {
+            description("Org out of  range")
+            display("The org address must be between 0x0200 and 0xFFFF")
+        }
     }
 }
 

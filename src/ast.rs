@@ -208,6 +208,36 @@ impl DeclareRegisterData {
 }
 
 #[derive(Debug, Clone)]
+pub struct OrgData {
+    pub tag: SrcTag,
+    pub address: i32,
+}
+
+impl OrgData {
+    pub fn new(tag: SrcTag, address: i32) -> OrgData {
+        OrgData {
+            tag: tag,
+            address: address,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ReturnData {
+    pub tag: SrcTag,
+    pub value: Option<Box<Expression>>,
+}
+
+impl ReturnData {
+    pub fn new(tag: SrcTag, value: Option<Box<Expression>>) -> ReturnData {
+        ReturnData {
+            tag: tag,
+            value: value,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Expression {
     Number(NumberData),
     Name(NameData),
@@ -221,9 +251,9 @@ pub enum Expression {
     LeftShift(Arc<String>),
     RotateLeft(Arc<String>),
     RotateRight(Arc<String>),
-    Org { org: i32 },
+    Org(OrgData),
     Break,
-    Return { value: Box<Expression> },
+    Return(ReturnData),
     GoTo(Arc<String>),
     Comment,
     Error,

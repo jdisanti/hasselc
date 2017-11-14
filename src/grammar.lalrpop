@@ -7,13 +7,15 @@ use ast::{
     CallFunctionData,
     DeclareConstData,
     DeclareFunctionData,
-    DeclareVariableData,
     DeclareRegisterData,
+    DeclareVariableData,
     Expression,
     Literal,
     NameData,
     NameType,
     NumberData,
+    OrgData,
+    ReturnData,
     Type,
 };
 use src_tag::SrcTag;
@@ -141,7 +143,8 @@ Statement: Box<Expression> = {
     "rotate_left" <n:Name> ";" => Box::new(Expression::RotateLeft(n)),
     "rotate_right" <n:Name> ";" => Box::new(Expression::RotateRight(n)),
     "break" ";" => Box::new(Expression::Break),
-    "return" <v:Expression> ";" => Box::new(Expression::Return { value: v }),
+    <t:@L> "return" <v:Expression> ";" => Box::new(Expression::Return(ReturnData::new(SrcTag(t), Some(v)))),
+    <t:@L> "return" ";" => Box::new(Expression::Return(ReturnData::new(SrcTag(t), None))),
     "goto" <n:Name> ";" => Box::new(Expression::GoTo(n)),
     <f:FunctionCall> ";" => f,
     // Error recovery was causing infinite loops
@@ -163,7 +166,7 @@ StatementList: Vec<Expression> = {
 };
 
 TopLevelStatement: Box<Expression> = {
-    "org" <n:Number> ";" => Box::new(Expression::Org { org: n }),
+    <t:@L> "org" <n:Number> ";" => Box::new(Expression::Org(OrgData::new(SrcTag(t), n))),
     <t:@L> "register" <nt:NameType> "@" <l:Number> ";" =>
         Box::new(Expression::DeclareRegister(DeclareRegisterData::new(SrcTag(t), nt, l))),
     <t:@L> "def" <n:Name> "(" ")" ":" <rt:Type> <b:StatementList> "end" =>

@@ -92,13 +92,15 @@ fn generate_body(
                     unimplemented!()
                 }
             }
-            ir::Statement::Return(ref expr) => {
-                let value = resolve_expr_to_value(&mut statements, frame.clone(), symbol_table, expr)?;
-                // TODO: 16-bit values
-                statements.push(llir::Statement::Store {
-                    dest: RETURN_LOCATION_LO,
-                    value: value,
-                });
+            ir::Statement::Return(ref optional_expr) => {
+                if let Some(ref expr) = *optional_expr {
+                    let value = resolve_expr_to_value(&mut statements, frame.clone(), symbol_table, expr)?;
+                    // TODO: 16-bit values
+                    statements.push(llir::Statement::Store {
+                        dest: RETURN_LOCATION_LO,
+                        value: value,
+                    });
+                }
                 statements.push(llir::Statement::Return);
             }
             ir::Statement::GoTo(ref name) => {
