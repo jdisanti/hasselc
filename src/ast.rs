@@ -3,13 +3,13 @@ use lalrpop_util;
 use src_tag::SrcTag;
 use error;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Literal {
     Int(i32),
     Str(Arc<String>),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Type {
     U8,
     U16,
@@ -26,13 +26,22 @@ impl Type {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct NameType {
     pub name: Arc<String>,
     pub type_name: Type,
 }
 
-#[derive(Debug, Copy, Clone)]
+impl NameType {
+    pub fn new(name: Arc<String>, type_name: Type) -> NameType {
+        NameType {
+            name: name,
+            type_name: type_name,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum BinaryOperator {
     Add,
     Sub,
@@ -46,7 +55,7 @@ pub enum BinaryOperator {
     NotEqual,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct NumberData {
     pub tag: SrcTag,
     pub value: i32,
@@ -61,7 +70,7 @@ impl NumberData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct NameData {
     pub tag: SrcTag,
     pub name: Arc<String>,
@@ -76,7 +85,7 @@ impl NameData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct BinaryOpData {
     pub tag: SrcTag,
     pub op: BinaryOperator,
@@ -95,7 +104,7 @@ impl BinaryOpData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct AssignmentData {
     pub tag: SrcTag,
     pub name: Arc<String>,
@@ -112,7 +121,7 @@ impl AssignmentData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct CallFunctionData {
     pub tag: SrcTag,
     pub name: Arc<String>,
@@ -129,7 +138,7 @@ impl CallFunctionData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct DeclareConstData {
     pub tag: SrcTag,
     pub name_type: NameType,
@@ -146,7 +155,7 @@ impl DeclareConstData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct DeclareFunctionData {
     pub tag: SrcTag,
     pub name: Arc<String>,
@@ -173,7 +182,7 @@ impl DeclareFunctionData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct DeclareVariableData {
     pub tag: SrcTag,
     pub name_type: NameType,
@@ -190,7 +199,7 @@ impl DeclareVariableData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct DeclareRegisterData {
     pub tag: SrcTag,
     pub name_type: NameType,
@@ -207,7 +216,7 @@ impl DeclareRegisterData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct OrgData {
     pub tag: SrcTag,
     pub address: i32,
@@ -222,7 +231,7 @@ impl OrgData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ReturnData {
     pub tag: SrcTag,
     pub value: Option<Box<Expression>>,
@@ -237,7 +246,7 @@ impl ReturnData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Expression {
     Number(NumberData),
     Name(NameData),
@@ -313,4 +322,108 @@ where
         }
     }
     return error::ErrorKind::ParseError(messages).into();
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn operator_precedence_multiplication() {
+        let program = "a = 2 + 9 * 1;";
+        let ast = Expression::parse(&program).expect("parse");
+
+        let expected = vec![
+            Expression::Assignment(AssignmentData::new(
+                SrcTag(0),
+                Arc::new("a".into()),
+                Box::new(Expression::BinaryOp(BinaryOpData::new(
+                    SrcTag(4),
+                    BinaryOperator::Add,
+                    Box::new(Expression::Number(NumberData::new(SrcTag(4), 2))),
+                    Box::new(Expression::BinaryOp(BinaryOpData::new(
+                        SrcTag(8),
+                        BinaryOperator::Mul,
+                        Box::new(Expression::Number(NumberData::new(SrcTag(8), 9))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag(12), 1))),
+                    ))),
+                ))),
+            )),
+        ];
+
+        assert_eq!(expected, ast);
+    }
+
+    #[test]
+    fn operator_precedence_parenthesis() {
+        let program = "a = 2 * (9 + 1);";
+        let ast = Expression::parse(&program).expect("parse");
+
+        let expected = vec![
+            Expression::Assignment(AssignmentData::new(
+                SrcTag(0),
+                Arc::new("a".into()),
+                Box::new(Expression::BinaryOp(BinaryOpData::new(
+                    SrcTag(4),
+                    BinaryOperator::Mul,
+                    Box::new(Expression::Number(NumberData::new(SrcTag(4), 2))),
+                    Box::new(Expression::BinaryOp(BinaryOpData::new(
+                        SrcTag(9),
+                        BinaryOperator::Add,
+                        Box::new(Expression::Number(NumberData::new(SrcTag(9), 9))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag(13), 1))),
+                    ))),
+                ))),
+            )),
+        ];
+
+        assert_eq!(expected, ast);
+    }
+
+    #[test]
+    fn operator_precedence_comparison() {
+        let program = "a = 2 + 1 > 3 - 1;";
+        let ast = Expression::parse(&program).expect("parse");
+
+        let expected = vec![
+            Expression::Assignment(AssignmentData::new(
+                SrcTag(0),
+                Arc::new("a".into()),
+                Box::new(Expression::BinaryOp(BinaryOpData::new(
+                    SrcTag(4),
+                    BinaryOperator::GreaterThan,
+                    Box::new(Expression::BinaryOp(BinaryOpData::new(
+                        SrcTag(4),
+                        BinaryOperator::Add,
+                        Box::new(Expression::Number(NumberData::new(SrcTag(4), 2))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag(8), 1))),
+                    ))),
+                    Box::new(Expression::BinaryOp(BinaryOpData::new(
+                        SrcTag(12),
+                        BinaryOperator::Sub,
+                        Box::new(Expression::Number(NumberData::new(SrcTag(12), 3))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag(16), 1))),
+                    ))),
+                ))),
+            )),
+        ];
+
+        assert_eq!(expected, ast);
+    }
+
+    #[test]
+    fn parse_const() {
+        let program = "register test_register: u8 @ 0x8000;";
+        let ast = Expression::parse(&program).expect("parse");
+
+        let expected = vec![
+            Expression::DeclareRegister(DeclareRegisterData::new(
+                SrcTag(0),
+                NameType::new(Arc::new("test_register".into()), Type::U8),
+                0x8000,
+            )),
+        ];
+
+        assert_eq!(expected, ast);
+    }
 }

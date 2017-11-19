@@ -1,5 +1,5 @@
 /// Represents the character offset in the program code where something is located
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct SrcTag(pub usize);
 
 impl SrcTag {
