@@ -66,6 +66,16 @@ fn compile(program: &str, optimize_llir: bool, optimize_code: bool) -> compiler:
     }
 }
 
+#[cfg(target_os = "windows")]
+fn assembler_name() -> &'static str {
+    "../assembler/asm.bat"
+}
+
+#[cfg(not(target_os = "windows"))]
+fn assembler_name() -> &'static str {
+    "../assembler/asm"
+}
+
 fn assemble(name: &str, program: &str, optimize_llir: bool, optimize_code: bool) -> Vec<u8> {
     let compiler_output = compile(program, optimize_llir, optimize_code);
 
@@ -77,14 +87,16 @@ fn assemble(name: &str, program: &str, optimize_llir: bool, optimize_code: bool)
 
     println!("Program:\n{}\n", asm);
 
-    let mut file = fs::File::create(format!("/tmp/{}.s", name)).unwrap();
+    fs::create_dir_all("test_output").expect("create_dir_all");
+
+    let mut file = fs::File::create(format!("test_output/{}.s", name)).unwrap();
     file.write_all(asm.as_bytes()).unwrap();
     drop(file);
 
-    let assemble_result = process::Command::new("../assembler/asm")
+    let assemble_result = process::Command::new(assembler_name())
         .arg("-o")
-        .arg(format!("/tmp/{}.rom", name))
-        .arg(format!("/tmp/{}.s", name))
+        .arg(format!("test_output/{}.rom", name))
+        .arg(format!("test_output/{}.s", name))
         .stdout(process::Stdio::piped())
         .status()
         .unwrap();
@@ -93,7 +105,7 @@ fn assemble(name: &str, program: &str, optimize_llir: bool, optimize_code: bool)
     }
 
     let mut code = Vec::new();
-    let mut file = fs::File::open(format!("/tmp/{}.rom", name)).unwrap();
+    let mut file = fs::File::open(format!("test_output/{}.rom", name)).unwrap();
     file.read_to_end(&mut code).unwrap();
 
     println!("assembled to {} bytes of program code", code.len());
