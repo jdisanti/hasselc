@@ -2,8 +2,8 @@ use std::sync::Arc;
 use llir;
 use code;
 use error;
+use register::{Register, RegisterAllocator, DSP_PARAM};
 
-pub const DATA_STACK_POINTER_LOCATION: u16 = 0x0000;
 const RETURN_LOCATION_LO: u16 = 0x0001;
 const RETURN_LOCATION_HI: u16 = 0x0002;
 
@@ -26,32 +26,48 @@ pub fn generate_code(input: &Vec<llir::Block>) -> error::Result<Vec<code::CodeBl
 fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> error::Result<Vec<code::Code>> {
     use code::{Code, Global, Parameter};
 
+    let mut registers = RegisterAllocator::new();
+
     let mut body = Vec::new();
     for statement in input {
         match *statement {
             llir::Statement::AddToDataStackPointer(ref val) => {
-                body.push(Code::Lda(addr_param(DATA_STACK_POINTER_LOCATION)));
+                registers.load_dsp(&mut body, Register::Accum);
                 body.push(Code::Clc(Parameter::Implicit));
-                body.push(Code::Adc(Parameter::Immediate(match *val {
-                    llir::SPOffset::Immediate(val) => val as u8,
-                    llir::SPOffset::FrameSize(ref name) => lookup_frame_size(blocks, name.clone())? as u8,
-                    llir::SPOffset::NegativeFrameSize(ref name) => -lookup_frame_size(blocks, name.clone())? as u8,
-                })));
-                body.push(Code::Sta(addr_param(DATA_STACK_POINTER_LOCATION)));
+                registers.add(
+                    &mut body,
+                    Parameter::Immediate(match *val {
+                        llir::SPOffset::Immediate(val) => val as u8,
+                        llir::SPOffset::FrameSize(ref name) => lookup_frame_size(blocks, name.clone())? as u8,
+                        llir::SPOffset::NegativeFrameSize(ref name) => -lookup_frame_size(blocks, name.clone())? as u8,
+                    }),
+                );
+                registers.save_dsp_later(Register::Accum);
             }
             llir::Statement::Copy(ref data) => {
-                generate_store(&mut body, blocks, &data.destination, &data.value)?;
+                generate_store(
+                    &mut registers,
+                    &mut body,
+                    blocks,
+                    &data.destination,
+                    &data.value,
+                )?;
             }
             llir::Statement::JumpRoutine(ref location) => {
+                registers.save_all_and_reset(&mut body);
                 body.push(Code::Jsr(Parameter::Absolute(match *location {
                     llir::Location::Global(addr) => Global::Resolved(addr),
                     llir::Location::UnresolvedGlobal(ref name) => Global::UnresolvedName(name.clone()),
                     _ => unreachable!(),
                 })));
             }
-            llir::Statement::Return => body.push(Code::Rts(Parameter::Implicit)),
+            llir::Statement::Return => {
+                registers.save_all_and_reset(&mut body);
+                body.push(Code::Rts(Parameter::Implicit));
+            }
             llir::Statement::Add(ref data) => {
                 generate_add(
+                    &mut registers,
                     &mut body,
                     blocks,
                     &data.destination,
@@ -60,6 +76,7 @@ fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> err
                 )?;
             }
             llir::Statement::GoTo(ref name) => {
+                registers.save_all_and_reset(&mut body);
                 body.push(Code::Jmp(
                     Parameter::Absolute(Global::UnresolvedName(name.clone())),
                 ));
@@ -83,17 +100,19 @@ fn lookup_frame_size(blocks: &Vec<llir::Block>, name: Arc<String>) -> error::Res
 }
 
 fn generate_store(
+    registers: &mut RegisterAllocator,
     body: &mut Vec<code::Code>,
     blocks: &Vec<llir::Block>,
     dest: &llir::Location,
     value: &llir::Value,
 ) -> error::Result<()> {
-    load_into_accum(body, blocks, value)?;
-    store_accum(body, blocks, dest)?;
+    load_into_accum(registers, body, blocks, value)?;
+    store_accum(registers, body, blocks, dest)?;
     Ok(())
 }
 
 fn generate_add(
+    registers: &mut RegisterAllocator,
     body: &mut Vec<code::Code>,
     blocks: &Vec<llir::Block>,
     dest: &llir::Location,
@@ -101,27 +120,30 @@ fn generate_add(
     right: &llir::Value,
 ) -> error::Result<()> {
     use code::{Code, Parameter};
-    load_into_accum(body, blocks, left)?;
+    load_into_accum(registers, body, blocks, left)?;
     match *right {
         llir::Value::Immediate(val) => {
             body.push(Code::Clc(Parameter::Implicit));
-            body.push(Code::Adc(Parameter::Immediate(val)));
+            registers.add(body, Parameter::Immediate(val));
         }
         llir::Value::Memory(ref location) => {
-            load_stack_pointer_if_necessary(body, location)?;
+            load_stack_pointer_if_necessary(registers, body, location)?;
             body.push(Code::Clc(Parameter::Implicit));
-            body.push(Code::Adc(location_to_parameter(blocks, location)?));
+            registers.add(body, location_to_parameter(blocks, location)?);
         }
     }
-    store_accum(body, blocks, dest)?;
+    store_accum(registers, body, blocks, dest)?;
     Ok(())
 }
 
-fn load_stack_pointer_if_necessary(body: &mut Vec<code::Code>, location: &llir::Location) -> error::Result<()> {
-    use code::Code;
+fn load_stack_pointer_if_necessary(
+    registers: &mut RegisterAllocator,
+    body: &mut Vec<code::Code>,
+    location: &llir::Location,
+) -> error::Result<()> {
     match *location {
         llir::Location::DataStackOffset(_) | llir::Location::FrameOffset(_, _) => {
-            body.push(Code::Ldx(addr_param(DATA_STACK_POINTER_LOCATION)));
+            registers.load_dsp(body, Register::XIndex);
         }
         _ => {}
     }
@@ -143,40 +165,62 @@ fn location_to_parameter(blocks: &Vec<llir::Block>, location: &llir::Location) -
     }
 }
 
-fn store_accum(body: &mut Vec<code::Code>, blocks: &Vec<llir::Block>, location: &llir::Location) -> error::Result<()> {
-    use code::Code;
-    load_stack_pointer_if_necessary(body, location)?;
-    body.push(Code::Sta(location_to_parameter(blocks, location)?));
+fn store_accum(
+    registers: &mut RegisterAllocator,
+    body: &mut Vec<code::Code>,
+    blocks: &Vec<llir::Block>,
+    location: &llir::Location,
+) -> error::Result<()> {
+    let expect_x = match *location {
+        llir::Location::DataStackOffset(_) => Some(DSP_PARAM),
+        llir::Location::FrameOffset(_, _) => Some(DSP_PARAM),
+        _ => None,
+    };
+    registers.save_later(
+        Register::Accum,
+        expect_x,
+        None,
+        location_to_parameter(blocks, location)?,
+    );
     Ok(())
 }
 
-fn load_into_accum(body: &mut Vec<code::Code>, blocks: &Vec<llir::Block>, value: &llir::Value) -> error::Result<()> {
-    use code::{Code, Parameter};
+fn load_into_accum(
+    registers: &mut RegisterAllocator,
+    body: &mut Vec<code::Code>,
+    blocks: &Vec<llir::Block>,
+    value: &llir::Value,
+) -> error::Result<()> {
+    use code::Parameter;
     match *value {
         llir::Value::Immediate(val) => {
-            body.push(Code::Lda(Parameter::Immediate(val)));
+            registers.load(body, Register::Accum, Parameter::Immediate(val));
         }
         llir::Value::Memory(ref location) => match *location {
             llir::Location::Global(addr) => {
-                body.push(Code::Lda(addr_param(addr)));
+                registers.load(body, Register::Accum, addr_param(addr));
             }
             llir::Location::DataStackOffset(offset) => {
-                body.push(Code::Ldx(addr_param(DATA_STACK_POINTER_LOCATION)));
-                body.push(Code::Lda(Parameter::ZeroPageX(offset)));
+                registers.load_dsp(body, Register::XIndex);
+                registers.load(body, Register::Accum, Parameter::ZeroPageX(offset));
             }
             llir::Location::FrameOffset(ref frame, offset) => {
-                body.push(Code::Ldx(addr_param(DATA_STACK_POINTER_LOCATION)));
-                body.push(Code::Lda(Parameter::ZeroPageX(
-                    offset - lookup_frame_size(blocks, frame.clone())?,
-                )));
+                registers.load_dsp(body, Register::XIndex);
+                registers.load(
+                    body,
+                    Register::Accum,
+                    Parameter::ZeroPageX(offset - lookup_frame_size(blocks, frame.clone())?),
+                );
             }
             llir::Location::FrameOffsetBeforeCall(ref original_frame, ref calling_frame, offset) => {
                 let original_frame_size = lookup_frame_size(blocks, original_frame.clone())?;
                 let call_to_frame_size = lookup_frame_size(blocks, calling_frame.clone())?;
-                body.push(Code::Ldx(addr_param(DATA_STACK_POINTER_LOCATION)));
-                body.push(Code::Lda(Parameter::ZeroPageX(
-                    offset - call_to_frame_size - original_frame_size,
-                )));
+                registers.load_dsp(body, Register::XIndex);
+                registers.load(
+                    body,
+                    Register::Accum,
+                    Parameter::ZeroPageX(offset - call_to_frame_size - original_frame_size),
+                );
             }
             _ => {
                 println!(

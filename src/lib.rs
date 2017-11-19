@@ -13,6 +13,7 @@ mod code_opt;
 mod ir_gen;
 mod llir_gen;
 mod llir_opt;
+mod register;
 pub mod ast;
 pub mod code;
 pub mod compiler;

@@ -1,5 +1,5 @@
 use code::{Code, CodeBlock, Global, Parameter};
-use code_gen::DATA_STACK_POINTER_LOCATION;
+use register::DATA_STACK_POINTER_LOCATION;
 use error;
 
 pub fn optimize_code(code: &Vec<CodeBlock>) -> error::Result<Vec<CodeBlock>> {
