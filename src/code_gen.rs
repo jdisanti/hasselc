@@ -39,13 +39,10 @@ fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> err
                 })));
                 body.push(Code::Sta(addr_param(DATA_STACK_POINTER_LOCATION)));
             }
-            llir::Statement::Store {
-                ref dest,
-                ref value,
-            } => {
-                generate_store(&mut body, blocks, dest, value)?;
+            llir::Statement::Copy(ref data) => {
+                generate_store(&mut body, blocks, &data.destination, &data.value)?;
             }
-            llir::Statement::JumpRoutine { ref location } => {
+            llir::Statement::JumpRoutine(ref location) => {
                 body.push(Code::Jsr(Parameter::Absolute(match *location {
                     llir::Location::Global(addr) => Global::Resolved(addr),
                     llir::Location::UnresolvedGlobal(ref name) => Global::UnresolvedName(name.clone()),
@@ -53,12 +50,14 @@ fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> err
                 })));
             }
             llir::Statement::Return => body.push(Code::Rts(Parameter::Implicit)),
-            llir::Statement::Add {
-                ref dest,
-                ref left,
-                ref right,
-            } => {
-                generate_add(&mut body, blocks, dest, left, right)?;
+            llir::Statement::Add(ref data) => {
+                generate_add(
+                    &mut body,
+                    blocks,
+                    &data.destination,
+                    &data.left,
+                    &data.right,
+                )?;
             }
             llir::Statement::GoTo(ref name) => {
                 body.push(Code::Jmp(

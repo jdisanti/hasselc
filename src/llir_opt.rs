@@ -1,4 +1,4 @@
-use llir::{Block, Statement, Value};
+use llir::{BinaryOpData, Block, Statement, Value};
 use error;
 
 pub fn optimize_llir(llir: &Vec<Block>) -> error::Result<Vec<Block>> {
@@ -53,16 +53,13 @@ fn try_redundant_stores(run: &mut Vec<Statement>, full_block: &Vec<Statement>) -
     for i in 0..(run.len() - 1) {
         let (matches, second_store) = {
             let first_store = match run[i] {
-                Statement::Add { ref dest, .. } => dest,
+                Statement::Add(ref data) => &data.destination,
                 _ => continue,
             };
 
             let (second_load, second_store) = match run[i + 1] {
-                Statement::Store {
-                    ref value,
-                    ref dest,
-                } => match *value {
-                    Value::Memory(ref loc) => (loc, dest),
+                Statement::Copy(ref data) => match data.value {
+                    Value::Memory(ref loc) => (loc, &data.destination),
                     _ => continue,
                 },
                 _ => continue,
@@ -73,7 +70,7 @@ fn try_redundant_stores(run: &mut Vec<Statement>, full_block: &Vec<Statement>) -
             let mut uses = 0;
             for statement in full_block {
                 match *statement {
-                    Statement::Store { ref value, .. } => match *value {
+                    Statement::Copy(ref data) => match data.value {
                         Value::Memory(ref loc) => if second_load == loc {
                             uses += 1;
                         },
@@ -90,15 +87,11 @@ fn try_redundant_stores(run: &mut Vec<Statement>, full_block: &Vec<Statement>) -
         };
         if matches {
             run[i] = match run[i] {
-                Statement::Add {
-                    ref left,
-                    ref right,
-                    ..
-                } => Statement::Add {
-                    dest: second_store,
-                    left: left.clone(),
-                    right: right.clone(),
-                },
+                Statement::Add(ref data) => Statement::Add(BinaryOpData::new(
+                    second_store,
+                    data.left.clone(),
+                    data.right.clone(),
+                )),
                 _ => unreachable!(),
             };
             run.remove(i + 1);

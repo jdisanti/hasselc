@@ -83,10 +83,10 @@ fn generate_body(
             } => {
                 if let Some((ref _typ, ref location)) = symbol_table.variable(symbol) {
                     let resolved_value = resolve_expr_to_value(&mut statements, frame.clone(), symbol_table, value)?;
-                    statements.push(llir::Statement::Store {
-                        dest: convert_location(frame.clone(), location),
-                        value: resolved_value,
-                    });
+                    statements.push(llir::Statement::Copy(llir::CopyData::new(
+                        convert_location(frame.clone(), location),
+                        resolved_value,
+                    )));
                 } else {
                     // TODO: error
                     unimplemented!()
@@ -96,10 +96,9 @@ fn generate_body(
                 if let Some(ref expr) = *optional_expr {
                     let value = resolve_expr_to_value(&mut statements, frame.clone(), symbol_table, expr)?;
                     // TODO: 16-bit values
-                    statements.push(llir::Statement::Store {
-                        dest: RETURN_LOCATION_LO,
-                        value: value,
-                    });
+                    statements.push(llir::Statement::Copy(
+                        llir::CopyData::new(RETURN_LOCATION_LO, value),
+                    ));
                 }
                 statements.push(llir::Statement::Return);
             }
@@ -143,18 +142,18 @@ fn resolve_expr_to_value(
             let right_value = resolve_expr_to_value(statements, frame.clone(), symbol_table, &**right)?;
             match *op {
                 ast::BinaryOperator::Add => {
-                    statements.push(llir::Statement::Add {
-                        dest: dest.clone(),
-                        left: left_value,
-                        right: right_value,
-                    });
+                    statements.push(llir::Statement::Add(llir::BinaryOpData::new(
+                        dest.clone(),
+                        left_value,
+                        right_value,
+                    )));
                 }
                 ast::BinaryOperator::Sub => {
-                    statements.push(llir::Statement::Subtract {
-                        dest: dest.clone(),
-                        left: left_value,
-                        right: right_value,
-                    });
+                    statements.push(llir::Statement::Subtract(llir::BinaryOpData::new(
+                        dest.clone(),
+                        left_value,
+                        right_value,
+                    )));
                 }
                 _ => unimplemented!(),
             };
@@ -187,19 +186,19 @@ fn resolve_expr_to_value(
                 if metadata.parameters.len() > 0 {
                     let mut frame_offset = 0;
                     for (i, argument_value) in argument_values.into_iter().enumerate() {
-                        statements.push(llir::Statement::Store {
-                            dest: llir::Location::FrameOffset(metadata.name.clone(), frame_offset),
-                            value: offset_call(metadata.name.clone(), argument_value),
-                        });
+                        statements.push(llir::Statement::Copy(llir::CopyData::new(
+                            llir::Location::FrameOffset(metadata.name.clone(), frame_offset),
+                            offset_call(metadata.name.clone(), argument_value),
+                        )));
                         let name_type = &metadata.parameters[i];
                         frame_offset += name_type.type_name.size() as i8;
                     }
                 }
 
                 // Jump to the routine
-                statements.push(llir::Statement::JumpRoutine {
-                    location: llir::Location::UnresolvedGlobal(symbol.0.clone()),
-                });
+                statements.push(llir::Statement::JumpRoutine(
+                    llir::Location::UnresolvedGlobal(symbol.0.clone()),
+                ));
 
                 // Restore the stack pointer
                 statements.push(llir::Statement::AddToDataStackPointer(
