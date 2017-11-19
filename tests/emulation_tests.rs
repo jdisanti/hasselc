@@ -90,7 +90,8 @@ fn assemble(name: &str, program: &str, optimize_llir: bool, optimize_code: bool)
     fs::create_dir_all("test_output").expect("create_dir_all");
 
     let mut file = fs::File::create(format!("test_output/{}.llir", name)).unwrap();
-    file.write_all(format!("{:#?}", compiler_output.llir).as_bytes()).unwrap();
+    file.write_all(format!("{:#?}", compiler_output.llir).as_bytes())
+        .unwrap();
     drop(file);
 
     let mut file = fs::File::create(format!("test_output/{}.s", name)).unwrap();

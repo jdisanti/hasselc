@@ -6,20 +6,41 @@ pub const DATA_STACK_POINTER_LOCATION: u16 = 0x0000;
 pub const DSP_PARAM: Parameter = Parameter::ZeroPage(DATA_STACK_POINTER_LOCATION as u8);
 const DSP_REG_VALUE: RegisterValue = RegisterValue::Param(DSP_PARAM);
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum RegisterValue {
-    Uninitialized,
-    Intermediate(usize),
-    Param(Parameter),
+pub struct RegisterEquivalency {
+    equivalencies: Vec<RegisterValue>,
 }
 
-impl RegisterValue {
-    pub fn param(&self) -> Option<&Parameter> {
-        match *self {
-            RegisterValue::Param(ref param) => Some(param),
-            _ => None,
+impl RegisterEquivalency {
+    pub fn new() -> RegisterEquivalency {
+        RegisterEquivalency {
+            equivalencies: Vec::new(),
         }
     }
+
+    pub fn clobber(&mut self, value: RegisterValue) {
+        self.equivalencies.clear();
+        self.equivalencies.push(value);
+    }
+
+    pub fn add_value(&mut self, value: RegisterValue) {
+        if !self.is_equivalent(&value) {
+            self.equivalencies.push(value);
+        }
+    }
+
+    pub fn is_equivalent(&self, value: &RegisterValue) -> bool {
+        self.equivalencies.contains(value)
+    }
+
+    pub fn reset(&mut self) {
+        self.equivalencies.clear();
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum RegisterValue {
+    Intermediate(usize),
+    Param(Parameter),
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -85,24 +106,20 @@ impl Register {
     }
 }
 
-struct SaveLocation {
-    pub expect_x: Option<Parameter>,
-    pub expect_y: Option<Parameter>,
-    pub location: Parameter,
-}
+struct SaveLocation(pub Parameter);
 
 impl SaveLocation {
-    pub fn new(expect_x: Option<Parameter>, expect_y: Option<Parameter>, location: Parameter) -> SaveLocation {
-        SaveLocation {
-            expect_x: expect_x,
-            expect_y: expect_y,
-            location: location,
+    pub fn requires(&self, register: Register) -> bool {
+        match self.0 {
+            Parameter::AbsoluteX(_) | Parameter::IndirectX(_) | Parameter::ZeroPageX(_) => register == Register::XIndex,
+            Parameter::AbsoluteY(_) | Parameter::IndirectY(_) | Parameter::ZeroPageY(_) => register == Register::YIndex,
+            _ => false,
         }
     }
 }
 
 pub struct RegisterAllocator {
-    values: [RegisterValue; 3],
+    values: [RegisterEquivalency; 3],
     save_locations: [Option<SaveLocation>; 3],
     next_intermediate_differentiator: usize,
 }
@@ -111,9 +128,9 @@ impl RegisterAllocator {
     pub fn new() -> RegisterAllocator {
         RegisterAllocator {
             values: [
-                RegisterValue::Uninitialized,
-                RegisterValue::Uninitialized,
-                RegisterValue::Uninitialized,
+                RegisterEquivalency::new(),
+                RegisterEquivalency::new(),
+                RegisterEquivalency::new(),
             ],
             save_locations: [None, None, None],
             next_intermediate_differentiator: 0,
@@ -133,49 +150,47 @@ impl RegisterAllocator {
             &mut self.save_locations[register.ordinal()],
         );
         if let Some(location) = save_location {
-            if register != Register::XIndex {
-                if location.expect_x.as_ref() != self.values[Register::XIndex.ordinal()].param() {
-                    if let Some(expected_x) = location.expect_x {
-                        self.spillover(code, Register::XIndex);
-                        self.load(code, Register::XIndex, expected_x.clone());
-                    }
+            code.push(register.save_op(location.0.clone()));
+            self.values[register.ordinal()].add_value(RegisterValue::Param(location.0));
+        }
+    }
+
+    fn save_as_necessary(&mut self, code: &mut Vec<Code>, clobbering: Register) {
+        let mut spillovers = [false; 3];
+        spillovers[clobbering.ordinal()] = true;
+        for index in 0..self.save_locations.len() {
+            if let Some(ref location) = self.save_locations[index] {
+                if location.requires(clobbering) {
+                    spillovers[index] = true;
                 }
             }
-            if register != Register::YIndex {
-                if location.expect_y.as_ref() != self.values[Register::YIndex.ordinal()].param() {
-                    if let Some(expected_y) = location.expect_y {
-                        self.spillover(code, Register::YIndex);
-                        self.load(code, Register::YIndex, expected_y.clone());
-                    }
-                }
+        }
+
+        for index in 0..spillovers.len() {
+            if spillovers[index] {
+                self.spillover(code, Register::from_ordinal(index));
             }
-            code.push(register.save_op(location.location.clone()));
-            self.values[register.ordinal()] = RegisterValue::Param(location.location);
         }
     }
 
     pub fn add(&mut self, code: &mut Vec<Code>, param: Parameter) {
-        self.spillover(code, Register::Accum);
+        self.save_as_necessary(code, Register::Accum);
         code.push(Code::Adc(param));
-        self.values[Register::Accum.ordinal()] = self.next_intermediate();
+        let next_intermediate = self.next_intermediate();
+        self.values[Register::Accum.ordinal()].clobber(next_intermediate);
     }
 
     pub fn load(&mut self, code: &mut Vec<Code>, register: Register, param: Parameter) {
-        if self.values[register.ordinal()] != RegisterValue::Param(param.clone()) {
-            self.spillover(code, register);
+        if !self.values[register.ordinal()].is_equivalent(&RegisterValue::Param(param.clone())) {
+            self.save_as_necessary(code, register);
             code.push(register.load_op(param.clone()));
-            self.values[register.ordinal()] = RegisterValue::Param(param);
+            self.values[register.ordinal()].clobber(RegisterValue::Param(param));
         }
     }
 
-    pub fn save_later(
-        &mut self,
-        register: Register,
-        expect_x: Option<Parameter>,
-        expect_y: Option<Parameter>,
-        location: Parameter,
-    ) {
-        self.save_locations[register.ordinal()] = Some(SaveLocation::new(expect_x, expect_y, location));
+    pub fn save_later(&mut self, register: Register, location: Parameter) {
+        self.save_locations[register.ordinal()] = Some(SaveLocation(location.clone()));
+        self.values[register.ordinal()].add_value(RegisterValue::Param(location));
     }
 
     pub fn save_all_now(&mut self, code: &mut Vec<Code>) {
@@ -186,22 +201,20 @@ impl RegisterAllocator {
 
     pub fn save_all_and_reset(&mut self, code: &mut Vec<Code>) {
         self.save_all_now(code);
-        self.values = [
-            RegisterValue::Uninitialized,
-            RegisterValue::Uninitialized,
-            RegisterValue::Uninitialized,
-        ];
+        for mut value in &mut self.values {
+            value.reset();
+        }
         self.save_locations = [None, None, None];
     }
 
     pub fn load_dsp(&mut self, code: &mut Vec<Code>, into: Register) {
         // If we already have the stack pointer loaded somewhere, just re-use it
         for i in 0..self.values.len() {
-            if self.values[i] == DSP_REG_VALUE {
+            if self.values[i].is_equivalent(&DSP_REG_VALUE) {
                 if Register::from_ordinal(i) == into {
                     return;
                 } else if let Some(transfer) = Register::from_ordinal(i).to_other(into) {
-                    self.spillover(code, into);
+                    self.save_as_necessary(code, into);
                     code.push(transfer);
                     return;
                 }
@@ -213,6 +226,96 @@ impl RegisterAllocator {
     }
 
     pub fn save_dsp_later(&mut self, from_register: Register) {
-        self.save_later(from_register, None, None, DSP_PARAM);
+        self.save_later(from_register, DSP_PARAM);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use code::CodeBlock;
+
+    #[test]
+    fn store_then_load_equivalency() {
+        let mut code_block = CodeBlock::new(None, None);
+        let mut registers = RegisterAllocator::new();
+
+        registers.load(
+            &mut code_block.body,
+            Register::Accum,
+            Parameter::ZeroPage(5),
+        );
+        registers.add(&mut code_block.body, Parameter::ZeroPage(6));
+        registers.save_later(Register::Accum, Parameter::ZeroPage(5));
+        registers.load(
+            &mut code_block.body,
+            Register::Accum,
+            Parameter::ZeroPage(5),
+        );
+
+        assert_eq!(
+            "\
+             \tLDA\t$05\n\
+             \tADC\t$06\n",
+            code_block.to_asm().unwrap()
+        );
+    }
+
+    #[test]
+    fn save_as_necessary_a_only() {
+        let mut code_block = CodeBlock::new(None, None);
+        let mut registers = RegisterAllocator::new();
+
+        registers.load(
+            &mut code_block.body,
+            Register::Accum,
+            Parameter::Immediate(0),
+        );
+        registers.save_later(Register::Accum, Parameter::ZeroPage(0));
+        registers.load(
+            &mut code_block.body,
+            Register::Accum,
+            Parameter::Immediate(1),
+        );
+
+        assert_eq!(
+            "\
+             \tLDA\t#0\n\
+             \tSTA\t$00\n\
+             \tLDA\t#1\n",
+            code_block.to_asm().unwrap()
+        );
+    }
+
+    #[test]
+    fn save_as_necessary_x_change() {
+        let mut code_block = CodeBlock::new(None, None);
+        let mut registers = RegisterAllocator::new();
+
+        registers.load(
+            &mut code_block.body,
+            Register::XIndex,
+            Parameter::Immediate(0),
+        );
+        registers.load(
+            &mut code_block.body,
+            Register::Accum,
+            Parameter::Immediate(5),
+        );
+        registers.save_later(Register::Accum, Parameter::ZeroPageX(2));
+        registers.load(
+            &mut code_block.body,
+            Register::XIndex,
+            Parameter::Immediate(1),
+        );
+
+        assert_eq!(
+            "\
+             \tLDX\t#0\n\
+             \tLDA\t#5\n\
+             \tSTA\t$02, X\n\
+             \tLDX\t#1\n",
+            code_block.to_asm().unwrap()
+        );
     }
 }

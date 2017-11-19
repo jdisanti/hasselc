@@ -2,7 +2,7 @@ use std::sync::Arc;
 use llir;
 use code;
 use error;
-use register::{Register, RegisterAllocator, DSP_PARAM};
+use register::{Register, RegisterAllocator};
 
 const RETURN_LOCATION_LO: u16 = 0x0001;
 const RETURN_LOCATION_HI: u16 = 0x0002;
@@ -171,17 +171,8 @@ fn store_accum(
     blocks: &Vec<llir::Block>,
     location: &llir::Location,
 ) -> error::Result<()> {
-    let expect_x = match *location {
-        llir::Location::DataStackOffset(_) => Some(DSP_PARAM),
-        llir::Location::FrameOffset(_, _) => Some(DSP_PARAM),
-        _ => None,
-    };
-    registers.save_later(
-        Register::Accum,
-        expect_x,
-        None,
-        location_to_parameter(blocks, location)?,
-    );
+    load_stack_pointer_if_necessary(registers, body, location)?;
+    registers.save_later(Register::Accum, location_to_parameter(blocks, location)?);
     Ok(())
 }
 

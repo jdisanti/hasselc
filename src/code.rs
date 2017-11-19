@@ -104,23 +104,23 @@ impl Code {
 
     pub fn to_asm(&self) -> String {
         match *self {
-            Code::Adc(ref p) => format!("ADC    {}", p.to_asm()),
-            Code::Clc(ref p) => format!("CLC    {}", p.to_asm()),
-            Code::Jmp(ref p) => format!("JMP    {}", p.to_asm()),
-            Code::Jsr(ref p) => format!("JSR    {}", p.to_asm()),
-            Code::Lda(ref p) => format!("LDA    {}", p.to_asm()),
-            Code::Ldx(ref p) => format!("LDX    {}", p.to_asm()),
-            Code::Ldy(ref p) => format!("LDY    {}", p.to_asm()),
-            Code::Rts(ref p) => format!("RTS    {}", p.to_asm()),
-            Code::Sbc(ref p) => format!("SBC    {}", p.to_asm()),
-            Code::Sec(ref p) => format!("SEC    {}", p.to_asm()),
-            Code::Sta(ref p) => format!("STA    {}", p.to_asm()),
-            Code::Stx(ref p) => format!("STX    {}", p.to_asm()),
-            Code::Sty(ref p) => format!("STY    {}", p.to_asm()),
-            Code::Tax(ref p) => format!("TAX    {}", p.to_asm()),
-            Code::Tay(ref p) => format!("TAY    {}", p.to_asm()),
-            Code::Txa(ref p) => format!("TXA    {}", p.to_asm()),
-            Code::Tya(ref p) => format!("TYA    {}", p.to_asm()),
+            Code::Adc(ref p) => format!("ADC\t{}", p.to_asm()),
+            Code::Clc(ref p) => format!("CLC\t{}", p.to_asm()),
+            Code::Jmp(ref p) => format!("JMP\t{}", p.to_asm()),
+            Code::Jsr(ref p) => format!("JSR\t{}", p.to_asm()),
+            Code::Lda(ref p) => format!("LDA\t{}", p.to_asm()),
+            Code::Ldx(ref p) => format!("LDX\t{}", p.to_asm()),
+            Code::Ldy(ref p) => format!("LDY\t{}", p.to_asm()),
+            Code::Rts(ref p) => format!("RTS\t{}", p.to_asm()),
+            Code::Sbc(ref p) => format!("SBC\t{}", p.to_asm()),
+            Code::Sec(ref p) => format!("SEC\t{}", p.to_asm()),
+            Code::Sta(ref p) => format!("STA\t{}", p.to_asm()),
+            Code::Stx(ref p) => format!("STX\t{}", p.to_asm()),
+            Code::Sty(ref p) => format!("STY\t{}", p.to_asm()),
+            Code::Tax(ref p) => format!("TAX\t{}", p.to_asm()),
+            Code::Tay(ref p) => format!("TAY\t{}", p.to_asm()),
+            Code::Txa(ref p) => format!("TXA\t{}", p.to_asm()),
+            Code::Tya(ref p) => format!("TYA\t{}", p.to_asm()),
         }
     }
 }
@@ -153,7 +153,7 @@ impl CodeBlock {
             write!(asm, "\n{}:\n", name)?;
         }
         for code in &self.body {
-            write!(asm, "    {}\n", code.to_asm())?;
+            write!(asm, "\t{}\n", code.to_asm())?;
         }
         Ok(asm)
     }

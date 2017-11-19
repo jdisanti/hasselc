@@ -105,7 +105,7 @@ fn generate_statement_ir(
             });
             statements.push(stmt);
         }
-        ast::Expression::DeclareConst(ref data) => {
+        ast::Expression::DeclareConst(ref _data) => {
             // TODO
         }
         ast::Expression::DeclareVariable(ref data) => {
