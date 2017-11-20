@@ -18,6 +18,7 @@ use ast::{
     OrgData,
     ReturnData,
     Type,
+    WhileLoopData,
 };
 use src_tag::SrcTag;
 use lalrpop_util::ErrorRecovery;
@@ -144,6 +145,8 @@ Statement: Box<Expression> = {
         Box::new(Expression::Conditional(ConditionalData::new(SrcTag(t), cnd, trb, Vec::new()))),
     <t:@L> "if" <cnd:Expression> "then" <trb:StatementList> "else" <frb:StatementList> "end" =>
         Box::new(Expression::Conditional(ConditionalData::new(SrcTag(t), cnd, trb, frb))),
+    <t:@L> "while" <cnd:Expression> "do" <bdy:StatementList> "end" =>
+        Box::new(Expression::WhileLoop(WhileLoopData::new(SrcTag(t), cnd, bdy))),
     "left_shift" <n:Name> ";" => Box::new(Expression::LeftShift(n)),
     "rotate_left" <n:Name> ";" => Box::new(Expression::RotateLeft(n)),
     "rotate_right" <n:Name> ";" => Box::new(Expression::RotateRight(n)),

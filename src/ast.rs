@@ -271,6 +271,23 @@ impl ConditionalData {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+pub struct WhileLoopData {
+    pub tag: SrcTag,
+    pub condition: Box<Expression>,
+    pub body: Vec<Expression>,
+}
+
+impl WhileLoopData {
+    pub fn new(tag: SrcTag, condition: Box<Expression>, body: Vec<Expression>) -> WhileLoopData {
+        WhileLoopData {
+            tag: tag,
+            condition: condition,
+            body: body,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Expression {
     Assignment(AssignmentData),
     BinaryOp(BinaryOpData),
@@ -291,6 +308,7 @@ pub enum Expression {
     Return(ReturnData),
     RotateLeft(Arc<String>),
     RotateRight(Arc<String>),
+    WhileLoop(WhileLoopData),
 }
 
 impl Expression {

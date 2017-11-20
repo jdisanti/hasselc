@@ -138,31 +138,40 @@ fn run_test(name: &str, program_raw: &[u8], optimize_llir: bool, optimize_code: 
     emulator
 }
 
+macro_rules! emulate {
+    (optimized : $test_name:ident) => {
+        run_test(
+            concat!(stringify!($test_name), "_optimized"),
+            include_bytes!(concat!("./", stringify!($test_name), ".hsl")),
+            true,
+            true,
+        );
+    };
+    (unoptimized : $test_name:ident) => {
+        run_test(
+            concat!(stringify!($test_name), "_unoptimized"),
+            include_bytes!(concat!("./", stringify!($test_name), ".hsl")),
+            false,
+            false,
+        );
+    };
+}
+
 #[test]
 pub fn test1_unoptimized() {
-    let emulator = run_test(
-        "test1_unoptimized",
-        include_bytes!("./test1.hsl"),
-        false,
-        false,
-    );
+    let emulator = emulate!(unoptimized: test1);
     assert_eq!(20u8, emulator.cpu.bus.read_byte(0x0001));
 }
 
 #[test]
 pub fn test1_optimized() {
-    let emulator = run_test("test1_optimized", include_bytes!("./test1.hsl"), true, true);
+    let emulator = emulate!(optimized: test1);
     assert_eq!(20u8, emulator.cpu.bus.read_byte(0x0001));
 }
 
 #[test]
 pub fn simple_arg_test_unoptimized() {
-    let emulator = run_test(
-        "simple_arg_test_unoptimized",
-        include_bytes!("./simple_arg_test.hsl"),
-        false,
-        false,
-    );
+    let emulator = emulate!(unoptimized: simple_arg_test);
     assert_eq!(20u8, emulator.cpu.bus.read_byte(0x0200));
     assert_eq!(30u8, emulator.cpu.bus.read_byte(0x0201));
     assert_eq!(40u8, emulator.cpu.bus.read_byte(0x0001));
@@ -170,12 +179,7 @@ pub fn simple_arg_test_unoptimized() {
 
 #[test]
 pub fn simple_arg_test_optimized() {
-    let emulator = run_test(
-        "simple_arg_test_optimized",
-        include_bytes!("./simple_arg_test.hsl"),
-        true,
-        true,
-    );
+    let emulator = emulate!(optimized: simple_arg_test);
     assert_eq!(20u8, emulator.cpu.bus.read_byte(0x0200));
     assert_eq!(30u8, emulator.cpu.bus.read_byte(0x0201));
     assert_eq!(40u8, emulator.cpu.bus.read_byte(0x0001));
@@ -183,90 +187,62 @@ pub fn simple_arg_test_optimized() {
 
 #[test]
 pub fn two_calls_test_unoptimized() {
-    let emulator = run_test(
-        "two_calls_test_unoptimized",
-        include_bytes!("./two_calls_test.hsl"),
-        false,
-        false,
-    );
+    let emulator = emulate!(unoptimized: two_calls_test);
     assert_eq!(21u8, emulator.cpu.bus.read_byte(0x0200));
 }
 
 #[test]
 pub fn two_calls_test_optimized() {
-    let emulator = run_test(
-        "two_calls_test_optimized",
-        include_bytes!("./two_calls_test.hsl"),
-        true,
-        true,
-    );
+    let emulator = emulate!(optimized: two_calls_test);
     assert_eq!(21u8, emulator.cpu.bus.read_byte(0x0200));
 }
 
 #[test]
 pub fn three_calls_test_unoptimized() {
-    let emulator = run_test(
-        "three_calls_test_unoptimized",
-        include_bytes!("./three_calls_test.hsl"),
-        false,
-        false,
-    );
+    let emulator = emulate!(unoptimized: three_calls_test);
     assert_eq!(45u8, emulator.cpu.bus.read_byte(0x0200));
 }
 
 #[test]
 pub fn three_calls_test_optimized() {
-    let emulator = run_test(
-        "three_calls_test_optimized",
-        include_bytes!("./three_calls_test.hsl"),
-        true,
-        true,
-    );
+    let emulator = emulate!(optimized: three_calls_test);
     assert_eq!(45u8, emulator.cpu.bus.read_byte(0x0200));
 }
 
 #[test]
 pub fn simple_branch_test_unoptimized() {
-    let emulator = run_test(
-        "simple_branch_test_unoptimized",
-        include_bytes!("./simple_branch_test.hsl"),
-        false,
-        false,
-    );
+    let emulator = emulate!(unoptimized: simple_branch_test);
     assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
     assert_eq!(6u8, emulator.cpu.bus.read_byte(0x0201));
 }
 
 #[test]
 pub fn simple_branch_test_optimized() {
-    let emulator = run_test(
-        "simple_branch_test_optimized",
-        include_bytes!("./simple_branch_test.hsl"),
-        true,
-        true,
-    );
+    let emulator = emulate!(optimized: simple_branch_test);
     assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
     assert_eq!(6u8, emulator.cpu.bus.read_byte(0x0201));
 }
 
 #[test]
 pub fn recursion_test_unoptimized() {
-    let emulator = run_test(
-        "recursion_test_unoptimized",
-        include_bytes!("./recursion_test.hsl"),
-        false,
-        false,
-    );
+    let emulator = emulate!(unoptimized: recursion_test);
     assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
 }
 
 #[test]
 pub fn recursion_test_optimized() {
-    let emulator = run_test(
-        "recursion_test_optimized",
-        include_bytes!("./recursion_test.hsl"),
-        true,
-        true,
-    );
+    let emulator = emulate!(optimized: recursion_test);
     assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
+}
+
+#[test]
+pub fn while_loop_test_unoptimized() {
+    let emulator = emulate!(unoptimized: while_loop_test);
+    assert_eq!(10u8, emulator.cpu.bus.read_byte(0x0200));
+}
+
+#[test]
+pub fn while_loop_test_optimized() {
+    let emulator = emulate!(optimized: while_loop_test);
+    assert_eq!(10u8, emulator.cpu.bus.read_byte(0x0200));
 }

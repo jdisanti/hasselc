@@ -172,6 +172,15 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
         ast::Expression::GoTo(ref name) => {
             statements.push(ir::Statement::GoTo(name.clone()));
         }
+        ast::Expression::WhileLoop(ref data) => {
+            let condition = generate_expression(&data.condition);
+            let body = generate_statement_irs(symbol_table, &data.body)?;
+            statements.push(ir::Statement::WhileLoop(ir::WhileLoopData::new(
+                data.tag,
+                condition,
+                body,
+            )));
+        }
         ast::Expression::Comment => {}
         ast::Expression::BinaryOp { .. } => unreachable!("binary_op"),
         ast::Expression::DeclareFunction { .. } => unreachable!("declare_function"),

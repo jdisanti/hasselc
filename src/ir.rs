@@ -38,6 +38,23 @@ impl ConditionalData {
 }
 
 #[derive(Debug, Clone)]
+pub struct WhileLoopData {
+    pub tag: SrcTag,
+    pub condition: Expr,
+    pub body: Vec<Statement>,
+}
+
+impl WhileLoopData {
+    pub fn new(tag: SrcTag, condition: Expr, body: Vec<Statement>) -> WhileLoopData {
+        WhileLoopData {
+            tag: tag,
+            condition: condition,
+            body: body,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Statement {
     Assign { symbol: SymbolRef, value: Expr },
     Break,
@@ -48,6 +65,7 @@ pub enum Statement {
     RotateRight(SymbolRef),
     Return(Option<Expr>),
     GoTo(Arc<String>),
+    WhileLoop(WhileLoopData),
 }
 
 // Intermediate representation

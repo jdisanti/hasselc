@@ -82,21 +82,16 @@ fn main() {
         data_stack_pointer = 3;
         main();
 
-        def test(a: u8): u8
-            if a == 1 then
-                return 5;
-            else
-                return 6;
-            end
-        end
-
         def halt(): void
             goto halt;
         end
 
         def main(): void
-            output1 = test(1);
-            output2 = test(2);
+            var a: u8 = 0;
+            while a == 0 do
+                a = a + 1;
+            end
+
             goto halt;
         end
     ";

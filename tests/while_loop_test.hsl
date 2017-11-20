@@ -1,0 +1,28 @@
+# Declare stack frame locations
+register data_stack_pointer: u8 @ 0x0000;
+
+register output: u8 @ 0x0200;
+
+# Initialize the stack
+org 0xE000;
+data_stack_pointer = 3;
+main();
+
+def halt(): void
+    goto halt;
+end
+
+def main(): void
+    var keep_going: u8 = 1;
+    var counter: u8 = 0;
+
+    while keep_going do
+        counter = counter + 1;
+        if counter == 10 then
+            keep_going = 0;
+        end
+    end
+
+    output = counter; # Should be 10
+    goto halt;
+end

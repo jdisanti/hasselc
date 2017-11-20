@@ -130,6 +130,31 @@ fn generate_runs(
                 blocks.push(after_both_block);
                 current_block = llir::RunBlock::new(symbol_table.new_run_block_name());
             }
+            ir::Statement::WhileLoop(ref data) => {
+                let mut condition_block = llir::RunBlock::new(symbol_table.new_run_block_name());
+                let mut body_blocks = generate_runs(symbol_table, frame.clone(), &data.body)?;
+                let after_body_block = llir::RunBlock::new(symbol_table.new_run_block_name());
+
+                let condition = resolve_expr_to_value(
+                    &mut condition_block.statements,
+                    frame.clone(),
+                    symbol_table,
+                    &data.condition,
+                )?;
+
+                condition_block.statements.push(llir::Statement::BranchIfZero(
+                    llir::BranchIfZeroData::new(condition, Arc::clone(&after_body_block.name)),
+                ));
+
+                let last_body_block_index = body_blocks.len() - 1;
+                body_blocks[last_body_block_index].statements.push(llir::Statement::GoTo(Arc::clone(&condition_block.name)));
+
+                blocks.push(current_block);
+                blocks.push(condition_block);
+                blocks.extend(body_blocks);
+                blocks.push(after_body_block);
+                current_block = llir::RunBlock::new(symbol_table.new_run_block_name());
+            }
             ir::Statement::Return(ref optional_expr) => {
                 if let Some(ref expr) = *optional_expr {
                     let value = resolve_expr_to_value(
