@@ -255,7 +255,12 @@ pub struct ConditionalData {
 }
 
 impl ConditionalData {
-    pub fn new(tag: SrcTag, condition: Box<Expression>, when_true: Vec<Expression>, when_false: Vec<Expression>) -> ConditionalData {
+    pub fn new(
+        tag: SrcTag,
+        condition: Box<Expression>,
+        when_true: Vec<Expression>,
+        when_false: Vec<Expression>,
+    ) -> ConditionalData {
         ConditionalData {
             tag: tag,
             condition: condition,

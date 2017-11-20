@@ -83,7 +83,7 @@ fn try_redundant_load_accum(run: &mut Vec<Code>) -> bool {
 // second load is removed.
 fn try_unchanged_stack_pointer(run: &mut Vec<Code>) -> bool {
     if run.is_empty() {
-        return false
+        return false;
     }
 
     let mut to_remove = Vec::new();

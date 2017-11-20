@@ -119,7 +119,12 @@ impl fmt::Debug for Statement {
                 data.destination
             )?,
             Statement::AddToDataStackPointer(ref offset) => write!(f, "add_dsp {:?}", offset)?,
-            Statement::BranchIfZero(ref data) => write!(f, "branch to {:?} if {:?} == 0", data.destination, data.value)?,
+            Statement::BranchIfZero(ref data) => write!(
+                f,
+                "branch to {:?} if {:?} == 0",
+                data.destination,
+                data.value
+            )?,
             Statement::Compare(ref data) => write!(f, "compare {:?} to {:?}", data.left, data.right)?,
             Statement::Copy(ref data) => write!(f, "copy {:?} => {:?}", data.value, data.destination)?,
             Statement::GoTo(ref name) => write!(f, "goto {}", name)?,

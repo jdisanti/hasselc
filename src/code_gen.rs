@@ -36,7 +36,26 @@ fn generate_body(blocks: &Vec<llir::FrameBlock>, input: &Vec<llir::Statement>) -
     for statement in input {
         match *statement {
             llir::Statement::Add(ref data) => {
-                generate_add(&mut registers, &mut body, blocks, &data.destination, &data.left, &data.right)?;
+                generate_binary_op(
+                    &mut registers,
+                    &mut body,
+                    blocks,
+                    &data.destination,
+                    &data.left,
+                    &data.right,
+                    |registers, body, param| registers.add(body, param),
+                )?;
+            }
+            llir::Statement::Subtract(ref data) => {
+                generate_binary_op(
+                    &mut registers,
+                    &mut body,
+                    blocks,
+                    &data.destination,
+                    &data.left,
+                    &data.right,
+                    |registers, body, param| registers.subtract(body, param),
+                )?;
             }
             llir::Statement::AddToDataStackPointer(ref val) => {
                 registers.load_dsp(&mut body, Register::Accum);
@@ -54,24 +73,26 @@ fn generate_body(blocks: &Vec<llir::FrameBlock>, input: &Vec<llir::Statement>) -
             llir::Statement::BranchIfZero(ref data) => {
                 registers.save_all_now(&mut body);
                 load_into_accum(&mut registers, &mut body, blocks, &data.value)?;
-                body.push(code::Code::Beq(Parameter::Absolute(Global::UnresolvedName(data.destination.clone()))));
+                body.push(code::Code::Beq(Parameter::Absolute(
+                    Global::UnresolvedName(data.destination.clone()),
+                )));
             }
             llir::Statement::Compare(ref data) => {
-                // TODO: Would be cool if we could use the register allocator to 
+                // TODO: Would be cool if we could use the register allocator to
                 // choose between CMP, CPX, and CPY based on what is in each register
-                load_into_accum(&mut registers, &mut body, blocks, &data.left)?;
-                match data.right {
-                    llir::Value::Immediate(val) => {
-                        body.push(code::Code::Cmp(Parameter::Immediate(val)));
-                    }
-                    llir::Value::Memory(ref location) => {
-                        load_stack_pointer_if_necessary(&mut registers, &mut body, location)?;
-                        body.push(code::Code::Cmp(location_to_parameter(blocks, location)?));
-                    }
-                }
-                registers.load_status_into_accum(&mut body);
-                body.push(code::Code::And(Parameter::Immediate(2)));
-                store_accum(&mut registers, &mut body, blocks, &data.destination)?;
+                generate_binary_op(
+                    &mut registers,
+                    &mut body,
+                    blocks,
+                    &data.destination,
+                    &data.left,
+                    &data.right,
+                    |registers, body, param| {
+                        body.push(code::Code::Cmp(param));
+                        registers.load_status_into_accum(body);
+                        body.push(code::Code::And(Parameter::Immediate(2)));
+                    },
+                )?;
             }
             llir::Statement::Copy(ref data) => {
                 generate_store(
@@ -131,24 +152,27 @@ fn generate_store(
     Ok(())
 }
 
-fn generate_add(
+fn generate_binary_op<F>(
     registers: &mut RegisterAllocator,
     body: &mut Vec<code::Code>,
     blocks: &Vec<llir::FrameBlock>,
     dest: &llir::Location,
     left: &llir::Value,
     right: &llir::Value,
-) -> error::Result<()> {
-    use code::Parameter;
+    code_gen: F,
+) -> error::Result<()>
+where
+    F: Fn(&mut RegisterAllocator, &mut Vec<code::Code>, code::Parameter) -> (),
+{
     // TODO: Choose left or right to go into accum based on least work
     load_into_accum(registers, body, blocks, left)?;
     match *right {
         llir::Value::Immediate(val) => {
-            registers.add(body, Parameter::Immediate(val));
+            code_gen(registers, body, code::Parameter::Immediate(val));
         }
         llir::Value::Memory(ref location) => {
             load_stack_pointer_if_necessary(registers, body, location)?;
-            registers.add(body, location_to_parameter(blocks, location)?);
+            code_gen(registers, body, location_to_parameter(blocks, location)?);
         }
     }
     store_accum(registers, body, blocks, dest)?;

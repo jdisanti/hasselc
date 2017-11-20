@@ -80,7 +80,11 @@ impl IR {
         location: Option<Location>,
         metadata: FunctionMetadataPtr,
     ) -> IR {
-        let frame_size = metadata.read().unwrap().parameters.iter()
+        let frame_size = metadata
+            .read()
+            .unwrap()
+            .parameters
+            .iter()
             .map(|p| p.type_name.size())
             .fold(0, |acc, size| acc + size);
         let mut symbol_table = SymbolTable::new_from_parent(parent_symbol_table, frame_size as i8);

@@ -79,10 +79,7 @@ fn generate_statement_irs(
     Ok(statements)
 }
 
-fn generate_statement_ir(
-    symbol_table: &mut SymbolTable,
-    input: &ast::Expression,
-) -> error::Result<Vec<ir::Statement>> {
+fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression) -> error::Result<Vec<ir::Statement>> {
     let mut statements: Vec<ir::Statement> = vec![];
     match *input {
         ast::Expression::Assignment(ref data) => {
@@ -111,7 +108,10 @@ fn generate_statement_ir(
             let when_true = generate_statement_irs(symbol_table, &data.when_true)?;
             let when_false = generate_statement_irs(symbol_table, &data.when_false)?;
             statements.push(ir::Statement::Conditional(ir::ConditionalData::new(
-                data.tag, condition, when_true, when_false
+                data.tag,
+                condition,
+                when_true,
+                when_false,
             )));
         }
         ast::Expression::DeclareConst(ref _data) => {

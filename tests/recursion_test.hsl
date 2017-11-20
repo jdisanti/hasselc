@@ -1,0 +1,31 @@
+# Declare stack frame locations
+register data_stack_pointer: u8 @ 0x0000;
+
+register output: u8 @ 0x0200;
+
+# Initialize the stack
+org 0xE000;
+data_stack_pointer = 3;
+main();
+
+def fib(a: u8): u8
+    if a == 0 then
+        return 0;
+    else
+        if a == 1 then
+            return 1;
+        else
+            return fib(a - 1) + fib(a - 2);
+        end
+    end
+end
+
+def halt(): void
+    goto halt;
+end
+
+def main(): void
+    # Should output 5
+    output = fib(5);
+    goto halt;
+end

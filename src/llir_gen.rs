@@ -78,11 +78,18 @@ fn generate_runs(
                 ref value,
             } => {
                 if let Some((ref _typ, ref location)) = symbol_table.variable(symbol) {
-                    let resolved_value = resolve_expr_to_value(&mut current_block.statements, frame.clone(), symbol_table, value)?;
-                    current_block.statements.push(llir::Statement::Copy(llir::CopyData::new(
-                        convert_location(frame.clone(), location),
-                        resolved_value,
-                    )));
+                    let resolved_value = resolve_expr_to_value(
+                        &mut current_block.statements,
+                        frame.clone(),
+                        symbol_table,
+                        value,
+                    )?;
+                    current_block
+                        .statements
+                        .push(llir::Statement::Copy(llir::CopyData::new(
+                            convert_location(frame.clone(), location),
+                            resolved_value,
+                        )));
                 } else {
                     // TODO: error
                     unimplemented!()
@@ -102,11 +109,20 @@ fn generate_runs(
 
                 let after_both_block = llir::RunBlock::new(symbol_table.new_run_block_name());
                 let last_true_block_index = true_blocks.len() - 1;
-                true_blocks[last_true_block_index].statements.push(llir::Statement::GoTo(Arc::clone(&after_both_block.name)));
+                true_blocks[last_true_block_index]
+                    .statements
+                    .push(llir::Statement::GoTo(Arc::clone(&after_both_block.name)));
 
-                let condition = resolve_expr_to_value(&mut current_block.statements, frame.clone(), symbol_table, &data.condition)?;
+                let condition = resolve_expr_to_value(
+                    &mut current_block.statements,
+                    frame.clone(),
+                    symbol_table,
+                    &data.condition,
+                )?;
                 let destination = false_blocks[0].name.clone();
-                current_block.statements.push(llir::Statement::BranchIfZero(llir::BranchIfZeroData::new(condition, destination)));
+                current_block.statements.push(llir::Statement::BranchIfZero(
+                    llir::BranchIfZeroData::new(condition, destination),
+                ));
 
                 blocks.push(current_block);
                 blocks.extend(true_blocks);
@@ -116,7 +132,12 @@ fn generate_runs(
             }
             ir::Statement::Return(ref optional_expr) => {
                 if let Some(ref expr) = *optional_expr {
-                    let value = resolve_expr_to_value(&mut current_block.statements, frame.clone(), symbol_table, expr)?;
+                    let value = resolve_expr_to_value(
+                        &mut current_block.statements,
+                        frame.clone(),
+                        symbol_table,
+                        expr,
+                    )?;
                     // TODO: 16-bit values
                     current_block.statements.push(llir::Statement::Copy(
                         llir::CopyData::new(RETURN_LOCATION_LO, value),
@@ -125,7 +146,9 @@ fn generate_runs(
                 current_block.statements.push(llir::Statement::Return);
             }
             ir::Statement::GoTo(ref name) => {
-                current_block.statements.push(llir::Statement::GoTo(name.clone()));
+                current_block
+                    .statements
+                    .push(llir::Statement::GoTo(name.clone()));
             }
             _ => { /* TODO */ }
         }

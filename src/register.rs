@@ -181,6 +181,14 @@ impl RegisterAllocator {
         self.values[Register::Accum.ordinal()].clobber(next_intermediate);
     }
 
+    pub fn subtract(&mut self, code: &mut Vec<Code>, param: Parameter) {
+        self.save_as_necessary(code, Register::Accum);
+        code.push(Code::Sec(Parameter::Implicit));
+        code.push(Code::Sbc(param));
+        let next_intermediate = self.next_intermediate();
+        self.values[Register::Accum.ordinal()].clobber(next_intermediate);
+    }
+
     pub fn load_status_into_accum(&mut self, code: &mut Vec<Code>) {
         self.save_as_necessary(code, Register::Accum);
         code.push(Code::Php(Parameter::Implicit));

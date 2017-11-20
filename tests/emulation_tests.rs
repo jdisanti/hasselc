@@ -248,3 +248,25 @@ pub fn simple_branch_test_optimized() {
     assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
     assert_eq!(6u8, emulator.cpu.bus.read_byte(0x0201));
 }
+
+#[test]
+pub fn recursion_test_unoptimized() {
+    let emulator = run_test(
+        "recursion_test_unoptimized",
+        include_bytes!("./recursion_test.hsl"),
+        false,
+        false,
+    );
+    assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
+}
+
+#[test]
+pub fn recursion_test_optimized() {
+    let emulator = run_test(
+        "recursion_test_optimized",
+        include_bytes!("./recursion_test.hsl"),
+        true,
+        true,
+    );
+    assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
+}
