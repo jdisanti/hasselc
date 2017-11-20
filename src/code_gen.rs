@@ -33,7 +33,6 @@ fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> err
         match *statement {
             llir::Statement::AddToDataStackPointer(ref val) => {
                 registers.load_dsp(&mut body, Register::Accum);
-                body.push(Code::Clc(Parameter::Implicit));
                 registers.add(
                     &mut body,
                     Parameter::Immediate(match *val {
@@ -43,6 +42,7 @@ fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> err
                     }),
                 );
                 registers.save_dsp_later(Register::Accum);
+                registers.load_dsp(&mut body, Register::XIndex);
             }
             llir::Statement::Copy(ref data) => {
                 generate_store(
@@ -119,16 +119,14 @@ fn generate_add(
     left: &llir::Value,
     right: &llir::Value,
 ) -> error::Result<()> {
-    use code::{Code, Parameter};
+    use code::Parameter;
     load_into_accum(registers, body, blocks, left)?;
     match *right {
         llir::Value::Immediate(val) => {
-            body.push(Code::Clc(Parameter::Implicit));
             registers.add(body, Parameter::Immediate(val));
         }
         llir::Value::Memory(ref location) => {
             load_stack_pointer_if_necessary(registers, body, location)?;
-            body.push(Code::Clc(Parameter::Implicit));
             registers.add(body, location_to_parameter(blocks, location)?);
         }
     }

@@ -175,6 +175,7 @@ impl RegisterAllocator {
 
     pub fn add(&mut self, code: &mut Vec<Code>, param: Parameter) {
         self.save_as_necessary(code, Register::Accum);
+        code.push(Code::Clc(Parameter::Implicit));
         code.push(Code::Adc(param));
         let next_intermediate = self.next_intermediate();
         self.values[Register::Accum.ordinal()].clobber(next_intermediate);
@@ -256,6 +257,7 @@ mod tests {
         assert_eq!(
             "\
              \tLDA\t$05\n\
+             \tCLC\t\n\
              \tADC\t$06\n",
             code_block.to_asm().unwrap()
         );

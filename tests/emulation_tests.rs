@@ -182,10 +182,33 @@ pub fn simple_arg_test_optimized() {
 }
 
 #[test]
-pub fn multiple_calls_test_unoptimized() {
+pub fn two_calls_test_unoptimized() {
     let emulator = run_test(
-        "multiple_calls_test_unoptimized",
-        include_bytes!("./multiple_calls_test.hsl"),
+        "two_calls_test_unoptimized",
+        include_bytes!("./two_calls_test.hsl"),
+        false,
+        false,
+    );
+    assert_eq!(21u8, emulator.cpu.bus.read_byte(0x0200));
+}
+
+#[test]
+pub fn two_calls_test_optimized() {
+    let emulator = run_test(
+        "two_calls_test_optimized",
+        include_bytes!("./two_calls_test.hsl"),
+        true,
+        true,
+    );
+    assert_eq!(21u8, emulator.cpu.bus.read_byte(0x0200));
+}
+
+
+#[test]
+pub fn three_calls_test_unoptimized() {
+    let emulator = run_test(
+        "three_calls_test_unoptimized",
+        include_bytes!("./three_calls_test.hsl"),
         false,
         false,
     );
@@ -193,10 +216,10 @@ pub fn multiple_calls_test_unoptimized() {
 }
 
 #[test]
-pub fn multiple_calls_test_optimized() {
+pub fn three_calls_test_optimized() {
     let emulator = run_test(
-        "multiple_calls_test_optimized",
-        include_bytes!("./multiple_calls_test.hsl"),
+        "three_calls_test_optimized",
+        include_bytes!("./three_calls_test.hsl"),
         true,
         true,
     );

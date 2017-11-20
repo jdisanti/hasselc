@@ -205,7 +205,16 @@ fn resolve_expr_to_value(
                     llir::SPOffset::NegativeFrameSize(metadata.name.clone()),
                 ));
 
-                Ok(llir::Value::Memory(RETURN_LOCATION_LO))
+                let dest = convert_location(
+                    frame.clone(),
+                    &symbol_table.create_temporary_location(ast::Type::U8),
+                );
+                statements.push(llir::Statement::Copy(llir::CopyData::new(
+                    dest.clone(),
+                    llir::Value::Memory(RETURN_LOCATION_LO),
+                )));
+
+                Ok(llir::Value::Memory(dest))
             } else {
                 // TODO: error
                 unimplemented!()
