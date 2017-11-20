@@ -7,23 +7,27 @@ use register::{Register, RegisterAllocator};
 const RETURN_LOCATION_LO: u16 = 0x0001;
 const RETURN_LOCATION_HI: u16 = 0x0002;
 
-pub fn generate_code(input: &Vec<llir::Block>) -> error::Result<Vec<code::CodeBlock>> {
+pub fn generate_code(input: &Vec<llir::FrameBlock>) -> error::Result<Vec<code::CodeBlock>> {
     let mut code_blocks = Vec::new();
-    for llir_block in input {
-        let mut code_block = code::CodeBlock::new(
-            llir_block.name.clone(),
-            match llir_block.location {
+    for frame_block in input {
+        code_blocks.push(code::CodeBlock::new(
+            frame_block.name.clone(),
+            match frame_block.location {
                 llir::Location::Global(val) => Some(val),
                 _ => None,
             },
-        );
-        code_block.body = generate_body(input, &llir_block.statements)?;
-        code_blocks.push(code_block);
+        ));
+
+        for run_block in &frame_block.runs {
+            let mut code_block = code::CodeBlock::new(Some(Arc::clone(&run_block.name)), None);
+            code_block.body = generate_body(input, &run_block.statements)?;
+            code_blocks.push(code_block);
+        }
     }
     Ok(code_blocks)
 }
 
-fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> error::Result<Vec<code::Code>> {
+fn generate_body(blocks: &Vec<llir::FrameBlock>, input: &Vec<llir::Statement>) -> error::Result<Vec<code::Code>> {
     use code::{Code, Global, Parameter};
 
     let mut registers = RegisterAllocator::new();
@@ -31,6 +35,9 @@ fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> err
     let mut body = Vec::new();
     for statement in input {
         match *statement {
+            llir::Statement::Add(ref data) => {
+                generate_add(&mut registers, &mut body, blocks, &data.destination, &data.left, &data.right)?;
+            }
             llir::Statement::AddToDataStackPointer(ref val) => {
                 registers.load_dsp(&mut body, Register::Accum);
                 registers.add(
@@ -44,6 +51,28 @@ fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> err
                 registers.save_dsp_later(Register::Accum);
                 registers.load_dsp(&mut body, Register::XIndex);
             }
+            llir::Statement::BranchIfZero(ref data) => {
+                registers.save_all_now(&mut body);
+                load_into_accum(&mut registers, &mut body, blocks, &data.value)?;
+                body.push(code::Code::Beq(Parameter::Absolute(Global::UnresolvedName(data.destination.clone()))));
+            }
+            llir::Statement::Compare(ref data) => {
+                // TODO: Would be cool if we could use the register allocator to 
+                // choose between CMP, CPX, and CPY based on what is in each register
+                load_into_accum(&mut registers, &mut body, blocks, &data.left)?;
+                match data.right {
+                    llir::Value::Immediate(val) => {
+                        body.push(code::Code::Cmp(Parameter::Immediate(val)));
+                    }
+                    llir::Value::Memory(ref location) => {
+                        load_stack_pointer_if_necessary(&mut registers, &mut body, location)?;
+                        body.push(code::Code::Cmp(location_to_parameter(blocks, location)?));
+                    }
+                }
+                registers.load_status_into_accum(&mut body);
+                body.push(code::Code::And(Parameter::Immediate(2)));
+                store_accum(&mut registers, &mut body, blocks, &data.destination)?;
+            }
             llir::Statement::Copy(ref data) => {
                 generate_store(
                     &mut registers,
@@ -52,6 +81,12 @@ fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> err
                     &data.destination,
                     &data.value,
                 )?;
+            }
+            llir::Statement::GoTo(ref name) => {
+                registers.save_all_and_reset(&mut body);
+                body.push(Code::Jmp(
+                    Parameter::Absolute(Global::UnresolvedName(name.clone())),
+                ));
             }
             llir::Statement::JumpRoutine(ref location) => {
                 registers.save_all_and_reset(&mut body);
@@ -65,31 +100,16 @@ fn generate_body(blocks: &Vec<llir::Block>, input: &Vec<llir::Statement>) -> err
                 registers.save_all_and_reset(&mut body);
                 body.push(Code::Rts(Parameter::Implicit));
             }
-            llir::Statement::Add(ref data) => {
-                generate_add(
-                    &mut registers,
-                    &mut body,
-                    blocks,
-                    &data.destination,
-                    &data.left,
-                    &data.right,
-                )?;
-            }
-            llir::Statement::GoTo(ref name) => {
-                registers.save_all_and_reset(&mut body);
-                body.push(Code::Jmp(
-                    Parameter::Absolute(Global::UnresolvedName(name.clone())),
-                ));
-            }
             _ => {
                 println!("WARN: Unimplemented generate_body: {:?}", statement);
             }
         }
     }
+    registers.save_all_now(&mut body);
     Ok(body)
 }
 
-fn lookup_frame_size(blocks: &Vec<llir::Block>, name: Arc<String>) -> error::Result<i8> {
+fn lookup_frame_size(blocks: &Vec<llir::FrameBlock>, name: Arc<String>) -> error::Result<i8> {
     for block in blocks {
         if block.name.is_some() && block.name.as_ref().unwrap() == &name {
             return Ok(block.frame_size);
@@ -102,7 +122,7 @@ fn lookup_frame_size(blocks: &Vec<llir::Block>, name: Arc<String>) -> error::Res
 fn generate_store(
     registers: &mut RegisterAllocator,
     body: &mut Vec<code::Code>,
-    blocks: &Vec<llir::Block>,
+    blocks: &Vec<llir::FrameBlock>,
     dest: &llir::Location,
     value: &llir::Value,
 ) -> error::Result<()> {
@@ -114,12 +134,13 @@ fn generate_store(
 fn generate_add(
     registers: &mut RegisterAllocator,
     body: &mut Vec<code::Code>,
-    blocks: &Vec<llir::Block>,
+    blocks: &Vec<llir::FrameBlock>,
     dest: &llir::Location,
     left: &llir::Value,
     right: &llir::Value,
 ) -> error::Result<()> {
     use code::Parameter;
+    // TODO: Choose left or right to go into accum based on least work
     load_into_accum(registers, body, blocks, left)?;
     match *right {
         llir::Value::Immediate(val) => {
@@ -148,7 +169,7 @@ fn load_stack_pointer_if_necessary(
     Ok(())
 }
 
-fn location_to_parameter(blocks: &Vec<llir::Block>, location: &llir::Location) -> error::Result<code::Parameter> {
+fn location_to_parameter(blocks: &Vec<llir::FrameBlock>, location: &llir::Location) -> error::Result<code::Parameter> {
     use code::Parameter;
     match *location {
         llir::Location::Global(addr) => Ok(addr_param(addr)),
@@ -166,7 +187,7 @@ fn location_to_parameter(blocks: &Vec<llir::Block>, location: &llir::Location) -
 fn store_accum(
     registers: &mut RegisterAllocator,
     body: &mut Vec<code::Code>,
-    blocks: &Vec<llir::Block>,
+    blocks: &Vec<llir::FrameBlock>,
     location: &llir::Location,
 ) -> error::Result<()> {
     load_stack_pointer_if_necessary(registers, body, location)?;
@@ -177,7 +198,7 @@ fn store_accum(
 fn load_into_accum(
     registers: &mut RegisterAllocator,
     body: &mut Vec<code::Code>,
-    blocks: &Vec<llir::Block>,
+    blocks: &Vec<llir::FrameBlock>,
     value: &llir::Value,
 ) -> error::Result<()> {
     use code::Parameter;

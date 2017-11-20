@@ -14,6 +14,7 @@ mod ir_gen;
 mod llir_gen;
 mod llir_opt;
 mod register;
+mod symbol_table;
 pub mod ast;
 pub mod code;
 pub mod compiler;
@@ -47,7 +48,7 @@ fn main() {
         end
     ";*/
 
-    let program = "
+    /*let program = "
         # Declare stack frame locations
         register data_stack_pointer: u8 @ 0x0000;
 
@@ -66,6 +67,37 @@ fn main() {
             var my_var: u8 = 1;
             my_var = test(my_var, test(my_var, 18));
             return my_var;
+        end
+    ";*/
+
+    let program = "
+        # Declare stack frame locations
+        register data_stack_pointer: u8 @ 0x0000;
+
+        register output1: u8 @ 0x0200;
+        register output2: u8 @ 0x0201;
+
+        # Initialize the stack
+        org 0xE000;
+        data_stack_pointer = 3;
+        main();
+
+        def test(a: u8): u8
+            if a == 1 then
+                return 5;
+            else
+                return 6;
+            end
+        end
+
+        def halt(): void
+            goto halt;
+        end
+
+        def main(): void
+            output1 = test(1);
+            output2 = test(2);
+            goto halt;
         end
     ";
 

@@ -64,27 +64,46 @@ impl BinaryOpData {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct BranchIfZeroData {
+    pub value: Value,
+    pub destination: Arc<String>,
+}
+
+impl BranchIfZeroData {
+    pub fn new(value: Value, destination: Arc<String>) -> BranchIfZeroData {
+        BranchIfZeroData {
+            value: value,
+            destination: destination,
+        }
+    }
+}
+
 #[derive(Clone, Eq, PartialEq)]
 pub enum Statement {
-    AddToDataStackPointer(SPOffset),
-    Copy(CopyData),
     Add(BinaryOpData),
-    Subtract(BinaryOpData),
-    JumpRoutine(Location),
+    AddToDataStackPointer(SPOffset),
+    BranchIfZero(BranchIfZeroData),
+    Compare(BinaryOpData),
+    Copy(CopyData),
     GoTo(Arc<String>),
+    JumpRoutine(Location),
     Return,
+    Subtract(BinaryOpData),
 }
 
 impl Statement {
     pub fn is_branch(&self) -> bool {
         match *self {
-            Statement::AddToDataStackPointer { .. } => false,
-            Statement::Copy { .. } => false,
             Statement::Add { .. } => false,
-            Statement::Subtract { .. } => false,
-            Statement::JumpRoutine { .. } => true,
+            Statement::AddToDataStackPointer { .. } => false,
+            Statement::BranchIfZero(_) => true,
+            Statement::Compare(_) => false,
+            Statement::Copy { .. } => false,
             Statement::GoTo { .. } => true,
+            Statement::JumpRoutine { .. } => true,
             Statement::Return { .. } => true,
+            Statement::Subtract { .. } => false,
         }
     }
 }
@@ -92,8 +111,6 @@ impl Statement {
 impl fmt::Debug for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            Statement::AddToDataStackPointer(ref offset) => write!(f, "add_dsp {:?}", offset)?,
-            Statement::Copy(ref data) => write!(f, "copy {:?} => {:?}", data.value, data.destination)?,
             Statement::Add(ref data) => write!(
                 f,
                 "add {:?} + {:?} => {:?}",
@@ -101,6 +118,13 @@ impl fmt::Debug for Statement {
                 data.right,
                 data.destination
             )?,
+            Statement::AddToDataStackPointer(ref offset) => write!(f, "add_dsp {:?}", offset)?,
+            Statement::BranchIfZero(ref data) => write!(f, "branch to {:?} if {:?} == 0", data.destination, data.value)?,
+            Statement::Compare(ref data) => write!(f, "compare {:?} to {:?}", data.left, data.right)?,
+            Statement::Copy(ref data) => write!(f, "copy {:?} => {:?}", data.value, data.destination)?,
+            Statement::GoTo(ref name) => write!(f, "goto {}", name)?,
+            Statement::JumpRoutine(ref location) => write!(f, "jsr {:?}", location)?,
+            Statement::Return => write!(f, "rts")?,
             Statement::Subtract(ref data) => write!(
                 f,
                 "subtract {:?} - {:?} => {:?}",
@@ -108,28 +132,40 @@ impl fmt::Debug for Statement {
                 data.right,
                 data.destination
             )?,
-            Statement::JumpRoutine(ref location) => write!(f, "jsr {:?}", location)?,
-            Statement::GoTo(ref name) => write!(f, "goto {}", name)?,
-            Statement::Return => write!(f, "rts")?,
         }
         Ok(())
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Block {
+pub struct RunBlock {
+    pub name: Arc<String>,
+    pub statements: Vec<Statement>,
+}
+
+impl RunBlock {
+    pub fn new(name: Arc<String>) -> RunBlock {
+        RunBlock {
+            name: name,
+            statements: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FrameBlock {
     pub location: Location,
     pub name: Option<Arc<String>>,
-    pub statements: Vec<Statement>,
+    pub runs: Vec<RunBlock>,
     pub frame_size: i8,
 }
 
-impl Block {
-    pub fn new(name: Option<Arc<String>>, location: Location) -> Block {
-        Block {
+impl FrameBlock {
+    pub fn new(name: Option<Arc<String>>, location: Location) -> FrameBlock {
+        FrameBlock {
             location: location,
             name: name,
-            statements: Vec::new(),
+            runs: Vec::new(),
             frame_size: 0,
         }
     }

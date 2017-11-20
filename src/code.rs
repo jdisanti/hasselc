@@ -54,12 +54,17 @@ impl Parameter {
 #[derive(Clone, Debug)]
 pub enum Code {
     Adc(Parameter),
+    And(Parameter),
+    Beq(Parameter),
     Clc(Parameter),
+    Cmp(Parameter),
     Jmp(Parameter),
     Jsr(Parameter),
     Lda(Parameter),
     Ldx(Parameter),
     Ldy(Parameter),
+    Php(Parameter),
+    Pla(Parameter),
     Rts(Parameter),
     Sbc(Parameter),
     Sec(Parameter),
@@ -76,12 +81,17 @@ impl Code {
     pub fn parameter(&self) -> &Parameter {
         match *self {
             Code::Adc(ref p) => p,
+            Code::And(ref p) => p,
+            Code::Beq(ref p) => p,
             Code::Clc(ref p) => p,
+            Code::Cmp(ref p) => p,
             Code::Jmp(ref p) => p,
             Code::Jsr(ref p) => p,
             Code::Lda(ref p) => p,
             Code::Ldx(ref p) => p,
             Code::Ldy(ref p) => p,
+            Code::Php(ref p) => p,
+            Code::Pla(ref p) => p,
             Code::Rts(ref p) => p,
             Code::Sbc(ref p) => p,
             Code::Sec(ref p) => p,
@@ -97,7 +107,7 @@ impl Code {
 
     pub fn is_branch(&self) -> bool {
         match *self {
-            Code::Jsr(_) | Code::Rts(_) | Code::Jmp(_) => true,
+            Code::Beq(_) | Code::Jsr(_) | Code::Rts(_) | Code::Jmp(_) => true,
             _ => false,
         }
     }
@@ -105,12 +115,17 @@ impl Code {
     pub fn to_asm(&self) -> String {
         match *self {
             Code::Adc(ref p) => format!("ADC\t{}", p.to_asm()),
+            Code::And(ref p) => format!("AND\t{}", p.to_asm()),
+            Code::Beq(ref p) => format!("BEQ\t{}", p.to_asm()),
             Code::Clc(ref p) => format!("CLC\t{}", p.to_asm()),
+            Code::Cmp(ref p) => format!("CMP\t{}", p.to_asm()),
             Code::Jmp(ref p) => format!("JMP\t{}", p.to_asm()),
             Code::Jsr(ref p) => format!("JSR\t{}", p.to_asm()),
             Code::Lda(ref p) => format!("LDA\t{}", p.to_asm()),
             Code::Ldx(ref p) => format!("LDX\t{}", p.to_asm()),
             Code::Ldy(ref p) => format!("LDY\t{}", p.to_asm()),
+            Code::Php(ref p) => format!("PHP\t{}", p.to_asm()),
+            Code::Pla(ref p) => format!("PLA\t{}", p.to_asm()),
             Code::Rts(ref p) => format!("RTS\t{}", p.to_asm()),
             Code::Sbc(ref p) => format!("SBC\t{}", p.to_asm()),
             Code::Sec(ref p) => format!("SEC\t{}", p.to_asm()),

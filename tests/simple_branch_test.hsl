@@ -1,0 +1,30 @@
+# Declare stack frame locations
+register data_stack_pointer: u8 @ 0x0000;
+
+register output1: u8 @ 0x0200;
+register output2: u8 @ 0x0201;
+
+# Initialize the stack
+org 0xE000;
+data_stack_pointer = 3;
+main();
+
+def test(a: u8): u8
+    var result: u8 = 0;
+    if a == 1 then
+        result = 5;
+    else
+        result = 6;
+    end
+    return result;
+end
+
+def halt(): void
+    goto halt;
+end
+
+def main(): void
+    output1 = test(1);
+    output2 = test(2);
+    goto halt;
+end

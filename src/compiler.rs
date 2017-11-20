@@ -13,8 +13,8 @@ use error;
 pub struct CompilerOutput {
     pub ast: Option<Vec<ast::Expression>>,
     pub ir: Option<Vec<ir::IR>>,
-    pub llir: Option<Vec<llir::Block>>,
-    pub llir_opt: Option<Vec<llir::Block>>,
+    pub llir: Option<Vec<llir::FrameBlock>>,
+    pub llir_opt: Option<Vec<llir::FrameBlock>>,
     pub code: Option<Vec<code::CodeBlock>>,
     pub code_opt: Option<Vec<code::CodeBlock>>,
 }

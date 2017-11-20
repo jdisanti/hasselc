@@ -5,6 +5,7 @@ use ast::{
     BinaryOpData,
     BinaryOperator,
     CallFunctionData,
+    ConditionalData,
     DeclareConstData,
     DeclareFunctionData,
     DeclareRegisterData,
@@ -139,6 +140,10 @@ Statement: Box<Expression> = {
         Box::new(Expression::DeclareVariable(DeclareVariableData::new(SrcTag(t), nt, l))),
     <t:@L> <n:Name> "=" <l:Expression> ";" =>
         Box::new(Expression::Assignment(AssignmentData::new(SrcTag(t), n, l))),
+    <t:@L> "if" <cnd:Expression> "then" <trb:StatementList> "end" =>
+        Box::new(Expression::Conditional(ConditionalData::new(SrcTag(t), cnd, trb, Vec::new()))),
+    <t:@L> "if" <cnd:Expression> "then" <trb:StatementList> "else" <frb:StatementList> "end" =>
+        Box::new(Expression::Conditional(ConditionalData::new(SrcTag(t), cnd, trb, frb))),
     "left_shift" <n:Name> ";" => Box::new(Expression::LeftShift(n)),
     "rotate_left" <n:Name> ";" => Box::new(Expression::RotateLeft(n)),
     "rotate_right" <n:Name> ";" => Box::new(Expression::RotateRight(n)),

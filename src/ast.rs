@@ -247,25 +247,45 @@ impl ReturnData {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ConditionalData {
+    pub tag: SrcTag,
+    pub condition: Box<Expression>,
+    pub when_true: Vec<Expression>,
+    pub when_false: Vec<Expression>,
+}
+
+impl ConditionalData {
+    pub fn new(tag: SrcTag, condition: Box<Expression>, when_true: Vec<Expression>, when_false: Vec<Expression>) -> ConditionalData {
+        ConditionalData {
+            tag: tag,
+            condition: condition,
+            when_true: when_true,
+            when_false: when_false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Expression {
-    Number(NumberData),
-    Name(NameData),
-    BinaryOp(BinaryOpData),
     Assignment(AssignmentData),
+    BinaryOp(BinaryOpData),
+    Break,
     CallFunction(CallFunctionData),
+    Comment,
+    Conditional(ConditionalData),
     DeclareConst(DeclareConstData),
     DeclareFunction(DeclareFunctionData),
-    DeclareVariable(DeclareVariableData),
     DeclareRegister(DeclareRegisterData),
+    DeclareVariable(DeclareVariableData),
+    Error,
+    GoTo(Arc<String>),
     LeftShift(Arc<String>),
+    Name(NameData),
+    Number(NumberData),
+    Org(OrgData),
+    Return(ReturnData),
     RotateLeft(Arc<String>),
     RotateRight(Arc<String>),
-    Org(OrgData),
-    Break,
-    Return(ReturnData),
-    GoTo(Arc<String>),
-    Comment,
-    Error,
 }
 
 impl Expression {

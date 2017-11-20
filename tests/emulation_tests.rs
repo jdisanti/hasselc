@@ -203,7 +203,6 @@ pub fn two_calls_test_optimized() {
     assert_eq!(21u8, emulator.cpu.bus.read_byte(0x0200));
 }
 
-
 #[test]
 pub fn three_calls_test_unoptimized() {
     let emulator = run_test(
@@ -224,4 +223,28 @@ pub fn three_calls_test_optimized() {
         true,
     );
     assert_eq!(45u8, emulator.cpu.bus.read_byte(0x0200));
+}
+
+#[test]
+pub fn simple_branch_test_unoptimized() {
+    let emulator = run_test(
+        "simple_branch_test_unoptimized",
+        include_bytes!("./simple_branch_test.hsl"),
+        false,
+        false,
+    );
+    assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(6u8, emulator.cpu.bus.read_byte(0x0201));
+}
+
+#[test]
+pub fn simple_branch_test_optimized() {
+    let emulator = run_test(
+        "simple_branch_test_optimized",
+        include_bytes!("./simple_branch_test.hsl"),
+        true,
+        true,
+    );
+    assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(6u8, emulator.cpu.bus.read_byte(0x0201));
 }

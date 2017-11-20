@@ -14,6 +14,7 @@ mod ir_gen;
 mod llir_gen;
 mod llir_opt;
 mod register;
+mod symbol_table;
 pub mod ast;
 pub mod code;
 pub mod compiler;

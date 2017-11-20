@@ -1,10 +1,11 @@
 use std::sync::{Arc, RwLock};
 use ast;
 use ir;
+use symbol_table::{FunctionMetadata, Location, SymbolRef, SymbolTable};
 use error::{self, ErrorKind};
 
 pub fn generate_ir(input: &Vec<ast::Expression>) -> error::Result<Vec<ir::IR>> {
-    let global_symbol_table = Arc::new(RwLock::new(ir::SymbolTable::new()));
+    let global_symbol_table = Arc::new(RwLock::new(SymbolTable::new()));
     let mut blocks: Vec<ir::IR> = vec![ir::IR::new_anonymous_block(global_symbol_table.clone())];
 
     for ast_expr in input {
@@ -16,12 +17,12 @@ pub fn generate_ir(input: &Vec<ast::Expression>) -> error::Result<Vec<ir::IR>> {
                     location = *old_block.location();
                 }
 
-                let symbol_ref = ir::SymbolRef(Arc::clone(&data.name));
+                let symbol_ref = SymbolRef(Arc::clone(&data.name));
                 if global_symbol_table.read().unwrap().has_symbol(&symbol_ref) {
                     return Err(ErrorKind::DuplicateSymbol(data.tag, Arc::clone(&symbol_ref.0)).into());
                 }
 
-                let metadata = Arc::new(RwLock::new(ir::FunctionMetadata {
+                let metadata = Arc::new(RwLock::new(FunctionMetadata {
                     name: Arc::clone(&data.name),
                     location: location,
                     parameters: data.parameters.clone(),
@@ -48,7 +49,7 @@ pub fn generate_ir(input: &Vec<ast::Expression>) -> error::Result<Vec<ir::IR>> {
                 blocks
                     .last_mut()
                     .unwrap()
-                    .set_location(ir::Location::Global(data.address as u16));
+                    .set_location(Location::Global(data.address as u16));
             }
             ast::Expression::Comment => {}
             ast::Expression::Error => unreachable!("error"),
@@ -66,7 +67,7 @@ pub fn generate_ir(input: &Vec<ast::Expression>) -> error::Result<Vec<ir::IR>> {
 }
 
 fn generate_statement_irs(
-    symbol_table: &mut ir::SymbolTable,
+    symbol_table: &mut SymbolTable,
     input: &Vec<ast::Expression>,
 ) -> error::Result<Vec<ir::Statement>> {
     let mut statements: Vec<ir::Statement> = vec![];
@@ -79,13 +80,13 @@ fn generate_statement_irs(
 }
 
 fn generate_statement_ir(
-    symbol_table: &mut ir::SymbolTable,
+    symbol_table: &mut SymbolTable,
     input: &ast::Expression,
 ) -> error::Result<Vec<ir::Statement>> {
     let mut statements: Vec<ir::Statement> = vec![];
     match *input {
         ast::Expression::Assignment(ref data) => {
-            let symbol_ref = ir::SymbolRef(Arc::clone(&data.name));
+            let symbol_ref = SymbolRef(Arc::clone(&data.name));
             if symbol_table.variable(&symbol_ref).is_some() {
                 statements.push(ir::Statement::Assign {
                     symbol: symbol_ref,
@@ -100,16 +101,24 @@ fn generate_statement_ir(
         }
         ast::Expression::CallFunction(ref data) => {
             let stmt = ir::Statement::Call(ir::Expr::Call {
-                symbol: ir::SymbolRef(Arc::clone(&data.name)),
+                symbol: SymbolRef(Arc::clone(&data.name)),
                 arguments: generate_expressions(&data.arguments),
             });
             statements.push(stmt);
+        }
+        ast::Expression::Conditional(ref data) => {
+            let condition = generate_expression(&data.condition);
+            let when_true = generate_statement_irs(symbol_table, &data.when_true)?;
+            let when_false = generate_statement_irs(symbol_table, &data.when_false)?;
+            statements.push(ir::Statement::Conditional(ir::ConditionalData::new(
+                data.tag, condition, when_true, when_false
+            )));
         }
         ast::Expression::DeclareConst(ref _data) => {
             // TODO
         }
         ast::Expression::DeclareVariable(ref data) => {
-            let symbol_ref = ir::SymbolRef(Arc::clone(&data.name_type.name));
+            let symbol_ref = SymbolRef(Arc::clone(&data.name_type.name));
             if symbol_table.variable(&symbol_ref).is_some() {
                 // TODO: duplicate symbol error
                 unimplemented!()
@@ -119,7 +128,7 @@ fn generate_statement_ir(
                 symbol_ref.clone(),
                 (
                     data.name_type.type_name,
-                    ir::Location::FrameOffset(next_location as i8),
+                    Location::FrameOffset(next_location as i8),
                 ),
             );
             let assignment = ir::Statement::Assign {
@@ -129,7 +138,7 @@ fn generate_statement_ir(
             statements.push(assignment);
         }
         ast::Expression::DeclareRegister(ref data) => {
-            let symbol_ref = ir::SymbolRef(Arc::clone(&data.name_type.name));
+            let symbol_ref = SymbolRef(Arc::clone(&data.name_type.name));
             if symbol_table.variable(&symbol_ref).is_some() {
                 // TODO: duplicate symbol error
                 unimplemented!()
@@ -139,7 +148,7 @@ fn generate_statement_ir(
                 // TODO: error for out of range location
                 (
                     data.name_type.type_name,
-                    ir::Location::Global(data.location as u16),
+                    Location::Global(data.location as u16),
                 ),
             );
         }
@@ -190,10 +199,10 @@ fn generate_expression(input: &ast::Expression) -> ir::Expr {
             left: Box::new(generate_expression(&data.left)),
             right: Box::new(generate_expression(&data.right)),
         },
-        ast::Expression::Name(ref data) => ir::Expr::Symbol(ir::SymbolRef(Arc::clone(&data.name))),
+        ast::Expression::Name(ref data) => ir::Expr::Symbol(SymbolRef(Arc::clone(&data.name))),
         ast::Expression::Number(ref data) => ir::Expr::Number(data.value),
         ast::Expression::CallFunction(ref data) => {
-            let fn_symbol_ref = ir::SymbolRef(Arc::clone(&data.name));
+            let fn_symbol_ref = SymbolRef(Arc::clone(&data.name));
             let args = generate_expressions(&data.arguments);
             ir::Expr::Call {
                 symbol: fn_symbol_ref,

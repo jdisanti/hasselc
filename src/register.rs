@@ -181,6 +181,14 @@ impl RegisterAllocator {
         self.values[Register::Accum.ordinal()].clobber(next_intermediate);
     }
 
+    pub fn load_status_into_accum(&mut self, code: &mut Vec<Code>) {
+        self.save_as_necessary(code, Register::Accum);
+        code.push(Code::Php(Parameter::Implicit));
+        code.push(Code::Pla(Parameter::Implicit));
+        let next_intermediate = self.next_intermediate();
+        self.values[Register::Accum.ordinal()].clobber(next_intermediate);
+    }
+
     pub fn load(&mut self, code: &mut Vec<Code>, register: Register, param: Parameter) {
         if !self.values[register.ordinal()].is_equivalent(&RegisterValue::Param(param.clone())) {
             self.save_as_necessary(code, register);
