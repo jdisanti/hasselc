@@ -296,3 +296,13 @@ pub fn conditions_test_optimized() {
     assert_eq!(49u8, emulator.cpu.bus.read_byte(0x0201), "output2");
     assert_eq!(22u8, emulator.cpu.bus.read_byte(0x0202), "output3");
 }
+
+#[test]
+pub fn no_op_test_unoptimized() {
+    let emulator = emulate!(unoptimized: no_op_test);
+}
+
+#[test]
+pub fn no_op_test_optimized() {
+    let emulator = emulate!(optimized: no_op_test);
+}

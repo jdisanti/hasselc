@@ -1,0 +1,16 @@
+# This test exists to give a baseline executable size
+# with which to compare the other tests
+
+register data_stack_pointer: u8 @ 0x0000;
+
+org 0xE000;
+data_stack_pointer = 3;
+main();
+
+def halt(): void
+    goto halt;
+end
+
+def main(): void
+    goto halt;
+end
