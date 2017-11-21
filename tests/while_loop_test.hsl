@@ -13,14 +13,10 @@ def halt(): void
 end
 
 def main(): void
-    var keep_going: u8 = 1;
     var counter: u8 = 0;
 
-    while keep_going do
+    while counter < 10 do
         counter = counter + 1;
-        if counter == 10 then
-            keep_going = 0;
-        end
     end
 
     output = counter; # Should be 10
