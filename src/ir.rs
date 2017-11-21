@@ -1,7 +1,8 @@
 use std::sync::{Arc, RwLock};
-use ast::BinaryOperator;
-use symbol_table::{FunctionMetadataPtr, Location, SymbolRef, SymbolTable};
+use ast::{BinaryOperator, Type};
+use symbol_table::{FunctionMetadata, FunctionMetadataPtr, Location, SymbolRef, SymbolTable, Variable};
 use src_tag::SrcTag;
+use error::{self, ErrorKind};
 
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -55,49 +56,114 @@ impl WhileLoopData {
 }
 
 #[derive(Debug, Clone)]
+pub struct AssignData {
+    pub tag: SrcTag,
+    pub symbol: SymbolRef,
+    pub value: Expr,
+}
+
+impl AssignData {
+    pub fn new(tag: SrcTag, symbol: SymbolRef, value: Expr) -> AssignData {
+        AssignData {
+            tag: tag,
+            symbol: symbol,
+            value: value,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CallData {
+    pub tag: SrcTag,
+    pub call_expression: Expr,
+}
+
+impl CallData {
+    pub fn new(tag: SrcTag, call_expression: Expr) -> CallData {
+        CallData {
+            tag: tag,
+            call_expression: call_expression,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ReturnData {
+    pub tag: SrcTag,
+    pub value: Option<Expr>,
+}
+
+impl ReturnData {
+    pub fn new(tag: SrcTag, value: Option<Expr>) -> ReturnData {
+        ReturnData {
+            tag: tag,
+            value: value,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GoToData {
+    pub tag: SrcTag,
+    pub destination: Arc<String>,
+}
+
+impl GoToData {
+    pub fn new(tag: SrcTag, destination: Arc<String>) -> GoToData {
+        GoToData {
+            tag: tag,
+            destination: destination,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Statement {
-    Assign { symbol: SymbolRef, value: Expr },
+    Assign(AssignData),
     Break,
-    Call(Expr),
+    Call(CallData),
     Conditional(ConditionalData),
-    LeftShift(SymbolRef),
-    RotateLeft(SymbolRef),
-    RotateRight(SymbolRef),
-    Return(Option<Expr>),
-    GoTo(Arc<String>),
+    Return(ReturnData),
+    GoTo(GoToData),
     WhileLoop(WhileLoopData),
 }
 
 // Intermediate representation
 #[derive(Debug, Clone)]
-pub enum IR {
-    AnonymousBlock {
-        symbol_table: Arc<RwLock<SymbolTable>>,
-        location: Option<Location>,
-        body: Vec<Statement>,
-    },
-    FunctionBlock {
-        location: Option<Location>,
-        local_symbols: Arc<RwLock<SymbolTable>>,
-        body: Vec<Statement>,
-        metadata: FunctionMetadataPtr,
-    },
+pub struct Block {
+    pub name: Arc<String>,
+    pub location: Option<Location>,
+    pub body: Vec<Statement>,
+    pub symbol_table: Arc<RwLock<SymbolTable>>,
+    pub metadata: FunctionMetadataPtr,
+    pub anonymous: bool,
 }
 
-impl IR {
-    pub fn new_anonymous_block(global_symbol_table: Arc<RwLock<SymbolTable>>) -> IR {
-        IR::AnonymousBlock {
-            symbol_table: global_symbol_table,
+impl Block {
+    pub fn new_anonymous(global_symbol_table: Arc<RwLock<SymbolTable>>) -> Block {
+        let name = global_symbol_table.write().unwrap().new_block_name();
+        Block {
+            name: Arc::clone(&name),
             location: None,
             body: Vec::new(),
+            symbol_table: global_symbol_table,
+            metadata: Arc::new(RwLock::new(FunctionMetadata {
+                name: name,
+                location: None,
+                parameters: Vec::new(),
+                return_type: Type::Void,
+                frame_size: 0,
+            })),
+            anonymous: true,
         }
     }
 
-    pub fn new_function_block(
+    pub fn new_named(
+        src_tag: SrcTag,
         parent_symbol_table: Arc<RwLock<SymbolTable>>,
         location: Option<Location>,
         metadata: FunctionMetadataPtr,
-    ) -> IR {
+    ) -> error::Result<Block> {
         let frame_size = metadata
             .read()
             .unwrap()
@@ -109,64 +175,26 @@ impl IR {
 
         let mut frame_offset = 0i8;
         for parameter in &metadata.read().unwrap().parameters {
-            symbol_table.variables.insert(
-                SymbolRef(parameter.name.clone()),
-                (parameter.type_name, Location::FrameOffset(frame_offset)),
-            );
+            let name = SymbolRef::clone(&parameter.name);
+            let variable = Variable::new(parameter.type_name, Location::FrameOffset(frame_offset));
+            if !symbol_table.insert_variable(SymbolRef::clone(&name), variable) {
+                return Err(ErrorKind::DuplicateSymbol(src_tag, name).into());
+            }
             frame_offset += parameter.type_name.size() as i8;
         }
 
-        IR::FunctionBlock {
+        let name = Arc::clone(&metadata.read().unwrap().name);
+        Ok(Block {
+            name: name,
             location: location,
-            local_symbols: Arc::new(RwLock::new(symbol_table)),
+            symbol_table: Arc::new(RwLock::new(symbol_table)),
             body: Vec::new(),
             metadata: metadata,
-        }
+            anonymous: false,
+        })
     }
 
     pub fn is_empty_anonymous(&self) -> bool {
-        match self {
-            &IR::AnonymousBlock { ref body, .. } => body.is_empty(),
-            &IR::FunctionBlock { .. } => false,
-        }
-    }
-
-    pub fn symbol_table(&mut self) -> Arc<RwLock<SymbolTable>> {
-        match self {
-            &mut IR::AnonymousBlock { .. } => unreachable!(),
-            &mut IR::FunctionBlock {
-                ref mut local_symbols,
-                ..
-            } => local_symbols.clone(),
-        }
-    }
-
-    pub fn location(&self) -> &Option<Location> {
-        match *self {
-            IR::AnonymousBlock { ref location, .. } => location,
-            IR::FunctionBlock { ref location, .. } => location,
-        }
-    }
-
-    pub fn set_location(&mut self, new_location: Location) {
-        match self {
-            &mut IR::AnonymousBlock {
-                ref mut location, ..
-            } => {
-                location.get_or_insert(new_location);
-            }
-            &mut IR::FunctionBlock {
-                ref mut location, ..
-            } => {
-                location.get_or_insert(new_location);
-            }
-        }
-    }
-
-    pub fn body_mut<'a>(&'a mut self) -> &'a mut Vec<Statement> {
-        match self {
-            &mut IR::AnonymousBlock { ref mut body, .. } => body,
-            &mut IR::FunctionBlock { ref mut body, .. } => body,
-        }
+        self.anonymous && self.body.is_empty()
     }
 }

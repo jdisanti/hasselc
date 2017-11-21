@@ -13,7 +13,7 @@ impl Global {
     fn to_asm(&self) -> String {
         match *self {
             Global::Resolved(val) => format!("${:04X}", val),
-            Global::UnresolvedBlock => format!("UNRESOLVED_BLOCK"),
+            Global::UnresolvedBlock => String::from("UNRESOLVED_BLOCK"),
             Global::UnresolvedName(ref name) => format!("{}", name),
         }
     }
@@ -40,7 +40,7 @@ impl Parameter {
     fn to_asm(&self) -> String {
         match *self {
             Parameter::Implicit => String::from(""),
-            Parameter::Accumulator => format!("A"),
+            Parameter::Accumulator => String::from("A"),
             Parameter::Immediate(val) => format!("#{}", val),
             Parameter::ZeroPage(offset) => format!("${:02X}", offset),
             Parameter::ZeroPageX(offset) => format!("${:02X}, X", offset),
@@ -81,31 +81,32 @@ pub enum Code {
 
 impl Code {
     pub fn parameter(&self) -> &Parameter {
+        use self::Code::*;
         match *self {
-            Code::Adc(ref p) => p,
-            Code::And(ref p) => p,
-            Code::Beq(ref p) => p,
-            Code::Clc(ref p) => p,
-            Code::Cmp(ref p) => p,
-            Code::Eor(ref p) => p,
-            Code::Jmp(ref p) => p,
-            Code::Jsr(ref p) => p,
-            Code::Lda(ref p) => p,
-            Code::Ldx(ref p) => p,
-            Code::Ldy(ref p) => p,
-            Code::Php(ref p) => p,
-            Code::Pla(ref p) => p,
-            Code::Ror(ref p) => p,
-            Code::Rts(ref p) => p,
-            Code::Sbc(ref p) => p,
-            Code::Sec(ref p) => p,
-            Code::Sta(ref p) => p,
-            Code::Stx(ref p) => p,
-            Code::Sty(ref p) => p,
-            Code::Tax(ref p) => p,
-            Code::Tay(ref p) => p,
-            Code::Txa(ref p) => p,
-            Code::Tya(ref p) => p,
+            Adc(ref p) |
+            And(ref p) |
+            Beq(ref p) |
+            Clc(ref p) |
+            Cmp(ref p) |
+            Eor(ref p) |
+            Jmp(ref p) |
+            Jsr(ref p) |
+            Lda(ref p) |
+            Ldx(ref p) |
+            Ldy(ref p) |
+            Php(ref p) |
+            Pla(ref p) |
+            Ror(ref p) |
+            Rts(ref p) |
+            Sbc(ref p) |
+            Sec(ref p) |
+            Sta(ref p) |
+            Stx(ref p) |
+            Sty(ref p) |
+            Tax(ref p) |
+            Tay(ref p) |
+            Txa(ref p) |
+            Tya(ref p) => p,
         }
     }
 

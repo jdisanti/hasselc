@@ -31,17 +31,21 @@ error_chain! {
             display("Symbol not found: \"{}\"", name)
         }
         OrgOutOfRange(src_tag: SrcTag) {
-            description("Org out of  range")
+            description("Org out of range")
             display("The org address must be between 0x0200 and 0xFFFF")
+        }
+        OutOfBounds(src_tag: SrcTag, value: isize, min: isize, max: isize) {
+            description("Integer out of bounds")
+            display("Integer value {} must be between {} and {}", value, min, max)
         }
     }
 }
 
 pub fn to_compiler_error(program: &str, err: Error, compiler_output: ::compiler::CompilerOutput) -> Error {
+    use self::ErrorKind::*;
     let row_col = match err.0 {
-        ErrorKind::DuplicateSymbol(ref src_tag, ..) => src_tag.row_col(program),
-        ErrorKind::SymbolNotFound(ref src_tag, ..) => src_tag.row_col(program),
+        DuplicateSymbol(ref src_tag, ..) | SymbolNotFound(ref src_tag, ..) => src_tag.row_col(program),
         _ => panic!("Unsupported compiler error type: {:#?}", err),
     };
-    ErrorKind::CompilerError(row_col, Box::new(err), compiler_output).into()
+    CompilerError(row_col, Box::new(err), compiler_output).into()
 }

@@ -94,13 +94,11 @@ impl Register {
             },
             XIndex => match register {
                 Accum => Some(Code::Txa(Parameter::Implicit)),
-                XIndex => None,
-                YIndex => None,
+                XIndex | YIndex => None,
             },
             YIndex => match register {
                 Accum => Some(Code::Tya(Parameter::Implicit)),
-                XIndex => None,
-                YIndex => None,
+                XIndex | YIndex => None,
             },
         }
     }
@@ -158,16 +156,16 @@ impl RegisterAllocator {
     fn save_as_necessary(&mut self, code: &mut Vec<Code>, clobbering: Register) {
         let mut spillovers = [false; 3];
         spillovers[clobbering.ordinal()] = true;
-        for index in 0..self.save_locations.len() {
-            if let Some(ref location) = self.save_locations[index] {
+        for (index, optional_location) in self.save_locations.iter().enumerate() {
+            if let Some(ref location) = *optional_location {
                 if location.requires(clobbering) {
                     spillovers[index] = true;
                 }
             }
         }
 
-        for index in 0..spillovers.len() {
-            if spillovers[index] {
+        for (index, spillover) in spillovers.iter().enumerate() {
+            if *spillover {
                 self.spillover(code, Register::from_ordinal(index));
             }
         }

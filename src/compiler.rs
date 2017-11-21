@@ -12,7 +12,7 @@ use error;
 #[derive(Debug, Clone)]
 pub struct CompilerOutput {
     pub ast: Option<Vec<ast::Expression>>,
-    pub ir: Option<Vec<ir::IR>>,
+    pub ir: Option<Vec<ir::Block>>,
     pub llir: Option<Vec<llir::FrameBlock>>,
     pub llir_opt: Option<Vec<llir::FrameBlock>>,
     pub code: Option<Vec<code::CodeBlock>>,
@@ -45,13 +45,13 @@ pub fn compile(program: &str, optimize_llir: bool, optimize_code: bool) -> error
         )?);
     }
 
-    compiler_output.code = Some(code_gen::generate_code(
+    compiler_output.code = Some(code_gen::CodeBlockGenerator::new(
         compiler_output
             .llir_opt
             .as_ref()
-            .or(compiler_output.llir.as_ref())
+            .or_else(|| compiler_output.llir.as_ref())
             .unwrap(),
-    )?);
+    ).generate()?);
 
     if optimize_code {
         compiler_output.code_opt = Some(code_opt::optimize_code(

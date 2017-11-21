@@ -46,12 +46,11 @@ impl Emulator {
     pub fn step(&mut self) -> usize {
         println!("{}", self.cpu.debug_next_instruction());
         self.last_pc = self.cpu.reg_pc();
-        let cycles = self.cpu.next_instruction();
-        cycles
+        self.cpu.next_instruction()
     }
 }
 
-fn to_asm(blocks: &Vec<compiler::code::CodeBlock>) -> String {
+fn to_asm(blocks: &[compiler::code::CodeBlock]) -> String {
     let mut asm = String::new();
     for block in blocks {
         asm.push_str(&block.to_asm().unwrap());
@@ -299,10 +298,10 @@ pub fn conditions_test_optimized() {
 
 #[test]
 pub fn no_op_test_unoptimized() {
-    let emulator = emulate!(unoptimized: no_op_test);
+    drop(emulate!(unoptimized: no_op_test));
 }
 
 #[test]
 pub fn no_op_test_optimized() {
-    let emulator = emulate!(optimized: no_op_test);
+    drop(emulate!(optimized: no_op_test));
 }

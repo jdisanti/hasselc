@@ -288,6 +288,21 @@ impl WhileLoopData {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+pub struct GoToData {
+    pub tag: SrcTag,
+    pub destination: Arc<String>,
+}
+
+impl GoToData {
+    pub fn new(tag: SrcTag, destination: Arc<String>) -> GoToData {
+        GoToData {
+            tag: tag,
+            destination: destination,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Expression {
     Assignment(AssignmentData),
     BinaryOp(BinaryOpData),
@@ -300,14 +315,11 @@ pub enum Expression {
     DeclareRegister(DeclareRegisterData),
     DeclareVariable(DeclareVariableData),
     Error,
-    GoTo(Arc<String>),
-    LeftShift(Arc<String>),
+    GoTo(GoToData),
     Name(NameData),
     Number(NumberData),
     Org(OrgData),
     Return(ReturnData),
-    RotateLeft(Arc<String>),
-    RotateRight(Arc<String>),
     WhileLoop(WhileLoopData),
 }
 
@@ -352,7 +364,7 @@ where
                     ));
                 }
                 None => {
-                    messages.push(format!("unexpected EOF"));
+                    messages.push(String::from("unexpected EOF"));
                 }
             },
             lalrpop_util::ParseError::ExtraToken { ref token } => {
@@ -364,7 +376,7 @@ where
             }
         }
     }
-    return error::ErrorKind::ParseError(messages).into();
+    error::ErrorKind::ParseError(messages)
 }
 
 #[cfg(test)]

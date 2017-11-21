@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use ast::{Literal, NameType, Type};
+use ast::{NameType, Type};
 
 #[derive(Debug, Copy, Clone)]
 pub enum Location {
@@ -9,8 +9,7 @@ pub enum Location {
     FrameOffset(i8),
 }
 
-#[derive(Eq, PartialEq, Hash, Debug, Clone)]
-pub struct SymbolRef(pub Arc<String>);
+pub type SymbolRef = Arc<String>;
 
 #[derive(Debug, Clone)]
 pub struct FunctionMetadata {
@@ -23,26 +22,38 @@ pub struct FunctionMetadata {
 
 pub type FunctionMetadataPtr = Arc<RwLock<FunctionMetadata>>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
+pub struct Variable {
+    pub type_name: Type,
+    pub location: Location,
+}
+
+impl Variable {
+    pub fn new(type_name: Type, location: Location) -> Variable {
+        Variable {
+            type_name: type_name,
+            location: location,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+enum Symbol {
+    Variable(Variable),
+    Function(FunctionMetadataPtr),
+}
+
+#[derive(Default, Debug, Clone)]
 pub struct SymbolTable {
     parent: Option<Arc<RwLock<SymbolTable>>>,
-    pub constants: HashMap<SymbolRef, Literal>,
-    pub functions: HashMap<SymbolRef, FunctionMetadataPtr>,
-    pub variables: HashMap<SymbolRef, (Type, Location)>,
+    symbols: HashMap<SymbolRef, Symbol>,
     next_frame_offset: i8,
     next_block_index: usize,
 }
 
 impl SymbolTable {
     pub fn new() -> SymbolTable {
-        SymbolTable {
-            parent: None,
-            constants: HashMap::new(),
-            functions: HashMap::new(),
-            variables: HashMap::new(),
-            next_frame_offset: 0,
-            next_block_index: 0,
-        }
+        Default::default()
     }
 
     pub fn new_from_parent(parent: Arc<RwLock<SymbolTable>>, frame_offset: i8) -> SymbolTable {
@@ -52,9 +63,9 @@ impl SymbolTable {
         symbol_table
     }
 
-    pub fn new_run_block_name(&mut self) -> Arc<String> {
+    pub fn new_block_name(&mut self) -> Arc<String> {
         if let Some(ref parent) = self.parent {
-            parent.write().unwrap().new_run_block_name()
+            parent.write().unwrap().new_block_name()
         } else {
             let result = Arc::new(format!("__L{:04X}_", self.next_block_index));
             self.next_block_index += 1;
@@ -68,8 +79,7 @@ impl SymbolTable {
         } else {
             false
         };
-        parent_has_symbol || self.constants.contains_key(symbol_ref) || self.functions.contains_key(symbol_ref)
-            || self.variables.contains_key(symbol_ref)
+        parent_has_symbol || self.symbols.contains_key(symbol_ref)
     }
 
     pub fn next_frame_offset(&mut self, local_size: usize) -> i8 {
@@ -80,38 +90,62 @@ impl SymbolTable {
 
     pub fn create_temporary(&mut self, typ: Type) -> SymbolRef {
         let next_location = self.next_frame_offset(typ.size());
-        let symbol_ref = SymbolRef(Arc::new(format!("tmp#{}", next_location)));
-        self.variables.insert(
-            symbol_ref.clone(),
-            (typ, Location::FrameOffset(next_location)),
+        let symbol_ref = SymbolRef::new(format!("tmp#{}", next_location));
+        self.symbols.insert(
+            SymbolRef::clone(&symbol_ref),
+            Symbol::Variable(Variable::new(typ, Location::FrameOffset(next_location))),
         );
         symbol_ref
     }
 
     pub fn create_temporary_location(&mut self, typ: Type) -> Location {
         let symbol = self.create_temporary(typ);
-        self.variable(&symbol).unwrap().1
+        self.variable(&symbol).unwrap().location
+    }
+
+    fn insert(&mut self, symbol_ref: SymbolRef, symbol: Symbol) -> bool {
+        if self.has_symbol(&symbol_ref) {
+            false
+        } else {
+            self.symbols.insert(symbol_ref, symbol);
+            true
+        }
+    }
+
+    pub fn insert_function(&mut self, symbol_ref: SymbolRef, metadata: FunctionMetadataPtr) -> bool {
+        self.insert(symbol_ref, Symbol::Function(metadata))
     }
 
     pub fn function(&self, symbol_ref: &SymbolRef) -> Option<FunctionMetadataPtr> {
-        let function = self.functions.get(symbol_ref);
-        if function.is_some() {
-            function.map(|f| f.clone())
-        } else if let &Some(ref parent) = &self.parent {
-            parent.read().unwrap().function(symbol_ref)
-        } else {
-            None
+        match self.symbols.get(symbol_ref) {
+            Some(&Symbol::Function(ref function_metadata)) => Some(FunctionMetadataPtr::clone(function_metadata)),
+            _ => if let Some(ref parent) = self.parent {
+                parent.read().unwrap().function(symbol_ref)
+            } else {
+                None
+            },
         }
     }
 
-    pub fn variable(&self, symbol_ref: &SymbolRef) -> Option<(Type, Location)> {
-        let variable = self.variables.get(symbol_ref);
-        if variable.is_some() {
-            variable.map(|v| *v)
-        } else if let &Some(ref parent) = &self.parent {
-            parent.read().unwrap().variable(symbol_ref)
-        } else {
-            None
+    pub fn insert_variable(&mut self, symbol_ref: SymbolRef, variable: Variable) -> bool {
+        self.insert(symbol_ref, Symbol::Variable(variable))
+    }
+
+    pub fn variable(&self, symbol_ref: &SymbolRef) -> Option<Variable> {
+        match self.symbols.get(symbol_ref) {
+            Some(&Symbol::Variable(ref variable)) => Some(*variable),
+            _ => if let Some(ref parent) = self.parent {
+                parent.read().unwrap().variable(symbol_ref)
+            } else {
+                None
+            },
         }
+    }
+
+    pub fn variables<'a>(&'a self) -> Box<Iterator<Item = &'a Variable> + 'a> {
+        Box::new(self.symbols.values().filter_map(|symbol| match *symbol {
+            Symbol::Variable(ref variable) => Some(variable),
+            _ => None,
+        }))
     }
 }

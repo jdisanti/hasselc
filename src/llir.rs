@@ -97,11 +97,9 @@ pub enum Statement {
 
 impl Statement {
     pub fn is_branch(&self) -> bool {
+        use self::Statement::*;
         match *self {
-            Statement::BranchIfZero(_) => true,
-            Statement::GoTo { .. } => true,
-            Statement::JumpRoutine { .. } => true,
-            Statement::Return { .. } => true,
+            BranchIfZero(_) | GoTo { .. } | JumpRoutine { .. } | Return { .. } => true,
             _ => false,
         }
     }
@@ -124,10 +122,34 @@ impl fmt::Debug for Statement {
                 data.destination,
                 data.value
             )?,
-            Statement::CompareEq(ref data) => write!(f, "compare {:?} == {:?} => {:?}", data.left, data.right, data.destination)?,
-            Statement::CompareNotEq(ref data) => write!(f, "compare {:?} != {:?} => {:?}", data.left, data.right, data.destination)?,
-            Statement::CompareLt(ref data) => write!(f, "compare {:?} < {:?} => {:?}", data.left, data.right, data.destination)?,
-            Statement::CompareGte(ref data) => write!(f, "compare {:?} >= {:?} => {:?}", data.left, data.right, data.destination)?,
+            Statement::CompareEq(ref data) => write!(
+                f,
+                "compare {:?} == {:?} => {:?}",
+                data.left,
+                data.right,
+                data.destination
+            )?,
+            Statement::CompareNotEq(ref data) => write!(
+                f,
+                "compare {:?} != {:?} => {:?}",
+                data.left,
+                data.right,
+                data.destination
+            )?,
+            Statement::CompareLt(ref data) => write!(
+                f,
+                "compare {:?} < {:?} => {:?}",
+                data.left,
+                data.right,
+                data.destination
+            )?,
+            Statement::CompareGte(ref data) => write!(
+                f,
+                "compare {:?} >= {:?} => {:?}",
+                data.left,
+                data.right,
+                data.destination
+            )?,
             Statement::Copy(ref data) => write!(f, "copy {:?} => {:?}", data.value, data.destination)?,
             Statement::GoTo(ref name) => write!(f, "goto {}", name)?,
             Statement::JumpRoutine(ref location) => write!(f, "jsr {:?}", location)?,

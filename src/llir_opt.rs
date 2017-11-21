@@ -1,7 +1,9 @@
 use llir::FrameBlock;
 use error;
 
-pub fn optimize_llir(llir: &Vec<FrameBlock>) -> error::Result<Vec<FrameBlock>> {
+pub fn optimize_llir(llir: &[FrameBlock]) -> error::Result<Vec<FrameBlock>> {
+    let mut optimized = Vec::new();
     // TODO: Do actual optimizations when they are needed
-    Ok(llir.clone())
+    optimized.extend(llir.iter().cloned());
+    Ok(optimized)
 }

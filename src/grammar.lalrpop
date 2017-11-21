@@ -1,3 +1,6 @@
+#![allow(unknown_lints)]
+#![allow(clippy)]
+
 use std::str::FromStr;
 use std::sync::Arc;
 use ast::{
@@ -11,6 +14,7 @@ use ast::{
     DeclareRegisterData,
     DeclareVariableData,
     Expression,
+    GoToData,
     Literal,
     NameData,
     NameType,
@@ -147,13 +151,10 @@ Statement: Box<Expression> = {
         Box::new(Expression::Conditional(ConditionalData::new(SrcTag(t), cnd, trb, frb))),
     <t:@L> "while" <cnd:Expression> "do" <bdy:StatementList> "end" =>
         Box::new(Expression::WhileLoop(WhileLoopData::new(SrcTag(t), cnd, bdy))),
-    "left_shift" <n:Name> ";" => Box::new(Expression::LeftShift(n)),
-    "rotate_left" <n:Name> ";" => Box::new(Expression::RotateLeft(n)),
-    "rotate_right" <n:Name> ";" => Box::new(Expression::RotateRight(n)),
     "break" ";" => Box::new(Expression::Break),
     <t:@L> "return" <v:Expression> ";" => Box::new(Expression::Return(ReturnData::new(SrcTag(t), Some(v)))),
     <t:@L> "return" ";" => Box::new(Expression::Return(ReturnData::new(SrcTag(t), None))),
-    "goto" <n:Name> ";" => Box::new(Expression::GoTo(n)),
+    <t:@L> "goto" <n:Name> ";" => Box::new(Expression::GoTo(GoToData::new(SrcTag(t), n))),
     <f:FunctionCall> ";" => f,
     // Error recovery was causing infinite loops
     // See: https://github.com/nikomatsakis/lalrpop/issues/240
