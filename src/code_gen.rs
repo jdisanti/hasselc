@@ -77,9 +77,7 @@ fn generate_body(blocks: &Vec<llir::FrameBlock>, input: &Vec<llir::Statement>) -
                     Global::UnresolvedName(data.destination.clone()),
                 )));
             }
-            llir::Statement::Compare(ref data) => {
-                // TODO: Would be cool if we could use the register allocator to
-                // choose between CMP, CPX, and CPY based on what is in each register
+            llir::Statement::CompareEq(ref data) => {
                 generate_binary_op(
                     &mut registers,
                     &mut body,
@@ -90,7 +88,64 @@ fn generate_body(blocks: &Vec<llir::FrameBlock>, input: &Vec<llir::Statement>) -
                     |registers, body, param| {
                         body.push(code::Code::Cmp(param));
                         registers.load_status_into_accum(body);
+                        // The Z flag in position 2 will be 1 if equal
                         body.push(code::Code::And(Parameter::Immediate(2)));
+                        body.push(code::Code::Clc(Parameter::Implicit));
+                        body.push(code::Code::Ror(Parameter::Implicit));
+                    },
+                )?;
+            }
+            llir::Statement::CompareNotEq(ref data) => {
+                generate_binary_op(
+                    &mut registers,
+                    &mut body,
+                    blocks,
+                    &data.destination,
+                    &data.left,
+                    &data.right,
+                    |registers, body, param| {
+                        body.push(code::Code::Cmp(param));
+                        registers.load_status_into_accum(body);
+                        // The Z flag in position 2 will be 1 if equal
+                        // Use ExclusiveOR to negate it
+                        body.push(code::Code::Eor(Parameter::Immediate(2)));
+                        body.push(code::Code::And(Parameter::Immediate(2)));
+                        body.push(code::Code::Clc(Parameter::Implicit));
+                        body.push(code::Code::Ror(Parameter::Implicit));
+                    },
+                )?;
+            }
+            llir::Statement::CompareLt(ref data) => {
+                generate_binary_op(
+                    &mut registers,
+                    &mut body,
+                    blocks,
+                    &data.destination,
+                    &data.left,
+                    &data.right,
+                    |registers, body, param| {
+                        body.push(code::Code::Cmp(param));
+                        registers.load_status_into_accum(body);
+                        // The C flag in position 1 will be 1 if greater than or equal
+                        // Use ExclusiveOR to negate it
+                        body.push(code::Code::Eor(Parameter::Immediate(1)));
+                        body.push(code::Code::And(Parameter::Immediate(1)));
+                    },
+                )?;
+            }
+            llir::Statement::CompareGte(ref data) => {
+                generate_binary_op(
+                    &mut registers,
+                    &mut body,
+                    blocks,
+                    &data.destination,
+                    &data.left,
+                    &data.right,
+                    |registers, body, param| {
+                        body.push(code::Code::Cmp(param));
+                        registers.load_status_into_accum(body);
+                        // The C flag in position 1 will be 1 if greater than or equal
+                        body.push(code::Code::And(Parameter::Immediate(1)));
                     },
                 )?;
             }

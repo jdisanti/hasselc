@@ -84,7 +84,10 @@ pub enum Statement {
     Add(BinaryOpData),
     AddToDataStackPointer(SPOffset),
     BranchIfZero(BranchIfZeroData),
-    Compare(BinaryOpData),
+    CompareEq(BinaryOpData),
+    CompareNotEq(BinaryOpData),
+    CompareLt(BinaryOpData),
+    CompareGte(BinaryOpData),
     Copy(CopyData),
     GoTo(Arc<String>),
     JumpRoutine(Location),
@@ -95,15 +98,11 @@ pub enum Statement {
 impl Statement {
     pub fn is_branch(&self) -> bool {
         match *self {
-            Statement::Add { .. } => false,
-            Statement::AddToDataStackPointer { .. } => false,
             Statement::BranchIfZero(_) => true,
-            Statement::Compare(_) => false,
-            Statement::Copy { .. } => false,
             Statement::GoTo { .. } => true,
             Statement::JumpRoutine { .. } => true,
             Statement::Return { .. } => true,
-            Statement::Subtract { .. } => false,
+            _ => false,
         }
     }
 }
@@ -125,7 +124,10 @@ impl fmt::Debug for Statement {
                 data.destination,
                 data.value
             )?,
-            Statement::Compare(ref data) => write!(f, "compare {:?} to {:?}", data.left, data.right)?,
+            Statement::CompareEq(ref data) => write!(f, "compare {:?} == {:?} => {:?}", data.left, data.right, data.destination)?,
+            Statement::CompareNotEq(ref data) => write!(f, "compare {:?} != {:?} => {:?}", data.left, data.right, data.destination)?,
+            Statement::CompareLt(ref data) => write!(f, "compare {:?} < {:?} => {:?}", data.left, data.right, data.destination)?,
+            Statement::CompareGte(ref data) => write!(f, "compare {:?} >= {:?} => {:?}", data.left, data.right, data.destination)?,
             Statement::Copy(ref data) => write!(f, "copy {:?} => {:?}", data.value, data.destination)?,
             Statement::GoTo(ref name) => write!(f, "goto {}", name)?,
             Statement::JumpRoutine(ref location) => write!(f, "jsr {:?}", location)?,

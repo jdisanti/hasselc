@@ -212,11 +212,17 @@ fn resolve_expr_to_value(
             );
             let left_value = resolve_expr_to_value(statements, frame.clone(), symbol_table, &**left)?;
             let right_value = resolve_expr_to_value(statements, frame.clone(), symbol_table, &**right)?;
-            let bin_op_data = llir::BinaryOpData::new(dest.clone(), left_value, right_value);
+            let bin_op_data = llir::BinaryOpData::new(dest.clone(), left_value.clone(), right_value.clone());
+            let bin_op_inverted_data = llir::BinaryOpData::new(dest.clone(), right_value, left_value);
             match *op {
                 ast::BinaryOperator::Add => statements.push(llir::Statement::Add(bin_op_data)),
                 ast::BinaryOperator::Sub => statements.push(llir::Statement::Subtract(bin_op_data)),
-                ast::BinaryOperator::Equal => statements.push(llir::Statement::Compare(bin_op_data)),
+                ast::BinaryOperator::Equal => statements.push(llir::Statement::CompareEq(bin_op_data)),
+                ast::BinaryOperator::NotEqual => statements.push(llir::Statement::CompareNotEq(bin_op_data)),
+                ast::BinaryOperator::LessThan => statements.push(llir::Statement::CompareLt(bin_op_data)),
+                ast::BinaryOperator::LessThanEqual => statements.push(llir::Statement::CompareGte(bin_op_inverted_data)),
+                ast::BinaryOperator::GreaterThan => statements.push(llir::Statement::CompareLt(bin_op_inverted_data)),
+                ast::BinaryOperator::GreaterThanEqual => statements.push(llir::Statement::CompareGte(bin_op_data)),
                 _ => unimplemented!(),
             };
             Ok(llir::Value::Memory(dest))

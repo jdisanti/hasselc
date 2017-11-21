@@ -1,0 +1,46 @@
+# Declare stack frame locations
+register data_stack_pointer: u8 @ 0x0000;
+
+register eq_true: u8 @ 0x0200;
+register eq_false: u8 @ 0x0201;
+register neq_true: u8 @ 0x0202;
+register neq_false: u8 @ 0x0203;
+register lt_true: u8 @ 0x0204;
+register lt_false: u8 @ 0x0205;
+register lte_true: u8 @ 0x0206;
+register lte_false: u8 @ 0x0207;
+register gt_true: u8 @ 0x0208;
+register gt_false: u8 @ 0x0209;
+register gte_true: u8 @ 0x020A;
+register gte_false: u8 @ 0x020B;
+
+# Initialize the stack
+org 0xE000;
+data_stack_pointer = 3;
+main();
+
+def halt(): void
+    goto halt;
+end
+
+def main(): void
+    eq_true = 5 == 5;
+    eq_false = 5 == 6;
+
+    neq_true = 5 != 6;
+    neq_false = 5 != 5;
+
+    lt_true = 5 < 6;
+    lt_false = 5 < 5;
+
+    lte_true = 5 <= 5;
+    lte_false = 6 <= 5;
+
+    gt_true = 6 > 5;
+    gt_false = 5 > 6;
+
+    gte_true = 6 >= 6;
+    gte_false = 5 >= 6;
+
+    goto halt;
+end
