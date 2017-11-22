@@ -38,6 +38,10 @@ error_chain! {
             description("Integer out of bounds")
             display("Integer value {} must be between {} and {}", value, min, max)
         }
+        ExpectedNArgumentsGotM(src_tag: SrcTag, function: Arc<String>, expected: usize, actual: usize) {
+            description("Expected N args, got M")
+            display("In function call to \"{}\", expected {} arguments, got {}", function, expected, actual)
+        }
     }
 }
 

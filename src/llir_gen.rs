@@ -2,7 +2,8 @@ use std::sync::Arc;
 use ast;
 use error;
 use ir;
-use llir::{Location, CopyData, BranchIfZeroData, FrameBlock, GoToData, JumpRoutineData, RunBlock, SPOffset, Value, BinaryOpData, Statement};
+use llir::{BinaryOpData, BranchIfZeroData, CopyData, FrameBlock, GoToData, JumpRoutineData, Location, RunBlock,
+           SPOffset, Statement, Value};
 use symbol_table::{self, SymbolRef, SymbolTable};
 
 const RETURN_LOCATION_LO: Location = Location::Global(0x0001);
@@ -57,13 +58,11 @@ fn generate_runs(
                     symbol_table,
                     &data.value,
                 )?;
-                current_block
-                    .statements
-                    .push(Statement::Copy(CopyData::new(
-                        data.tag,
-                        convert_location(frame.clone(), &variable.location),
-                        resolved_value,
-                    )));
+                current_block.statements.push(Statement::Copy(CopyData::new(
+                    data.tag,
+                    convert_location(frame.clone(), &variable.location),
+                    resolved_value,
+                )));
             } else {
                 unreachable!("variable existence should already be checked in ir_gen");
             },
@@ -78,7 +77,10 @@ fn generate_runs(
                 let last_true_block_index = true_blocks.len() - 1;
                 true_blocks[last_true_block_index]
                     .statements
-                    .push(Statement::GoTo(GoToData::new(data.tag, SymbolRef::clone(&after_both_block.name))));
+                    .push(Statement::GoTo(GoToData::new(
+                        data.tag,
+                        SymbolRef::clone(&after_both_block.name),
+                    )));
 
                 let condition = resolve_expr_to_value(
                     &mut current_block.statements,
@@ -120,7 +122,10 @@ fn generate_runs(
                 let last_body_block_index = body_blocks.len() - 1;
                 body_blocks[last_body_block_index]
                     .statements
-                    .push(Statement::GoTo(GoToData::new(data.tag, SymbolRef::clone(&condition_block.name))));
+                    .push(Statement::GoTo(GoToData::new(
+                        data.tag,
+                        SymbolRef::clone(&condition_block.name),
+                    )));
 
                 blocks.push(current_block);
                 blocks.push(condition_block);
@@ -139,9 +144,9 @@ fn generate_runs(
                 current_block.statements.push(Statement::Return);
             }
             ir::Statement::GoTo(ref data) => {
-                current_block
-                    .statements
-                    .push(Statement::GoTo(GoToData::new(data.tag, Arc::clone(&data.destination))));
+                current_block.statements.push(Statement::GoTo(
+                    GoToData::new(data.tag, Arc::clone(&data.destination)),
+                ));
             }
             _ => unimplemented!("llir_gen: generate_runs statement"),
         }
@@ -165,8 +170,7 @@ fn resolve_expr_to_value(
                     convert_location(frame.clone(), &variable.location),
                 ))
             } else {
-                // TODO: error: could not resolve variable
-                unimplemented!()
+                Err(error::ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.name)).into())
             }
         }
         ir::Expr::BinaryOp(ref data) => {
@@ -176,7 +180,12 @@ fn resolve_expr_to_value(
             );
             let left_value = resolve_expr_to_value(statements, frame, symbol_table, &*data.left)?;
             let right_value = resolve_expr_to_value(statements, frame, symbol_table, &*data.right)?;
-            let bin_op_data = BinaryOpData::new(data.tag, dest.clone(), left_value.clone(), right_value.clone());
+            let bin_op_data = BinaryOpData::new(
+                data.tag,
+                dest.clone(),
+                left_value.clone(),
+                right_value.clone(),
+            );
             let bin_op_inverted_data = BinaryOpData::new(data.tag, dest.clone(), right_value, left_value);
             match data.op {
                 ast::BinaryOperator::Add => statements.push(Statement::Add(bin_op_data)),
@@ -184,9 +193,7 @@ fn resolve_expr_to_value(
                 ast::BinaryOperator::Equal => statements.push(Statement::CompareEq(bin_op_data)),
                 ast::BinaryOperator::NotEqual => statements.push(Statement::CompareNotEq(bin_op_data)),
                 ast::BinaryOperator::LessThan => statements.push(Statement::CompareLt(bin_op_data)),
-                ast::BinaryOperator::LessThanEqual => {
-                    statements.push(Statement::CompareGte(bin_op_inverted_data))
-                }
+                ast::BinaryOperator::LessThanEqual => statements.push(Statement::CompareGte(bin_op_inverted_data)),
                 ast::BinaryOperator::GreaterThan => statements.push(Statement::CompareLt(bin_op_inverted_data)),
                 ast::BinaryOperator::GreaterThanEqual => statements.push(Statement::CompareGte(bin_op_data)),
                 _ => unimplemented!(),
@@ -206,8 +213,14 @@ fn generate_function_call(
     if let Some(function) = symbol_table.function(&call_data.function) {
         let metadata = function.read().unwrap();
         if metadata.parameters.len() != call_data.arguments.len() {
-            // TODO: error
-            unimplemented!()
+            return Err(
+                error::ErrorKind::ExpectedNArgumentsGotM(
+                    call_data.tag,
+                    SymbolRef::clone(&call_data.function),
+                    metadata.parameters.len(),
+                    call_data.arguments.len(),
+                ).into(),
+            );
         }
 
         // Push arguments to the stack
@@ -259,17 +272,14 @@ fn generate_function_call(
 
         Ok(Value::Memory(dest))
     } else {
-        // TODO: error
-        unimplemented!()
+        Err(error::ErrorKind::SymbolNotFound(call_data.tag, SymbolRef::clone(&call_data.function)).into())
     }
 }
 
 fn offset_call(calling_frame: Arc<String>, value: Value) -> Value {
     match value {
         Value::Memory(location) => Value::Memory(match location {
-            Location::FrameOffset(frame, offset) => {
-                Location::FrameOffsetBeforeCall(frame, calling_frame, offset)
-            }
+            Location::FrameOffset(frame, offset) => Location::FrameOffsetBeforeCall(frame, calling_frame, offset),
             _ => location,
         }),
         _ => value,

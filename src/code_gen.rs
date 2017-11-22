@@ -240,8 +240,7 @@ impl<'a> CodeGenerator<'a> {
                 return Ok(block.frame_size);
             }
         }
-        // TODO: Error: not found
-        unimplemented!()
+        unreachable!("existence of frames should have been checked in previous stages")
     }
 
     fn load_stack_pointer_if_necessary(&mut self, location: &llir::Location) -> error::Result<()> {

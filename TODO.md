@@ -2,7 +2,7 @@ Compiler TODO
 -------------
 
 - [ ] Error Handling
-  - [ ] Fix all error handling unimplemented!() and TODOs
+  - [X] Fix all error handling unimplemented!() and TODOs
   - [ ] Check for return in functions that have return type
   - [ ] Type checking
 - [ ] Constants

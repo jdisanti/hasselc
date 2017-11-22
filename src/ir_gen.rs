@@ -196,22 +196,14 @@ fn generate_expression(input: &ast::Expression) -> ir::Expr {
             Box::new(generate_expression(&data.left)),
             Box::new(generate_expression(&data.right)),
         )),
-        ast::Expression::Name(ref data) => ir::Expr::Symbol(ir::SymbolData::new(
-            data.tag,
-            SymbolRef::clone(&data.name)
-        )),
-        ast::Expression::Number(ref data) => ir::Expr::Number(ir::NumberData::new(
-            data.tag,
-            data.value
-        )),
+        ast::Expression::Name(ref data) => {
+            ir::Expr::Symbol(ir::SymbolData::new(data.tag, SymbolRef::clone(&data.name)))
+        }
+        ast::Expression::Number(ref data) => ir::Expr::Number(ir::NumberData::new(data.tag, data.value)),
         ast::Expression::CallFunction(ref data) => {
             let function = SymbolRef::clone(&data.name);
             let args = generate_expressions(&data.arguments);
-            ir::Expr::Call(ir::CallData::new(
-                data.tag,
-                function,
-                args,
-            ))
+            ir::Expr::Call(ir::CallData::new(data.tag, function, args))
         }
         _ => panic!("not an expression: {:?}", input),
     }

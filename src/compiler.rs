@@ -33,7 +33,7 @@ pub fn compile(program: &str, optimize_llir: bool, optimize_code: bool) -> error
 
     match ir_gen::generate_ir(compiler_output.ast.as_ref().unwrap()) {
         Ok(ir) => compiler_output.ir = Some(ir),
-        Err(err) => return Err(error::to_compiler_error(program, err, compiler_output))
+        Err(err) => return Err(error::to_compiler_error(program, err, compiler_output)),
     }
 
     compiler_output.llir = Some(llir_gen::generate_llir(
