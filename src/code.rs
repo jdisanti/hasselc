@@ -77,6 +77,8 @@ pub enum Code {
     Tay(Parameter),
     Txa(Parameter),
     Tya(Parameter),
+
+    Comment(String),
 }
 
 impl Code {
@@ -87,7 +89,8 @@ impl Code {
             | Lda(ref p) | Ldx(ref p) | Ldy(ref p) | Php(ref p) | Pla(ref p) | Ror(ref p) | Rts(ref p) | Sbc(ref p)
             | Sec(ref p) | Sta(ref p) | Stx(ref p) | Sty(ref p) | Tax(ref p) | Tay(ref p) | Txa(ref p) | Tya(ref p) => {
                 p
-            }
+            },
+            Comment(_) => unreachable!()
         }
     }
 
@@ -124,6 +127,7 @@ impl Code {
             Code::Tay(ref p) => format!("TAY\t{}", p.to_asm()),
             Code::Txa(ref p) => format!("TXA\t{}", p.to_asm()),
             Code::Tya(ref p) => format!("TYA\t{}", p.to_asm()),
+            Code::Comment(ref msg) => format!("; {}", msg),
         }
     }
 }

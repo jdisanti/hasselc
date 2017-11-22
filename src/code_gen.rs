@@ -4,17 +4,20 @@ use error;
 use llir;
 use register::{Register, RegisterAllocator};
 use symbol_table::SymbolRef;
+use src_tag::{SrcTag, SrcTagged};
 
 pub struct CodeBlockGenerator<'a> {
     llir_blocks: &'a [llir::FrameBlock],
     code_blocks: Vec<CodeBlock>,
+    original_source: &'a str,
 }
 
 impl<'a> CodeBlockGenerator<'a> {
-    pub fn new(input: &[llir::FrameBlock]) -> CodeBlockGenerator {
+    pub fn new<'b>(original_source: &'b str, input: &'b [llir::FrameBlock]) -> CodeBlockGenerator<'b> {
         CodeBlockGenerator {
             llir_blocks: input,
             code_blocks: Vec::new(),
+            original_source: original_source,
         }
     }
 
@@ -30,7 +33,8 @@ impl<'a> CodeBlockGenerator<'a> {
 
             for run_block in &frame_block.runs {
                 let mut code_block = CodeBlock::new(Some(Arc::clone(&run_block.name)), None);
-                code_block.body = CodeGenerator::new(self.llir_blocks).generate(&run_block.statements)?;
+                code_block.body = CodeGenerator::new(self.original_source, self.llir_blocks)
+                    .generate(&run_block.statements)?;
                 self.code_blocks.push(code_block);
             }
         }
@@ -42,19 +46,37 @@ struct CodeGenerator<'a> {
     llir_blocks: &'a [llir::FrameBlock],
     registers: RegisterAllocator,
     code: Vec<Code>,
+    original_source: &'a str,
 }
 
 impl<'a> CodeGenerator<'a> {
-    pub fn new(llir_blocks: &[llir::FrameBlock]) -> CodeGenerator {
+    pub fn new<'b>(original_source: &'b str, llir_blocks: &'b [llir::FrameBlock]) -> CodeGenerator<'b> {
         CodeGenerator {
             llir_blocks: llir_blocks,
             registers: RegisterAllocator::new(),
             code: Vec::new(),
+            original_source: original_source,
         }
     }
 
+    fn statement_comment(&self, statement: &llir::Statement) -> Code {
+        let tag = statement.src_tag();
+        let (row, col) = tag.row_col(self.original_source);
+        let line = tag.line(self.original_source);
+        Code::Comment(format!("{}:{}: {}", row, col, line))
+    }
+
     fn generate(mut self, llir_statements: &[llir::Statement]) -> error::Result<Vec<Code>> {
+        let mut last_original_line = SrcTag::invalid();
+
         for statement in llir_statements {
+            if statement.src_tag() != last_original_line {
+                let comment = self.statement_comment(statement);
+                self.code.push(comment);
+                last_original_line = statement.src_tag();
+            }
+            self.code.push(Code::Comment(format!("{:?}", statement)));
+
             match *statement {
                 llir::Statement::Add(ref data) => {
                     self.generate_binary_op(data, |registers, body, param| registers.add(body, param))?;
@@ -65,9 +87,9 @@ impl<'a> CodeGenerator<'a> {
                         |registers, body, param| registers.subtract(body, param),
                     )?;
                 }
-                llir::Statement::AddToDataStackPointer(ref val) => {
+                llir::Statement::AddToDataStackPointer(ref data) => {
                     self.registers.load_dsp(&mut self.code, Register::Accum);
-                    let add_param = Parameter::Immediate(match *val {
+                    let add_param = Parameter::Immediate(match data.offset {
                         llir::SPOffset::Immediate(val) => val as u8,
                         llir::SPOffset::FrameSize(ref name) => self.lookup_frame_size(name)? as u8,
                         llir::SPOffset::NegativeFrameSize(ref name) => -self.lookup_frame_size(name)? as u8,
@@ -144,7 +166,7 @@ impl<'a> CodeGenerator<'a> {
                             _ => unreachable!(),
                         })));
                 }
-                llir::Statement::Return => {
+                llir::Statement::Return(_) => {
                     self.registers.save_all_and_reset(&mut self.code);
                     self.code.push(Code::Rts(Parameter::Implicit));
                 }

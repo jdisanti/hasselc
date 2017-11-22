@@ -47,6 +47,7 @@ pub fn compile(program: &str, optimize_llir: bool, optimize_code: bool) -> error
     }
 
     compiler_output.code = Some(code_gen::CodeBlockGenerator::new(
+        program,
         compiler_output
             .llir_opt
             .as_ref()

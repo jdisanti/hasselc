@@ -1,6 +1,6 @@
 use std::fmt;
 use std::sync::Arc;
-use src_tag::SrcTag;
+use src_tag::{SrcTag, SrcTagged};
 use symbol_table::SymbolRef;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -68,10 +68,21 @@ pub struct JumpRoutineData {
     pub destination: Location,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, new)]
+pub struct ReturnData {
+    pub tag: SrcTag,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, new)]
+pub struct AddToDataStackPointerData {
+    pub tag: SrcTag,
+    pub offset: SPOffset,
+}
+
 #[derive(Clone, Eq, PartialEq)]
 pub enum Statement {
     Add(BinaryOpData),
-    AddToDataStackPointer(SPOffset),
+    AddToDataStackPointer(AddToDataStackPointerData),
     BranchIfZero(BranchIfZeroData),
     CompareEq(BinaryOpData),
     CompareNotEq(BinaryOpData),
@@ -80,7 +91,7 @@ pub enum Statement {
     Copy(CopyData),
     GoTo(GoToData),
     JumpRoutine(JumpRoutineData),
-    Return,
+    Return(ReturnData),
     Subtract(BinaryOpData),
 }
 
@@ -90,6 +101,26 @@ impl Statement {
         match *self {
             BranchIfZero(_) | GoTo(_) | JumpRoutine { .. } | Return { .. } => true,
             _ => false,
+        }
+    }
+}
+
+impl SrcTagged for Statement {
+    fn src_tag(&self) -> SrcTag {
+        use self::Statement::*;
+        match *self {
+            Add(ref d) => d.tag,
+            AddToDataStackPointer(ref d) => d.tag,
+            BranchIfZero(ref d) => d.tag,
+            CompareEq(ref d) => d.tag,
+            CompareNotEq(ref d) => d.tag,
+            CompareLt(ref d) => d.tag,
+            CompareGte(ref d) => d.tag,
+            Copy(ref d) => d.tag,
+            GoTo(ref d) => d.tag,
+            JumpRoutine(ref d) => d.tag,
+            Return(ref d) => d.tag,
+            Subtract(ref d) => d.tag,
         }
     }
 }
@@ -142,7 +173,7 @@ impl fmt::Debug for Statement {
             Statement::Copy(ref data) => write!(f, "copy {:?} => {:?}", data.value, data.destination)?,
             Statement::GoTo(ref data) => write!(f, "goto {}", data.destination)?,
             Statement::JumpRoutine(ref location) => write!(f, "jsr {:?}", location)?,
-            Statement::Return => write!(f, "rts")?,
+            Statement::Return(_) => write!(f, "rts")?,
             Statement::Subtract(ref data) => write!(
                 f,
                 "subtract {:?} - {:?} => {:?}",

@@ -2,7 +2,7 @@ use std::sync::Arc;
 use ast;
 use error;
 use ir;
-use llir::{BinaryOpData, BranchIfZeroData, CopyData, FrameBlock, GoToData, JumpRoutineData, Location, RunBlock,
+use llir::{AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, CopyData, FrameBlock, GoToData, JumpRoutineData, Location, ReturnData, RunBlock,
            SPOffset, Statement, Value};
 use symbol_table::{self, SymbolRef, SymbolTable};
 
@@ -141,7 +141,7 @@ fn generate_runs(
                         CopyData::new(data.tag, RETURN_LOCATION_LO, value),
                     ));
                 }
-                current_block.statements.push(Statement::Return);
+                current_block.statements.push(Statement::Return(ReturnData::new(data.tag)));
             }
             ir::Statement::GoTo(ref data) => {
                 current_block.statements.push(Statement::GoTo(
@@ -233,9 +233,10 @@ fn generate_function_call(
                 argument,
             )?)
         }
-        statements.push(Statement::AddToDataStackPointer(
+        statements.push(Statement::AddToDataStackPointer(AddToDataStackPointerData::new(
+            call_data.tag,
             SPOffset::FrameSize(SymbolRef::clone(&metadata.name)),
-        ));
+        )));
         if !metadata.parameters.is_empty() {
             let mut frame_offset = 0;
             for (i, argument_value) in argument_values.into_iter().enumerate() {
@@ -256,9 +257,10 @@ fn generate_function_call(
         )));
 
         // Restore the stack pointer
-        statements.push(Statement::AddToDataStackPointer(
+        statements.push(Statement::AddToDataStackPointer(AddToDataStackPointerData::new(
+            call_data.tag,
             SPOffset::NegativeFrameSize(SymbolRef::clone(&metadata.name)),
-        ));
+        )));
 
         let dest = convert_location(
             frame.clone(),
