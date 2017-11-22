@@ -1,7 +1,9 @@
 use std::sync::{Arc, RwLock};
+use num_traits::PrimInt;
 use ast;
 use ir;
-use symbol_table::{FunctionMetadata, Location, SymbolRef, SymbolTable, Variable};
+use symbol_table::{ConstantValue, FunctionMetadata, Location, SymbolRef, SymbolTable, Variable};
+use src_tag::{SrcTag, SrcTagged};
 use error::{self, ErrorKind};
 
 pub fn generate_ir(input: &[ast::Expression]) -> error::Result<Vec<ir::Block>> {
@@ -116,8 +118,12 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
                 when_false,
             )));
         }
-        ast::Expression::DeclareConst(ref _data) => {
-            unimplemented!("ir_gen: declare const");
+        ast::Expression::DeclareConst(ref data) => {
+            let symbol_ref = SymbolRef::clone(&data.name_type.name);
+            let value = constant_eval(symbol_table, data.name_type.type_name, &*data.value)?;
+            if !symbol_table.insert_constant(SymbolRef::clone(&symbol_ref), value) {
+                return Err(ErrorKind::DuplicateSymbol(data.tag, SymbolRef::clone(&data.name_type.name)).into());
+            }
         }
         ast::Expression::DeclareVariable(ref data) => {
             let symbol_ref = SymbolRef::clone(&data.name_type.name);
@@ -178,6 +184,70 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
     }
 
     Ok(statements)
+}
+
+fn constant_eval(symbol_table: &SymbolTable, type_name: ast::Type, input: &ast::Expression) -> error::Result<ConstantValue> {
+    match *input {
+        ast::Expression::Number(ref data) => constant_eval_number(type_name, data),
+        ast::Expression::BinaryOp(ref data) => {
+            let left = constant_eval(symbol_table, type_name, &*data.left)?;
+            let right = constant_eval(symbol_table, type_name, &*data.right)?;
+            match type_name {
+                ast::Type::U8 => Ok(ConstantValue::U8(constant_eval_binop(data.tag, data.op, left.as_u8(), right.as_u8())?)),
+                ast::Type::U16 => Ok(ConstantValue::U16(constant_eval_binop(data.tag, data.op, left.as_u16(), right.as_u16())?)),
+                ast::Type::Void => Err(ErrorKind::ConstCantBeVoid(data.tag).into()),
+            }
+        }
+        ast::Expression::Name(ref data) => {
+            match symbol_table.constant(&data.name) {
+                Some(constant) => Ok(constant),
+                None => Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.name)).into())
+            }
+        }
+        _ => Err(ErrorKind::ConstEvaluationFailed(input.src_tag()).into()),
+    }
+}
+
+fn constant_eval_number(type_name: ast::Type, input: &ast::NumberData) -> error::Result<ConstantValue> {
+    match type_name {
+        ast::Type::U8 => {
+            let unsigned_val = input.value as usize;
+            if unsigned_val > 0xFF {
+                Err(ErrorKind::OutOfBounds(input.tag, input.value as isize, 0, 0xFF).into())
+            } else {
+                Ok(ConstantValue::U8(input.value as u8))
+            }
+        }
+        ast::Type::U16 => {
+            let unsigned_val = input.value as usize;
+            if unsigned_val > 0xFFFF {
+                Err(ErrorKind::OutOfBounds(input.tag, input.value as isize, 0, 0xFFFF).into())
+            } else {
+                Ok(ConstantValue::U16(input.value as u16))
+            }
+        }
+        ast::Type::Void => Err(ErrorKind::ConstCantBeVoid(input.tag).into())
+    }
+}
+
+fn constant_eval_binop<N: PrimInt>(tag: SrcTag, op: ast::BinaryOperator, left: N, right: N) -> error::Result<N> {
+    use ast::BinaryOperator::*;
+    let result: Option<N> = match op {
+        Add => left.checked_add(&right),
+        Sub => left.checked_sub(&right),
+        Mul => left.checked_mul(&right),
+        Div => left.checked_div(&right),
+        LessThan => if left < right { N::from(1) } else { N::from(0) },
+        GreaterThan => if left > right { N::from(1) } else { N::from(0) },
+        LessThanEqual => if left <= right { N::from(1) } else { N::from(0) },
+        GreaterThanEqual => if left >= right { N::from(1) } else { N::from(0) },
+        Equal => if left == right { N::from(1) } else { N::from(0) },
+        NotEqual => if left != right { N::from(1) } else { N::from(0) },
+    };
+    match result {
+        Some(val) => Ok(val),
+        None => Err(ErrorKind::ConstEvaluationFailed(tag).into())
+    }
 }
 
 fn generate_expressions(input: &[ast::Expression]) -> Vec<ir::Expr> {

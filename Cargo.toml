@@ -11,6 +11,7 @@ lalrpop = "0.13.1"
 derive-new = "0.5"
 error-chain = "0.11"
 lalrpop-util = "0.13.1"
+num-traits = "0.1"
 regex = "0.2.1"
 
 [dev-dependencies.emulator]

@@ -169,6 +169,8 @@ fn resolve_expr_to_value(
                 Ok(Value::Memory(
                     convert_location(frame.clone(), &variable.location),
                 ))
+            } else if let Some(ref value) = symbol_table.constant(&data.name) {
+                Ok(Value::Immediate(value.as_u8()))
             } else {
                 Err(error::ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.name)).into())
             }

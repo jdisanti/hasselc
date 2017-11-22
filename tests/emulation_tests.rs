@@ -305,3 +305,11 @@ pub fn no_op_test_unoptimized() {
 pub fn no_op_test_optimized() {
     drop(emulate!(optimized: no_op_test));
 }
+
+#[test]
+pub fn constants_test_unoptimized() {
+    let emulator = emulate!(unoptimized: constants_test);
+    assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(15u8, emulator.cpu.bus.read_byte(0x0201));
+    assert_eq!(3u8, emulator.cpu.bus.read_byte(0x0202));
+}

@@ -1,0 +1,28 @@
+# Declare stack frame locations
+register data_stack_pointer: u8 @ 0x0000;
+
+register output1: u8 @ 0x0200;
+register output2: u8 @ 0x0201;
+register output3: u8 @ 0x0202;
+
+const const1: u8 = 5;
+const const2: u8 = const1 + 10;
+const const3: u8 = const2 / const1;
+
+# Initialize the stack
+org 0xE000;
+data_stack_pointer = 3;
+
+main();
+goto halt;
+
+def halt(): void
+    goto halt;
+end
+
+def main(): void
+    output1 = const1;
+    output2 = const2;
+    output3 = const3;
+    return;
+end

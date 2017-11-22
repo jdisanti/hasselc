@@ -37,8 +37,31 @@ impl Variable {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum ConstantValue {
+    U8(u8),
+    U16(u16),
+}
+
+impl ConstantValue {
+    pub fn as_u8(&self) -> u8 {
+        match *self {
+            ConstantValue::U8(val) => val,
+            _ => panic!("expected u8"),
+        }
+    }
+
+    pub fn as_u16(&self) -> u16 {
+        match *self {
+            ConstantValue::U16(val) => val,
+            _ => panic!("expected u16"),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 enum Symbol {
+    Constant(ConstantValue),
     Variable(Variable),
     Function(FunctionMetadataPtr),
 }
@@ -109,6 +132,21 @@ impl SymbolTable {
         } else {
             self.symbols.insert(symbol_ref, symbol);
             true
+        }
+    }
+
+    pub fn insert_constant(&mut self, symbol_ref: SymbolRef, value: ConstantValue) -> bool {
+        self.insert(symbol_ref, Symbol::Constant(value))
+    }
+
+    pub fn constant(&self, symbol_ref: &SymbolRef) -> Option<ConstantValue> {
+        match self.symbols.get(symbol_ref) {
+            Some(&Symbol::Constant(ref value)) => Some(*value),
+            _ => if let Some(ref parent) = self.parent {
+                parent.read().unwrap().constant(symbol_ref)
+            } else {
+                None
+            },
         }
     }
 

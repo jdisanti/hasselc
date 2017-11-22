@@ -22,6 +22,14 @@ error_chain! {
             description("Failed to compile code")
             display("{}:{}: {}", row_col.0, row_col.1, reason)
         }
+        ConstCantBeVoid(src_tag: SrcTag) {
+            description("Constant can't be void")
+            display("Constant can't be void")
+        }
+        ConstEvaluationFailed(src_tag: SrcTag) {
+            description("Constant evaluation failed")
+            display("Constant evaluation failed")
+        }
         DuplicateSymbol(src_tag: SrcTag, name: Arc<String>) {
             description("Duplicate symbol")
             display("Duplicate symbol \"{}\"", name)

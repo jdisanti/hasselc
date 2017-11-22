@@ -1,6 +1,7 @@
 #![recursion_limit = "1024"]
 
 extern crate lalrpop_util;
+extern crate num_traits;
 
 #[macro_use]
 extern crate derive_new;

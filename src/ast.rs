@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use lalrpop_util;
-use src_tag::SrcTag;
+use src_tag::{SrcTag, SrcTagged};
 use error;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -175,6 +175,31 @@ impl Expression {
             }
         } else {
             Err(translate_errors(text, errors.iter().map(|err| &err.error)).into())
+        }
+    }
+}
+
+impl SrcTagged for Expression {
+    fn src_tag(&self) -> SrcTag {
+        use self::Expression::*;
+        match *self {
+            Assignment(ref d) => d.tag,
+            BinaryOp(ref d) => d.tag,
+            Break => unimplemented!(),
+            CallFunction(ref d) => d.tag,
+            Comment => unimplemented!(),
+            Conditional(ref d) => d.tag,
+            DeclareConst(ref d) => d.tag,
+            DeclareFunction(ref d) => d.tag,
+            DeclareRegister(ref d) => d.tag,
+            DeclareVariable(ref d) => d.tag,
+            Error => unimplemented!(),
+            GoTo(ref d) => d.tag,
+            Name(ref d) => d.tag,
+            Number(ref d) => d.tag,
+            Org(ref d) => d.tag,
+            Return(ref d) => d.tag,
+            WhileLoop(ref d) => d.tag,
         }
     }
 }

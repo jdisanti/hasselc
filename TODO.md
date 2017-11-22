@@ -5,7 +5,9 @@ Compiler TODO
   - [X] Fix all error handling unimplemented!() and TODOs
   - [ ] Check for return in functions that have return type
   - [ ] Type checking
-- [ ] Constants
+- [ ] Bug fixes
+  - [ ] If a void function doesn't have a return statement, generate a RTS instruction at the end
+- [X] Constants
 - [ ] Arrays and pointers
 - [ ] String constants
 - [ ] 16-bit numbers
