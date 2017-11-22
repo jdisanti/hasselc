@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use code::{Code, CodeBlock, Global, Parameter};
+use code::register::{Register, RegisterAllocator};
 use error;
 use llir;
-use register::{Register, RegisterAllocator};
 use symbol_table::SymbolRef;
 use src_tag::{SrcTag, SrcTagged};
 
@@ -33,8 +33,8 @@ impl<'a> CodeBlockGenerator<'a> {
 
             for run_block in &frame_block.runs {
                 let mut code_block = CodeBlock::new(Some(Arc::clone(&run_block.name)), None);
-                code_block.body = CodeGenerator::new(self.original_source, self.llir_blocks)
-                    .generate(&run_block.statements)?;
+                code_block.body =
+                    CodeGenerator::new(self.original_source, self.llir_blocks).generate(&run_block.statements)?;
                 self.code_blocks.push(code_block);
             }
         }
@@ -183,11 +183,11 @@ impl<'a> CodeGenerator<'a> {
         // TODO: Choose left or right to go into accum based on least work
         self.load_into_accum(&binary_op.left)?;
         match binary_op.right {
-            llir::Value::Immediate(val) => {
+            llir::Value::Immediate(ref val) => {
                 code_gen(
                     &mut self.registers,
                     &mut self.code,
-                    Parameter::Immediate(val),
+                    Parameter::Immediate(val.as_u8()),
                 );
             }
             llir::Value::Memory(ref location) => {
@@ -202,9 +202,12 @@ impl<'a> CodeGenerator<'a> {
 
     fn load_into_accum(&mut self, value: &llir::Value) -> error::Result<()> {
         match *value {
-            llir::Value::Immediate(val) => {
-                self.registers
-                    .load(&mut self.code, Register::Accum, Parameter::Immediate(val));
+            llir::Value::Immediate(ref val) => {
+                self.registers.load(
+                    &mut self.code,
+                    Register::Accum,
+                    Parameter::Immediate(val.as_u8()),
+                );
             }
             llir::Value::Memory(ref location) => match *location {
                 llir::Location::Global(addr) => {

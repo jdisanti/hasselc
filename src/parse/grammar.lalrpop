@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 use std::sync::Arc;
-use ast::{
+use parse::ast::{
     AssignmentData,
     BinaryOpData,
     BinaryOperator,
@@ -21,9 +21,9 @@ use ast::{
     NumberData,
     OrgData,
     ReturnData,
-    Type,
     WhileLoopData,
 };
+use types::Type;
 use src_tag::SrcTag;
 use lalrpop_util::ErrorRecovery;
 

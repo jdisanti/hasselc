@@ -1,10 +1,11 @@
 use std::sync::Arc;
-use ast;
 use error;
 use ir;
-use llir::{AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, CopyData, FrameBlock, GoToData, JumpRoutineData, Location, ReturnData, RunBlock,
-           SPOffset, Statement, Value};
+use llir::{AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, CopyData, FrameBlock, GoToData, JumpRoutineData,
+           Location, ReturnData, RunBlock, SPOffset, Statement, Value};
+use parse::ast;
 use symbol_table::{self, SymbolRef, SymbolTable};
+use types::Type;
 
 const RETURN_LOCATION_LO: Location = Location::Global(0x0001);
 
@@ -141,7 +142,9 @@ fn generate_runs(
                         CopyData::new(data.tag, RETURN_LOCATION_LO, value),
                     ));
                 }
-                current_block.statements.push(Statement::Return(ReturnData::new(data.tag)));
+                current_block
+                    .statements
+                    .push(Statement::Return(ReturnData::new(data.tag)));
             }
             ir::Statement::GoTo(ref data) => {
                 current_block.statements.push(Statement::GoTo(
@@ -163,22 +166,20 @@ fn resolve_expr_to_value(
     expr: &ir::Expr,
 ) -> error::Result<Value> {
     match *expr {
-        ir::Expr::Number(ref data) => Ok(Value::Immediate(data.value as u8)),
-        ir::Expr::Symbol(ref data) => {
-            if let Some(ref variable) = symbol_table.variable(&data.name) {
-                Ok(Value::Memory(
-                    convert_location(frame.clone(), &variable.location),
-                ))
-            } else if let Some(ref value) = symbol_table.constant(&data.name) {
-                Ok(Value::Immediate(value.as_u8()))
-            } else {
-                Err(error::ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.name)).into())
-            }
-        }
+        ir::Expr::Number(ref data) => Ok(Value::Immediate(data.value)),
+        ir::Expr::Symbol(ref data) => if let Some(ref variable) = symbol_table.variable(&data.name) {
+            Ok(Value::Memory(
+                convert_location(frame.clone(), &variable.location),
+            ))
+        } else if let Some(ref value) = symbol_table.constant(&data.name) {
+            Ok(Value::Immediate(*value))
+        } else {
+            Err(error::ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.name)).into())
+        },
         ir::Expr::BinaryOp(ref data) => {
             let dest = convert_location(
                 frame.clone(),
-                &symbol_table.create_temporary_location(ast::Type::U8),
+                &symbol_table.create_temporary_location(Type::U8),
             );
             let left_value = resolve_expr_to_value(statements, frame, symbol_table, &*data.left)?;
             let right_value = resolve_expr_to_value(statements, frame, symbol_table, &*data.right)?;
@@ -235,10 +236,12 @@ fn generate_function_call(
                 argument,
             )?)
         }
-        statements.push(Statement::AddToDataStackPointer(AddToDataStackPointerData::new(
-            call_data.tag,
-            SPOffset::FrameSize(SymbolRef::clone(&metadata.name)),
-        )));
+        statements.push(Statement::AddToDataStackPointer(
+            AddToDataStackPointerData::new(
+                call_data.tag,
+                SPOffset::FrameSize(SymbolRef::clone(&metadata.name)),
+            ),
+        ));
         if !metadata.parameters.is_empty() {
             let mut frame_offset = 0;
             for (i, argument_value) in argument_values.into_iter().enumerate() {
@@ -259,14 +262,16 @@ fn generate_function_call(
         )));
 
         // Restore the stack pointer
-        statements.push(Statement::AddToDataStackPointer(AddToDataStackPointerData::new(
-            call_data.tag,
-            SPOffset::NegativeFrameSize(SymbolRef::clone(&metadata.name)),
-        )));
+        statements.push(Statement::AddToDataStackPointer(
+            AddToDataStackPointerData::new(
+                call_data.tag,
+                SPOffset::NegativeFrameSize(SymbolRef::clone(&metadata.name)),
+            ),
+        ));
 
         let dest = convert_location(
             frame.clone(),
-            &symbol_table.create_temporary_location(ast::Type::U8),
+            &symbol_table.create_temporary_location(Type::U8),
         );
         statements.push(Statement::Copy(CopyData::new(
             call_data.tag,

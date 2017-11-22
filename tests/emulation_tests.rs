@@ -61,7 +61,7 @@ fn to_asm(blocks: &[compiler::code::CodeBlock]) -> String {
 fn compile(program: &str, optimize_llir: bool, optimize_code: bool) -> compiler::CompilerOutput {
     match compiler::compile(program, optimize_llir, optimize_code) {
         Ok(compiler_output) => compiler_output,
-        Err(err) => panic!("failed to compile: {:?}", err),
+        Err(err) => panic!("failed to compile: {:#?}", err),
     }
 }
 
@@ -312,4 +312,11 @@ pub fn constants_test_unoptimized() {
     assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
     assert_eq!(15u8, emulator.cpu.bus.read_byte(0x0201));
     assert_eq!(3u8, emulator.cpu.bus.read_byte(0x0202));
+}
+
+#[test]
+pub fn word_test_unoptimized() {
+    let emulator = emulate!(unoptimized: word_test);
+    assert_eq!(0xBBu8, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(0xAAu8, emulator.cpu.bus.read_byte(0x0201));
 }

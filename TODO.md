@@ -2,9 +2,10 @@ Compiler TODO
 -------------
 
 - [ ] Error Handling
+  - [X] Type checking
   - [X] Fix all error handling unimplemented!() and TODOs
   - [ ] Check for return in functions that have return type
-  - [ ] Type checking
+  - [ ] Verify break keywords are inside of loops only
 - [ ] Bug fixes
   - [ ] If a void function doesn't have a return statement, generate a RTS instruction at the end
 - [X] Constants
@@ -12,6 +13,7 @@ Compiler TODO
 - [ ] String constants
 - [ ] 16-bit numbers
 - [ ] Multiply and divide
+- [ ] Break out of loops with break
 - [ ] Optimization
   - [ ] Constant evaluation for binary operators in IR
   - [ ] For functions with 0 frame size, don't modify the stack pointer

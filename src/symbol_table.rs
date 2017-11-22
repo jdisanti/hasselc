@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use ast::{NameType, Type};
+use parse::ast::NameType;
+use types::{Type, TypedValue};
 
 #[derive(Debug, Copy, Clone)]
 pub enum Location {
@@ -37,31 +38,9 @@ impl Variable {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum ConstantValue {
-    U8(u8),
-    U16(u16),
-}
-
-impl ConstantValue {
-    pub fn as_u8(&self) -> u8 {
-        match *self {
-            ConstantValue::U8(val) => val,
-            _ => panic!("expected u8"),
-        }
-    }
-
-    pub fn as_u16(&self) -> u16 {
-        match *self {
-            ConstantValue::U16(val) => val,
-            _ => panic!("expected u16"),
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 enum Symbol {
-    Constant(ConstantValue),
+    Constant(TypedValue),
     Variable(Variable),
     Function(FunctionMetadataPtr),
 }
@@ -135,11 +114,11 @@ impl SymbolTable {
         }
     }
 
-    pub fn insert_constant(&mut self, symbol_ref: SymbolRef, value: ConstantValue) -> bool {
+    pub fn insert_constant(&mut self, symbol_ref: SymbolRef, value: TypedValue) -> bool {
         self.insert(symbol_ref, Symbol::Constant(value))
     }
 
-    pub fn constant(&self, symbol_ref: &SymbolRef) -> Option<ConstantValue> {
+    pub fn constant(&self, symbol_ref: &SymbolRef) -> Option<TypedValue> {
         match self.symbols.get(symbol_ref) {
             Some(&Symbol::Constant(ref value)) => Some(*value),
             _ => if let Some(ref parent) = self.parent {
@@ -185,5 +164,19 @@ impl SymbolTable {
             Symbol::Variable(ref variable) => Some(variable),
             _ => None,
         }))
+    }
+
+    pub fn type_of(&self, symbol_ref: &SymbolRef) -> Option<Type> {
+        if let Some(symbol) = self.symbols.get(symbol_ref) {
+            match *symbol {
+                Symbol::Constant(ref data) => Some(data.get_type()),
+                Symbol::Variable(ref data) => Some(data.type_name),
+                Symbol::Function(ref data) => Some(data.read().unwrap().return_type),
+            }
+        } else if let Some(ref parent) = self.parent {
+            parent.read().unwrap().type_of(symbol_ref)
+        } else {
+            None
+        }
     }
 }

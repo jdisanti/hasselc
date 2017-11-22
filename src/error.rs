@@ -50,6 +50,14 @@ error_chain! {
             description("Expected N args, got M")
             display("In function call to \"{}\", expected {} arguments, got {}", function, expected, actual)
         }
+        TypeError(src_tag: SrcTag, expected: ::types::Type, actual: ::types::Type) {
+            description("Type error")
+            display("Expected type {:?}, found {:?}", expected, actual)
+        }
+        MustReturnAValue(src_tag: SrcTag) {
+            description("Must return a value")
+            display("Must return a value")
+        }
     }
 }
 

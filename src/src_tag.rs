@@ -44,10 +44,10 @@ mod tests {
     #[test]
     fn test_line() {
         let src = "\
-            l1\n\
-            l2\n\
-            l3\
-        ";
+                   l1\n\
+                   l2\n\
+                   l3\
+                   ";
         let tag1 = SrcTag(0);
         let tag2 = SrcTag(3);
         let tag3 = SrcTag(6);

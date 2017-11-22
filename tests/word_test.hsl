@@ -1,0 +1,19 @@
+# Declare stack frame locations
+register data_stack_pointer: u8 @ 0x0000;
+
+register output: u16 @ 0x0200;
+
+# Initialize the stack
+org 0xE000;
+data_stack_pointer = 3;
+
+output = test();
+goto halt;
+
+def test(): u16
+    return 0xAABB;
+end
+
+def halt(): void
+    goto halt;
+end

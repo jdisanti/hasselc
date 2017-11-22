@@ -89,8 +89,8 @@ impl Code {
             | Lda(ref p) | Ldx(ref p) | Ldy(ref p) | Php(ref p) | Pla(ref p) | Ror(ref p) | Rts(ref p) | Sbc(ref p)
             | Sec(ref p) | Sta(ref p) | Stx(ref p) | Sty(ref p) | Tax(ref p) | Tay(ref p) | Txa(ref p) | Tya(ref p) => {
                 p
-            },
-            Comment(_) => unreachable!()
+            }
+            Comment(_) => unreachable!(),
         }
     }
 

@@ -2,6 +2,7 @@ use std::fmt;
 use std::sync::Arc;
 use src_tag::{SrcTag, SrcTagged};
 use symbol_table::SymbolRef;
+use types::TypedValue;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Index {
@@ -23,7 +24,7 @@ pub enum Location {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Value {
-    Immediate(u8),
+    Immediate(TypedValue),
     Memory(Location),
 }
 
@@ -109,18 +110,14 @@ impl SrcTagged for Statement {
     fn src_tag(&self) -> SrcTag {
         use self::Statement::*;
         match *self {
-            Add(ref d) => d.tag,
+            Add(ref d) | CompareEq(ref d) | CompareNotEq(ref d) | CompareLt(ref d) | CompareGte(ref d)
+            | Subtract(ref d) => d.tag,
             AddToDataStackPointer(ref d) => d.tag,
             BranchIfZero(ref d) => d.tag,
-            CompareEq(ref d) => d.tag,
-            CompareNotEq(ref d) => d.tag,
-            CompareLt(ref d) => d.tag,
-            CompareGte(ref d) => d.tag,
             Copy(ref d) => d.tag,
             GoTo(ref d) => d.tag,
             JumpRoutine(ref d) => d.tag,
             Return(ref d) => d.tag,
-            Subtract(ref d) => d.tag,
         }
     }
 }

@@ -1,13 +1,14 @@
 use std::sync::{Arc, RwLock};
-use ast::{BinaryOperator, Type};
-use symbol_table::{FunctionMetadata, FunctionMetadataPtr, Location, SymbolRef, SymbolTable, Variable};
-use src_tag::SrcTag;
 use error::{self, ErrorKind};
+use parse::ast::BinaryOperator;
+use src_tag::SrcTag;
+use symbol_table::{FunctionMetadata, FunctionMetadataPtr, Location, SymbolRef, SymbolTable, Variable};
+use types::{Type, TypedValue};
 
 #[derive(Debug, new)]
 pub struct NumberData {
     pub tag: SrcTag,
-    pub value: i32,
+    pub value: TypedValue,
 }
 
 #[derive(Debug, new)]

@@ -1,29 +1,13 @@
 use std::sync::Arc;
 use lalrpop_util;
 use src_tag::{SrcTag, SrcTagged};
+use types::Type;
 use error;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Literal {
     Int(i32),
     Str(Arc<String>),
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum Type {
-    U8,
-    U16,
-    Void,
-}
-
-impl Type {
-    pub fn size(&self) -> usize {
-        match *self {
-            Type::U8 => 1,
-            Type::U16 => 2,
-            Type::Void => 0,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, new)]
@@ -167,7 +151,7 @@ pub enum Expression {
 impl Expression {
     pub fn parse<'a>(text: &'a str) -> error::Result<Vec<Expression>> {
         let mut errors: Vec<lalrpop_util::ErrorRecovery<usize, (usize, &'a str), ()>> = Vec::new();
-        let ast = ::grammar::parse_Program(&mut errors, text);
+        let ast = ::parse::grammar::parse_Program(&mut errors, text);
         if errors.is_empty() {
             match ast {
                 Ok(expression) => Ok(expression),
