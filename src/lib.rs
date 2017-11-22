@@ -3,6 +3,9 @@
 extern crate lalrpop_util;
 
 #[macro_use]
+extern crate derive_new;
+
+#[macro_use]
 extern crate error_chain;
 
 #[cfg_attr(rustfmt, rustfmt_skip)]

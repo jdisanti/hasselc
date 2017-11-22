@@ -9,7 +9,7 @@ use code_gen;
 use code_opt;
 use error;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CompilerOutput {
     pub ast: Option<Vec<ast::Expression>>,
     pub ir: Option<Vec<ir::Block>>,
@@ -31,10 +31,11 @@ pub fn compile(program: &str, optimize_llir: bool, optimize_code: bool) -> error
 
     compiler_output.ast = Some(ast::Expression::parse(program)?);
 
-    compiler_output.ir = Some(ir_gen::generate_ir(compiler_output.ast.as_ref().unwrap())
-        .map_err(|err| {
-            error::to_compiler_error(program, err, compiler_output.clone())
-        })?);
+    match ir_gen::generate_ir(compiler_output.ast.as_ref().unwrap()) {
+        Ok(ir) => compiler_output.ir = Some(ir),
+        Err(err) => return Err(error::to_compiler_error(program, err, compiler_output))
+    }
+
     compiler_output.llir = Some(llir_gen::generate_llir(
         compiler_output.ir.as_ref().unwrap(),
     )?);

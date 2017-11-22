@@ -127,16 +127,16 @@ impl<'a> CodeGenerator<'a> {
                     self.load_into_accum(&data.value)?;
                     self.store_accum(&data.destination)?;
                 }
-                llir::Statement::GoTo(ref name) => {
+                llir::Statement::GoTo(ref data) => {
                     self.registers.save_all_and_reset(&mut self.code);
                     self.code.push(Code::Jmp(Parameter::Absolute(
-                        Global::UnresolvedName(SymbolRef::clone(name)),
+                        Global::UnresolvedName(SymbolRef::clone(&data.destination)),
                     )));
                 }
-                llir::Statement::JumpRoutine(ref location) => {
+                llir::Statement::JumpRoutine(ref data) => {
                     self.registers.save_all_and_reset(&mut self.code);
                     self.code
-                        .push(Code::Jsr(Parameter::Absolute(match *location {
+                        .push(Code::Jsr(Parameter::Absolute(match data.destination {
                             llir::Location::Global(addr) => Global::Resolved(addr),
                             llir::Location::UnresolvedGlobal(ref name) => {
                                 Global::UnresolvedName(SymbolRef::clone(name))

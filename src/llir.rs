@@ -1,5 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
+use src_tag::SrcTag;
+use symbol_table::SymbolRef;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Index {
@@ -10,13 +12,13 @@ pub enum Index {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Location {
     DataStackOffset(i8),
-    FrameOffset(Arc<String>, i8),
-    FrameOffsetBeforeCall(Arc<String>, Arc<String>, i8),
+    FrameOffset(SymbolRef, i8),
+    FrameOffsetBeforeCall(SymbolRef, SymbolRef, i8),
     Global(u16),
     GlobalIndexed(u16, Index),
     UnresolvedBlock,
-    UnresolvedGlobal(Arc<String>),
-    UnresolvedGlobalIndexed(Arc<String>, Index),
+    UnresolvedGlobal(SymbolRef),
+    UnresolvedGlobalIndexed(SymbolRef, Index),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -28,55 +30,42 @@ pub enum Value {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum SPOffset {
     Immediate(i8),
-    FrameSize(Arc<String>),
-    NegativeFrameSize(Arc<String>),
+    FrameSize(SymbolRef),
+    NegativeFrameSize(SymbolRef),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, new)]
 pub struct CopyData {
+    pub tag: SrcTag,
     pub destination: Location,
     pub value: Value,
 }
 
-impl CopyData {
-    pub fn new(destination: Location, value: Value) -> CopyData {
-        CopyData {
-            destination: destination,
-            value: value,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, new)]
 pub struct BinaryOpData {
+    pub tag: SrcTag,
     pub destination: Location,
     pub left: Value,
     pub right: Value,
 }
 
-impl BinaryOpData {
-    pub fn new(destination: Location, left: Value, right: Value) -> BinaryOpData {
-        BinaryOpData {
-            destination: destination,
-            left: left,
-            right: right,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, new)]
 pub struct BranchIfZeroData {
+    pub tag: SrcTag,
     pub value: Value,
-    pub destination: Arc<String>,
+    pub destination: SymbolRef,
 }
 
-impl BranchIfZeroData {
-    pub fn new(value: Value, destination: Arc<String>) -> BranchIfZeroData {
-        BranchIfZeroData {
-            value: value,
-            destination: destination,
-        }
-    }
+#[derive(Debug, Clone, Eq, PartialEq, new)]
+pub struct GoToData {
+    pub tag: SrcTag,
+    pub destination: SymbolRef,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, new)]
+pub struct JumpRoutineData {
+    pub tag: SrcTag,
+    pub destination: Location,
 }
 
 #[derive(Clone, Eq, PartialEq)]
@@ -89,8 +78,8 @@ pub enum Statement {
     CompareLt(BinaryOpData),
     CompareGte(BinaryOpData),
     Copy(CopyData),
-    GoTo(Arc<String>),
-    JumpRoutine(Location),
+    GoTo(GoToData),
+    JumpRoutine(JumpRoutineData),
     Return,
     Subtract(BinaryOpData),
 }
@@ -99,7 +88,7 @@ impl Statement {
     pub fn is_branch(&self) -> bool {
         use self::Statement::*;
         match *self {
-            BranchIfZero(_) | GoTo { .. } | JumpRoutine { .. } | Return { .. } => true,
+            BranchIfZero(_) | GoTo(_) | JumpRoutine { .. } | Return { .. } => true,
             _ => false,
         }
     }
@@ -151,7 +140,7 @@ impl fmt::Debug for Statement {
                 data.destination
             )?,
             Statement::Copy(ref data) => write!(f, "copy {:?} => {:?}", data.value, data.destination)?,
-            Statement::GoTo(ref name) => write!(f, "goto {}", name)?,
+            Statement::GoTo(ref data) => write!(f, "goto {}", data.destination)?,
             Statement::JumpRoutine(ref location) => write!(f, "jsr {:?}", location)?,
             Statement::Return => write!(f, "rts")?,
             Statement::Subtract(ref data) => write!(

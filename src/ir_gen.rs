@@ -100,10 +100,8 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
         ast::Expression::CallFunction(ref data) => {
             let stmt = ir::Statement::Call(ir::CallData::new(
                 data.tag,
-                ir::Expr::Call {
-                    symbol: SymbolRef::clone(&data.name),
-                    arguments: generate_expressions(&data.arguments),
-                },
+                SymbolRef::clone(&data.name),
+                generate_expressions(&data.arguments),
             ));
             statements.push(stmt);
         }
@@ -192,20 +190,28 @@ fn generate_expressions(input: &[ast::Expression]) -> Vec<ir::Expr> {
 
 fn generate_expression(input: &ast::Expression) -> ir::Expr {
     match *input {
-        ast::Expression::BinaryOp(ref data) => ir::Expr::BinaryOp {
-            op: data.op,
-            left: Box::new(generate_expression(&data.left)),
-            right: Box::new(generate_expression(&data.right)),
-        },
-        ast::Expression::Name(ref data) => ir::Expr::Symbol(SymbolRef::clone(&data.name)),
-        ast::Expression::Number(ref data) => ir::Expr::Number(data.value),
+        ast::Expression::BinaryOp(ref data) => ir::Expr::BinaryOp(ir::BinaryOpData::new(
+            data.tag,
+            data.op,
+            Box::new(generate_expression(&data.left)),
+            Box::new(generate_expression(&data.right)),
+        )),
+        ast::Expression::Name(ref data) => ir::Expr::Symbol(ir::SymbolData::new(
+            data.tag,
+            SymbolRef::clone(&data.name)
+        )),
+        ast::Expression::Number(ref data) => ir::Expr::Number(ir::NumberData::new(
+            data.tag,
+            data.value
+        )),
         ast::Expression::CallFunction(ref data) => {
-            let fn_symbol_ref = SymbolRef::clone(&data.name);
+            let function = SymbolRef::clone(&data.name);
             let args = generate_expressions(&data.arguments);
-            ir::Expr::Call {
-                symbol: fn_symbol_ref,
-                arguments: args,
-            }
+            ir::Expr::Call(ir::CallData::new(
+                data.tag,
+                function,
+                args,
+            ))
         }
         _ => panic!("not an expression: {:?}", input),
     }

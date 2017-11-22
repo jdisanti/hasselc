@@ -4,22 +4,42 @@ use symbol_table::{FunctionMetadata, FunctionMetadataPtr, Location, SymbolRef, S
 use src_tag::SrcTag;
 use error::{self, ErrorKind};
 
-#[derive(Debug, Clone)]
-pub enum Expr {
-    Number(i32),
-    Symbol(SymbolRef),
-    BinaryOp {
-        op: BinaryOperator,
-        left: Box<Expr>,
-        right: Box<Expr>,
-    },
-    Call {
-        symbol: SymbolRef,
-        arguments: Vec<Expr>,
-    },
+#[derive(Debug, new)]
+pub struct NumberData {
+    pub tag: SrcTag,
+    pub value: i32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, new)]
+pub struct SymbolData {
+    pub tag: SrcTag,
+    pub name: SymbolRef,
+}
+
+#[derive(Debug, new)]
+pub struct BinaryOpData {
+    pub tag: SrcTag,
+    pub op: BinaryOperator,
+    pub left: Box<Expr>,
+    pub right: Box<Expr>,
+}
+
+#[derive(Debug, new)]
+pub struct CallData {
+    pub tag: SrcTag,
+    pub function: SymbolRef,
+    pub arguments: Vec<Expr>,
+}
+
+#[derive(Debug)]
+pub enum Expr {
+    Number(NumberData),
+    Symbol(SymbolData),
+    BinaryOp(BinaryOpData),
+    Call(CallData),
+}
+
+#[derive(Debug, new)]
 pub struct ConditionalData {
     pub tag: SrcTag,
     pub condition: Expr,
@@ -27,97 +47,33 @@ pub struct ConditionalData {
     pub when_false: Vec<Statement>,
 }
 
-impl ConditionalData {
-    pub fn new(tag: SrcTag, condition: Expr, when_true: Vec<Statement>, when_false: Vec<Statement>) -> ConditionalData {
-        ConditionalData {
-            tag: tag,
-            condition: condition,
-            when_true: when_true,
-            when_false: when_false,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, new)]
 pub struct WhileLoopData {
     pub tag: SrcTag,
     pub condition: Expr,
     pub body: Vec<Statement>,
 }
 
-impl WhileLoopData {
-    pub fn new(tag: SrcTag, condition: Expr, body: Vec<Statement>) -> WhileLoopData {
-        WhileLoopData {
-            tag: tag,
-            condition: condition,
-            body: body,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, new)]
 pub struct AssignData {
     pub tag: SrcTag,
     pub symbol: SymbolRef,
     pub value: Expr,
 }
 
-impl AssignData {
-    pub fn new(tag: SrcTag, symbol: SymbolRef, value: Expr) -> AssignData {
-        AssignData {
-            tag: tag,
-            symbol: symbol,
-            value: value,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct CallData {
-    pub tag: SrcTag,
-    pub call_expression: Expr,
-}
-
-impl CallData {
-    pub fn new(tag: SrcTag, call_expression: Expr) -> CallData {
-        CallData {
-            tag: tag,
-            call_expression: call_expression,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, new)]
 pub struct ReturnData {
     pub tag: SrcTag,
     pub value: Option<Expr>,
 }
 
-impl ReturnData {
-    pub fn new(tag: SrcTag, value: Option<Expr>) -> ReturnData {
-        ReturnData {
-            tag: tag,
-            value: value,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, new)]
 pub struct GoToData {
     pub tag: SrcTag,
     pub destination: Arc<String>,
 }
 
-impl GoToData {
-    pub fn new(tag: SrcTag, destination: Arc<String>) -> GoToData {
-        GoToData {
-            tag: tag,
-            destination: destination,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Statement {
     Assign(AssignData),
     Break,
@@ -129,7 +85,7 @@ pub enum Statement {
 }
 
 // Intermediate representation
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Block {
     pub name: Arc<String>,
     pub location: Option<Location>,

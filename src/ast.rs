@@ -3,7 +3,7 @@ use lalrpop_util;
 use src_tag::SrcTag;
 use error;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Literal {
     Int(i32),
     Str(Arc<String>),
@@ -26,19 +26,10 @@ impl Type {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, new)]
 pub struct NameType {
     pub name: Arc<String>,
     pub type_name: Type,
-}
-
-impl NameType {
-    pub fn new(name: Arc<String>, type_name: Type) -> NameType {
-        NameType {
-            name: name,
-            type_name: type_name,
-        }
-    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -55,37 +46,19 @@ pub enum BinaryOperator {
     NotEqual,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct NumberData {
     pub tag: SrcTag,
     pub value: i32,
 }
 
-impl NumberData {
-    pub fn new(tag: SrcTag, value: i32) -> NumberData {
-        NumberData {
-            tag: tag,
-            value: value,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct NameData {
     pub tag: SrcTag,
     pub name: Arc<String>,
 }
 
-impl NameData {
-    pub fn new(tag: SrcTag, name: Arc<String>) -> NameData {
-        NameData {
-            tag: tag,
-            name: name,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct BinaryOpData {
     pub tag: SrcTag,
     pub op: BinaryOperator,
@@ -93,69 +66,28 @@ pub struct BinaryOpData {
     pub right: Box<Expression>,
 }
 
-impl BinaryOpData {
-    pub fn new(tag: SrcTag, op: BinaryOperator, left: Box<Expression>, right: Box<Expression>) -> BinaryOpData {
-        BinaryOpData {
-            tag: tag,
-            op: op,
-            left: left,
-            right: right,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct AssignmentData {
     pub tag: SrcTag,
     pub name: Arc<String>,
     pub value: Box<Expression>,
 }
 
-impl AssignmentData {
-    pub fn new(tag: SrcTag, name: Arc<String>, value: Box<Expression>) -> AssignmentData {
-        AssignmentData {
-            tag: tag,
-            name: name,
-            value: value,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct CallFunctionData {
     pub tag: SrcTag,
     pub name: Arc<String>,
     pub arguments: Vec<Expression>,
 }
 
-impl CallFunctionData {
-    pub fn new(tag: SrcTag, name: Arc<String>, arguments: Vec<Expression>) -> CallFunctionData {
-        CallFunctionData {
-            tag: tag,
-            name: name,
-            arguments: arguments,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct DeclareConstData {
     pub tag: SrcTag,
     pub name_type: NameType,
     pub value: Box<Expression>,
 }
 
-impl DeclareConstData {
-    pub fn new(tag: SrcTag, name_type: NameType, value: Box<Expression>) -> DeclareConstData {
-        DeclareConstData {
-            tag: tag,
-            name_type: name_type,
-            value: value,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct DeclareFunctionData {
     pub tag: SrcTag,
     pub name: Arc<String>,
@@ -164,89 +96,33 @@ pub struct DeclareFunctionData {
     pub body: Vec<Expression>,
 }
 
-impl DeclareFunctionData {
-    pub fn new(
-        tag: SrcTag,
-        name: Arc<String>,
-        parameters: Vec<NameType>,
-        return_type: Type,
-        body: Vec<Expression>,
-    ) -> DeclareFunctionData {
-        DeclareFunctionData {
-            tag: tag,
-            name: name,
-            parameters: parameters,
-            return_type: return_type,
-            body: body,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct DeclareVariableData {
     pub tag: SrcTag,
     pub name_type: NameType,
     pub value: Box<Expression>,
 }
 
-impl DeclareVariableData {
-    pub fn new(tag: SrcTag, name_type: NameType, value: Box<Expression>) -> DeclareVariableData {
-        DeclareVariableData {
-            tag: tag,
-            name_type: name_type,
-            value: value,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct DeclareRegisterData {
     pub tag: SrcTag,
     pub name_type: NameType,
     pub location: i32,
 }
 
-impl DeclareRegisterData {
-    pub fn new(tag: SrcTag, name_type: NameType, location: i32) -> DeclareRegisterData {
-        DeclareRegisterData {
-            tag: tag,
-            name_type: name_type,
-            location: location,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct OrgData {
     pub tag: SrcTag,
     pub address: i32,
 }
 
-impl OrgData {
-    pub fn new(tag: SrcTag, address: i32) -> OrgData {
-        OrgData {
-            tag: tag,
-            address: address,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct ReturnData {
     pub tag: SrcTag,
     pub value: Option<Box<Expression>>,
 }
 
-impl ReturnData {
-    pub fn new(tag: SrcTag, value: Option<Box<Expression>>) -> ReturnData {
-        ReturnData {
-            tag: tag,
-            value: value,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct ConditionalData {
     pub tag: SrcTag,
     pub condition: Box<Expression>,
@@ -254,55 +130,20 @@ pub struct ConditionalData {
     pub when_false: Vec<Expression>,
 }
 
-impl ConditionalData {
-    pub fn new(
-        tag: SrcTag,
-        condition: Box<Expression>,
-        when_true: Vec<Expression>,
-        when_false: Vec<Expression>,
-    ) -> ConditionalData {
-        ConditionalData {
-            tag: tag,
-            condition: condition,
-            when_true: when_true,
-            when_false: when_false,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct WhileLoopData {
     pub tag: SrcTag,
     pub condition: Box<Expression>,
     pub body: Vec<Expression>,
 }
 
-impl WhileLoopData {
-    pub fn new(tag: SrcTag, condition: Box<Expression>, body: Vec<Expression>) -> WhileLoopData {
-        WhileLoopData {
-            tag: tag,
-            condition: condition,
-            body: body,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct GoToData {
     pub tag: SrcTag,
     pub destination: Arc<String>,
 }
 
-impl GoToData {
-    pub fn new(tag: SrcTag, destination: Arc<String>) -> GoToData {
-        GoToData {
-            tag: tag,
-            destination: destination,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Expression {
     Assignment(AssignmentData),
     BinaryOp(BinaryOpData),
