@@ -92,6 +92,7 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
                 statements.push(ir::Statement::Assign(ir::AssignData::new(
                     data.tag,
                     symbol_ref,
+                    Type::Unresolved,
                     generate_expression(&data.value),
                 )));
             } else {
@@ -106,6 +107,7 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
                 data.tag,
                 SymbolRef::clone(&data.name),
                 generate_expressions(&data.arguments),
+                Type::Unresolved,
             ));
             statements.push(stmt);
         }
@@ -141,6 +143,7 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
             let assignment = ir::Statement::Assign(ir::AssignData::new(
                 data.tag,
                 symbol_ref,
+                Type::Unresolved,
                 generate_expression(&data.value),
             ));
             statements.push(assignment);
@@ -161,6 +164,7 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
         ast::Expression::Return(ref data) => {
             statements.push(ir::Statement::Return(ir::ReturnData::new(
                 data.tag,
+                Type::Unresolved,
                 data.value.as_ref().map(|e| generate_expression(e)),
             )));
         }
@@ -312,7 +316,12 @@ fn generate_expression(input: &ast::Expression) -> ir::Expr {
         ast::Expression::CallFunction(ref data) => {
             let function = SymbolRef::clone(&data.name);
             let args = generate_expressions(&data.arguments);
-            ir::Expr::Call(ir::CallData::new(data.tag, function, args))
+            ir::Expr::Call(ir::CallData::new(
+                data.tag,
+                function,
+                args,
+                Type::Unresolved,
+            ))
         }
         _ => panic!("not an expression: {:?}", input),
     }

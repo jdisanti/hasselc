@@ -12,6 +12,9 @@ Compiler TODO
 - [ ] Arrays and pointers
 - [ ] String constants
 - [ ] 16-bit numbers
+  - [X] Return/assign support
+  - [ ] Addition/subtraction
+  - [ ] Multiplication/division
 - [ ] Multiply and divide
 - [ ] Break out of loops with break
 - [ ] Optimization

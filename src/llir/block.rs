@@ -22,10 +22,66 @@ pub enum Location {
     UnresolvedGlobalIndexed(SymbolRef, Index),
 }
 
+impl Location {
+    pub fn offset(&self, offset_by: i8) -> Location {
+        use self::Location::*;
+        match *self {
+            DataStackOffset(offset) => DataStackOffset(offset + offset_by),
+            FrameOffset(ref symbol, offset) => FrameOffset(SymbolRef::clone(symbol), offset + offset_by),
+            FrameOffsetBeforeCall(ref sym1, ref sym2, offset) => FrameOffsetBeforeCall(
+                SymbolRef::clone(sym1),
+                SymbolRef::clone(sym2),
+                offset + offset_by,
+            ),
+            Global(offset) => Global((offset as isize + offset_by as isize) as u16),
+            GlobalIndexed(offset, index) => GlobalIndexed(
+                offset,
+                match index {
+                    Index::Immediate(val) => Index::Immediate((val as isize + offset_by as isize) as u8),
+                    Index::DataStack(val) => Index::DataStack((val as isize + offset_by as isize) as u8),
+                },
+            ),
+            UnresolvedGlobal(ref symbol) => {
+                UnresolvedGlobalIndexed(SymbolRef::clone(symbol), Index::Immediate(offset_by as u8))
+            }
+            UnresolvedGlobalIndexed(ref symbol, index) => UnresolvedGlobalIndexed(
+                SymbolRef::clone(symbol),
+                match index {
+                    Index::Immediate(val) => Index::Immediate((val as isize + offset_by as isize) as u8),
+                    Index::DataStack(val) => Index::DataStack((val as isize + offset_by as isize) as u8),
+                },
+            ),
+            UnresolvedBlock => unreachable!(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Value {
     Immediate(TypedValue),
     Memory(Location),
+}
+
+impl Value {
+    pub fn high_byte(value: &Value) -> Value {
+        use self::Value::*;
+        // 16-bit values on the 6502 are in little-endian
+        match *value {
+            Immediate(TypedValue::U16(val)) => Immediate(TypedValue::U8((val >> 8) as u8)),
+            Immediate(_) => unreachable!(),
+            Memory(ref location) => Memory(location.offset(1)),
+        }
+    }
+
+    pub fn low_byte(value: &Value) -> Value {
+        use self::Value::*;
+        // 16-bit values on the 6502 are in little-endian
+        match *value {
+            Immediate(TypedValue::U8(_)) | Memory(_) => value.clone(),
+            Immediate(TypedValue::U16(val)) => Immediate(TypedValue::U8(val as u8)),
+            Immediate(_) => unreachable!(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

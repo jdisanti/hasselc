@@ -1,7 +1,7 @@
 use num_traits::*;
 
 use error::{self, ErrorKind};
-use ir::block::*;
+use ir::block::{Block, CallData, Expr, Statement};
 use src_tag::SrcTag;
 use symbol_table::{SymbolRef, SymbolTable};
 use types::{Type, TypedValue};
@@ -34,6 +34,7 @@ fn resolve_statement(symbol_table: &SymbolTable, return_type: Type, statement: &
     match *statement {
         Assign(ref mut data) => if let Some(variable) = symbol_table.variable(&data.symbol) {
             resolve_expression(symbol_table, variable.type_name, &mut data.value)?;
+            data.value_type = variable.type_name;
         } else {
             return Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.symbol)).into());
         },
@@ -45,6 +46,7 @@ fn resolve_statement(symbol_table: &SymbolTable, return_type: Type, statement: &
         }
         Return(ref mut data) => if let Some(ref mut value) = data.value {
             resolve_expression(symbol_table, return_type, value)?;
+            data.value_type = return_type;
         } else if return_type != Type::Void {
             return Err(ErrorKind::MustReturnAValue(data.tag).into());
         },
@@ -103,6 +105,7 @@ fn resolve_expression(symbol_table: &SymbolTable, required_type: Type, expressio
 
 fn resolve_call(symbol_table: &SymbolTable, call_data: &mut CallData) -> error::Result<()> {
     if let Some(function) = symbol_table.function(&call_data.function) {
+        call_data.return_type = function.read().unwrap().return_type;
         let arguments = &function.read().unwrap().parameters;
         if arguments.len() != call_data.arguments.len() {
             return Err(

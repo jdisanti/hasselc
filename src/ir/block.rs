@@ -30,6 +30,7 @@ pub struct CallData {
     pub tag: SrcTag,
     pub function: SymbolRef,
     pub arguments: Vec<Expr>,
+    pub return_type: Type,
 }
 
 #[derive(Debug)]
@@ -59,12 +60,14 @@ pub struct WhileLoopData {
 pub struct AssignData {
     pub tag: SrcTag,
     pub symbol: SymbolRef,
+    pub value_type: Type,
     pub value: Expr,
 }
 
 #[derive(Debug, new)]
 pub struct ReturnData {
     pub tag: SrcTag,
+    pub value_type: Type,
     pub value: Option<Expr>,
 }
 

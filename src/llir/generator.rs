@@ -5,6 +5,7 @@ use llir::{AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, CopyData, 
            Location, ReturnData, RunBlock, SPOffset, Statement, Value};
 use parse::ast;
 use symbol_table::{self, SymbolRef, SymbolTable};
+use src_tag::SrcTag;
 use types::Type;
 
 const RETURN_LOCATION_LO: Location = Location::Global(0x0001);
@@ -59,11 +60,13 @@ fn generate_runs(
                     symbol_table,
                     &data.value,
                 )?;
-                current_block.statements.push(Statement::Copy(CopyData::new(
+                generate_copy(
+                    &mut current_block.statements,
                     data.tag,
-                    convert_location(frame.clone(), &variable.location),
+                    data.value_type,
                     resolved_value,
-                )));
+                    convert_location(frame.clone(), &variable.location),
+                )?;
             } else {
                 unreachable!("variable existence should already be checked in ir_gen");
             },
@@ -137,10 +140,13 @@ fn generate_runs(
             ir::Statement::Return(ref data) => {
                 if let Some(ref expr) = data.value {
                     let value = resolve_expr_to_value(&mut current_block.statements, frame, symbol_table, expr)?;
-                    // TODO: 16-bit values
-                    current_block.statements.push(Statement::Copy(
-                        CopyData::new(data.tag, RETURN_LOCATION_LO, value),
-                    ));
+                    generate_copy(
+                        &mut current_block.statements,
+                        data.tag,
+                        data.value_type,
+                        value,
+                        RETURN_LOCATION_LO,
+                    )?;
                 }
                 current_block
                     .statements
@@ -157,6 +163,32 @@ fn generate_runs(
 
     blocks.push(current_block);
     Ok(blocks)
+}
+
+fn generate_copy(
+    statements: &mut Vec<Statement>,
+    tag: SrcTag,
+    value_type: Type,
+    value: Value,
+    destination: Location,
+) -> error::Result<()> {
+    match value_type {
+        Type::U8 => {
+            statements.push(Statement::Copy(CopyData::new(tag, destination, value)));
+        }
+        Type::U16 => {
+            statements.push(Statement::Copy(CopyData::new(
+                tag,
+                destination.offset(1),
+                Value::high_byte(&value),
+            )));
+            statements.push(Statement::Copy(
+                CopyData::new(tag, destination, Value::low_byte(&value)),
+            ));
+        }
+        Type::Void | Type::Unresolved => unreachable!(),
+    }
+    Ok(())
 }
 
 fn resolve_expr_to_value(
@@ -269,17 +301,23 @@ fn generate_function_call(
             ),
         ));
 
-        let dest = convert_location(
-            frame.clone(),
-            &symbol_table.create_temporary_location(Type::U8),
-        );
-        statements.push(Statement::Copy(CopyData::new(
-            call_data.tag,
-            dest.clone(),
-            Value::Memory(RETURN_LOCATION_LO),
-        )));
+        if call_data.return_type != Type::Void {
+            let dest = convert_location(
+                frame.clone(),
+                &symbol_table.create_temporary_location(Type::U8),
+            );
+            generate_copy(
+                statements,
+                call_data.tag,
+                call_data.return_type,
+                Value::Memory(RETURN_LOCATION_LO),
+                dest.clone(),
+            )?;
 
-        Ok(Value::Memory(dest))
+            Ok(Value::Memory(dest))
+        } else {
+            Ok(Value::Memory(RETURN_LOCATION_LO))
+        }
     } else {
         Err(error::ErrorKind::SymbolNotFound(call_data.tag, SymbolRef::clone(&call_data.function)).into())
     }
