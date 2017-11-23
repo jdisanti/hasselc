@@ -2,7 +2,7 @@ use num_traits::*;
 
 use error::{self, ErrorKind};
 use ir::block::{Block, CallData, Expr, Statement};
-use src_tag::SrcTag;
+use src_tag::{SrcTag, SrcTagged};
 use symbol_table::{SymbolRef, SymbolTable};
 use types::{Type, TypedValue};
 
@@ -32,12 +32,14 @@ fn resolve_statement(symbol_table: &SymbolTable, return_type: Type, statement: &
     use ir::block::Statement::*;
 
     match *statement {
-        Assign(ref mut data) => if let Some(variable) = symbol_table.variable(&data.symbol) {
-            resolve_expression(symbol_table, variable.type_name, &mut data.value)?;
-            data.value_type = variable.type_name;
-        } else {
-            return Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.symbol)).into());
-        },
+        Assign(ref mut data) => {
+            let left_type = match resolve_left_value(symbol_table, &mut data.left_value)? {
+                Type::ArrayU8 => Type::U8,
+                t => t,
+            };
+            resolve_expression(symbol_table, left_type, &mut data.right_value)?;
+            data.value_type = left_type;
+        }
         Call(ref mut data) => resolve_call(symbol_table, data)?,
         Conditional(ref mut data) => {
             resolve_expression(symbol_table, Type::U8, &mut data.condition)?;
@@ -60,30 +62,34 @@ fn resolve_statement(symbol_table: &SymbolTable, return_type: Type, statement: &
     Ok(())
 }
 
+fn resolve_left_value(symbol_table: &SymbolTable, expression: &mut Expr) -> error::Result<Type> {
+    use ir::block::Expr::*;
+
+    match *expression {
+        Symbol(ref mut data) => if let Some(variable) = symbol_table.variable(&data.name) {
+            data.value_type = variable.type_name;
+            Ok(data.value_type)
+        } else {
+            Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.name)).into())
+        },
+        ArrayIndex(ref mut data) => if let Some(array) = symbol_table.variable(&data.array) {
+            resolve_expression(symbol_table, Type::U8, &mut *data.index)?;
+            data.value_type = array.type_name;
+            Ok(data.value_type)
+        } else {
+            Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.array)).into())
+        },
+        _ => Err(ErrorKind::InvalidLeftValue(expression.src_tag()).into()),
+    }
+}
+
 fn resolve_expression(symbol_table: &SymbolTable, required_type: Type, expression: &mut Expr) -> error::Result<()> {
     use ir::block::Expr::*;
 
     match *expression {
-        Number(ref mut data) => {
-            let value = if let TypedValue::UnresolvedInt(val) = data.value {
-                val
-            } else {
-                return Err(ErrorKind::TypeError(data.tag, required_type, data.value.get_type()).into());
-            };
-            data.value = match required_type {
-                Type::U8 => TypedValue::U8(bounds_check(data.tag, value)?),
-                Type::U16 => TypedValue::U16(bounds_check(data.tag, value)?),
-                Type::Unresolved | Type::Void => unreachable!(),
-            };
-        }
-        Symbol(ref data) => match symbol_table.type_of(&data.name) {
-            Some(typ) => if required_type != typ {
-                return Err(ErrorKind::TypeError(data.tag, required_type, typ).into());
-            },
-            None => {
-                println!("symbol_table: {:#?}", symbol_table);
-                return Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.name)).into());
-            }
+        ArrayIndex(ref mut data) => match symbol_table.type_of(&data.array) {
+            Some(_) => resolve_expression(symbol_table, required_type, &mut *data.index)?,
+            None => return Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.array)).into()),
         },
         BinaryOp(ref mut data) => {
             resolve_expression(symbol_table, required_type, &mut *data.left)?;
@@ -98,6 +104,28 @@ fn resolve_expression(symbol_table: &SymbolTable, required_type: Type, expressio
                 None => return Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.function)).into()),
             }
         }
+        Number(ref mut data) => {
+            let value = if let TypedValue::UnresolvedInt(val) = data.value {
+                val
+            } else {
+                return Err(ErrorKind::TypeError(data.tag, required_type, data.value.get_type()).into());
+            };
+            data.value = match required_type {
+                Type::U8 | Type::ArrayU8 => TypedValue::U8(bounds_check(data.tag, value)?),
+                Type::U16 => TypedValue::U16(bounds_check(data.tag, value)?),
+                Type::Unresolved | Type::Void => unreachable!(),
+            };
+        }
+        Symbol(ref mut data) => match symbol_table.type_of(&data.name) {
+            Some(typ) => if required_type != typ {
+                return Err(ErrorKind::TypeError(data.tag, required_type, typ).into());
+            } else {
+                data.value_type = typ;
+            },
+            None => {
+                return Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.name)).into());
+            }
+        },
     }
 
     Ok(())

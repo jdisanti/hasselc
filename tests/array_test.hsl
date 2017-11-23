@@ -1,0 +1,26 @@
+register data_stack_pointer: u8 @ 0x0000;
+
+memory output_array: &[u8] @ 0x0200;
+memory output_value: u8 @ 0x0250;
+
+org 0xE000;
+data_stack_pointer = 3;
+main();
+
+def halt(): void
+    goto halt;
+end
+
+def main(): void
+    output_array[0] = 1;
+    output_array[1] = 2;
+
+    var index: u8 = 2;
+    while index < 10 do
+        output_array[index] = index + 1;
+        index = index + 1;
+    end
+
+    output_value = output_array[5];
+    return;
+end

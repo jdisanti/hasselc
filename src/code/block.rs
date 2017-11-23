@@ -46,6 +46,7 @@ impl Parameter {
             Parameter::ZeroPageX(offset) => format!("${:02X}, X", offset),
             Parameter::ZeroPageY(offset) => format!("${:02X}, Y", offset),
             Parameter::Absolute(ref gbl) => gbl.to_asm(),
+            Parameter::AbsoluteY(ref gbl) => format!("{}, Y", gbl.to_asm()),
             _ => unimplemented!(),
         }
     }

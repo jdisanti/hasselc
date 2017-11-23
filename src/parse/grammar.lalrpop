@@ -4,6 +4,7 @@
 use std::str::FromStr;
 use std::sync::Arc;
 use parse::ast::{
+    ArrayIndexData,
     AssignmentData,
     BinaryOpData,
     BinaryOperator,
@@ -67,6 +68,7 @@ Type: Type = {
     "u8" => Type::U8,
     "u16" => Type::U16,
     "void" => Type::Void,
+    "&" "[" "u8" "]" => Type::ArrayU8,
 };
 
 NameType: NameType = {
@@ -114,13 +116,23 @@ FactorOp: BinaryOperator = {
 Term: Box<Expression> = {
     <t:@L> <n:Number> => Box::new(Expression::Number(NumberData::new(SrcTag(t), n))),
     <t:@L> <n:Name> => Box::new(Expression::Name(NameData::new(SrcTag(t), n))),
+    ArrayIndex,
     FunctionCall,
     "(" <Expression> ")",
+};
+
+ArrayIndex: Box<Expression> = {
+    <t:@L> <n:Name> "[" <idx:Expression> "]" => Box::new(Expression::ArrayIndex(ArrayIndexData::new(SrcTag(t), n, idx))),
 };
 
 FunctionCall: Box<Expression> = {
     <t:@L> <n:Name> "(" ")" => Box::new(Expression::CallFunction(CallFunctionData::new(SrcTag(t), n, Vec::new()))),
     <t:@L> <n:Name> "(" <args:ExpressionCommaList> ")" => Box::new(Expression::CallFunction(CallFunctionData::new(SrcTag(t), n, args))),
+};
+
+LValue: Box<Expression> = {
+    <t:@L> <n:Name> => Box::new(Expression::Name(NameData::new(SrcTag(t), n))),
+    ArrayIndex,
 };
 
 Expression: Box<Expression> = {
@@ -143,8 +155,8 @@ Statement: Box<Expression> = {
         Box::new(Expression::DeclareConst(DeclareConstData::new(SrcTag(t), nt, l))),
     <t:@L> "var" <nt:NameType> "=" <l:Expression> ";" =>
         Box::new(Expression::DeclareVariable(DeclareVariableData::new(SrcTag(t), nt, l))),
-    <t:@L> <n:Name> "=" <l:Expression> ";" =>
-        Box::new(Expression::Assignment(AssignmentData::new(SrcTag(t), n, l))),
+    <t:@L> <val:LValue> "=" <l:Expression> ";" =>
+        Box::new(Expression::Assignment(AssignmentData::new(SrcTag(t), val, l))),
     <t:@L> "if" <cnd:Expression> "then" <trb:StatementList> "end" =>
         Box::new(Expression::Conditional(ConditionalData::new(SrcTag(t), cnd, trb, Vec::new()))),
     <t:@L> "if" <cnd:Expression> "then" <trb:StatementList> "else" <frb:StatementList> "end" =>
@@ -177,6 +189,8 @@ StatementList: Vec<Expression> = {
 TopLevelStatement: Box<Expression> = {
     <t:@L> "org" <n:Number> ";" => Box::new(Expression::Org(OrgData::new(SrcTag(t), n))),
     <t:@L> "register" <nt:NameType> "@" <l:Number> ";" =>
+        Box::new(Expression::DeclareRegister(DeclareRegisterData::new(SrcTag(t), nt, l))),
+    <t:@L> "memory" <nt:NameType> "@" <l:Number> ";" =>
         Box::new(Expression::DeclareRegister(DeclareRegisterData::new(SrcTag(t), nt, l))),
     <t:@L> "def" <n:Name> "(" ")" ":" <rt:Type> <b:StatementList> "end" =>
         Box::new(Expression::DeclareFunction(DeclareFunctionData::new(SrcTag(t), n, Vec::new(), rt, b))),

@@ -201,33 +201,39 @@ impl<'a> CodeGenerator<'a> {
     }
 
     fn load_into_accum(&mut self, value: &llir::Value) -> error::Result<()> {
+        self.load_value(Register::Accum, value)
+    }
+
+    pub fn load_value(&mut self, register: Register, value: &llir::Value) -> error::Result<()> {
+        if let Register::XIndex = register {
+            panic!(
+                "The X register is required to load values as it's used \
+                 for loading from the stack. Thus, you can't load a value directly into X."
+            )
+        }
+
         match *value {
             llir::Value::Immediate(ref val) => {
-                self.registers.load(
-                    &mut self.code,
-                    Register::Accum,
-                    Parameter::Immediate(val.as_u8()),
-                );
+                self.registers
+                    .load(&mut self.code, register, Parameter::Immediate(val.as_u8()))
             }
             llir::Value::Memory(ref location) => match *location {
-                llir::Location::Global(addr) => {
-                    self.registers
-                        .load(&mut self.code, Register::Accum, addr_param(addr));
-                }
+                llir::Location::Global(addr) => self.registers.load(
+                    &mut self.code,
+                    register,
+                    Parameter::Absolute(Global::Resolved(addr)),
+                ),
                 llir::Location::DataStackOffset(offset) => {
                     self.registers.load_dsp(&mut self.code, Register::XIndex);
-                    self.registers.load(
-                        &mut self.code,
-                        Register::Accum,
-                        Parameter::ZeroPageX(offset),
-                    );
+                    self.registers
+                        .load(&mut self.code, register, Parameter::ZeroPageX(offset));
                 }
                 llir::Location::FrameOffset(ref frame, offset) => {
                     self.registers.load_dsp(&mut self.code, Register::XIndex);
                     let frame_size = self.lookup_frame_size(frame)?;
                     self.registers.load(
                         &mut self.code,
-                        Register::Accum,
+                        register,
                         Parameter::ZeroPageX(offset - frame_size),
                     );
                 }
@@ -237,15 +243,21 @@ impl<'a> CodeGenerator<'a> {
                     self.registers.load_dsp(&mut self.code, Register::XIndex);
                     self.registers.load(
                         &mut self.code,
-                        Register::Accum,
+                        register,
                         Parameter::ZeroPageX(offset - call_to_frame_size - original_frame_size),
                     );
                 }
-                _ => {
-                    println!(
-                        "WARN: Unimplemented load_into_accum location: {:?}",
-                        location
+                llir::Location::GlobalIndexed(addr, ref index) => {
+                    self.load_value(Register::YIndex, index)?;
+                    self.registers.load(
+                        &mut self.code,
+                        register,
+                        Parameter::AbsoluteY(Global::Resolved(addr)),
                     );
+                }
+                _ => {
+                    println!("WARN: Unimplemented load_value location: {:?}", location);
+                    unimplemented!()
                 }
             },
         }
@@ -278,13 +290,26 @@ impl<'a> CodeGenerator<'a> {
         Ok(())
     }
 
-    fn location_to_parameter(&self, location: &llir::Location) -> error::Result<Parameter> {
+    fn location_to_parameter(&mut self, location: &llir::Location) -> error::Result<Parameter> {
         match *location {
             llir::Location::Global(addr) => Ok(addr_param(addr)),
+            llir::Location::GlobalIndexed(addr, ref index) => {
+                self.load_value(Register::YIndex, index)?;
+                Ok(Parameter::AbsoluteY(Global::Resolved(addr)))
+            }
             llir::Location::DataStackOffset(offset) => Ok(Parameter::ZeroPageX(offset)),
             llir::Location::FrameOffset(ref frame, offset) => Ok(Parameter::ZeroPageX(
                 offset - self.lookup_frame_size(frame)?,
             )),
+            llir::Location::UnresolvedGlobal(ref symbol) => Ok(Parameter::Absolute(
+                Global::UnresolvedName(SymbolRef::clone(symbol)),
+            )),
+            llir::Location::UnresolvedGlobalIndexed(ref symbol, ref index) => {
+                self.load_value(Register::YIndex, index)?;
+                Ok(Parameter::Absolute(
+                    Global::UnresolvedName(SymbolRef::clone(symbol)),
+                ))
+            }
             _ => {
                 println!("WARN: Unimplemented location_to_parameter: {:?}", location);
                 unimplemented!()

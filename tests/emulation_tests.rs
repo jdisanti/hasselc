@@ -320,3 +320,21 @@ pub fn word_test_unoptimized() {
     assert_eq!(0xBBu8, emulator.cpu.bus.read_byte(0x0200));
     assert_eq!(0xAAu8, emulator.cpu.bus.read_byte(0x0201));
 }
+
+#[test]
+pub fn array_test_unoptimized() {
+    let emulator = emulate!(unoptimized: array_test);
+    for i in 0..10u16 {
+        assert_eq!((i + 1) as u8, emulator.cpu.bus.read_byte(0x0200 + i));
+    }
+    assert_eq!(6, emulator.cpu.bus.read_byte(0x0250));
+}
+
+#[test]
+pub fn array_test_optimized() {
+    let emulator = emulate!(optimized: array_test);
+    for i in 0..10u16 {
+        assert_eq!((i + 1) as u8, emulator.cpu.bus.read_byte(0x0200 + i));
+    }
+    assert_eq!(6, emulator.cpu.bus.read_byte(0x0250));
+}

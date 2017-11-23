@@ -4,22 +4,17 @@ use src_tag::{SrcTag, SrcTagged};
 use symbol_table::SymbolRef;
 use types::TypedValue;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum Index {
-    Immediate(u8),
-    DataStack(u8),
-}
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Location {
     DataStackOffset(i8),
     FrameOffset(SymbolRef, i8),
     FrameOffsetBeforeCall(SymbolRef, SymbolRef, i8),
     Global(u16),
-    GlobalIndexed(u16, Index),
-    UnresolvedBlock,
+    GlobalIndexed(u16, Box<Value>),
     UnresolvedGlobal(SymbolRef),
-    UnresolvedGlobalIndexed(SymbolRef, Index),
+    UnresolvedGlobalIndexed(SymbolRef, Box<Value>),
+    UnresolvedGlobalOffset(SymbolRef, i8),
+    UnresolvedBlock,
 }
 
 impl Location {
@@ -34,23 +29,15 @@ impl Location {
                 offset + offset_by,
             ),
             Global(offset) => Global((offset as isize + offset_by as isize) as u16),
-            GlobalIndexed(offset, index) => GlobalIndexed(
-                offset,
-                match index {
-                    Index::Immediate(val) => Index::Immediate((val as isize + offset_by as isize) as u8),
-                    Index::DataStack(val) => Index::DataStack((val as isize + offset_by as isize) as u8),
-                },
-            ),
-            UnresolvedGlobal(ref symbol) => {
-                UnresolvedGlobalIndexed(SymbolRef::clone(symbol), Index::Immediate(offset_by as u8))
+            GlobalIndexed(offset, ref index) => GlobalIndexed(offset + 1, index.clone()),
+            // TODO: Are these unresolved global's useful? They don't seem to work
+            UnresolvedGlobal(ref symbol) => UnresolvedGlobalOffset(SymbolRef::clone(symbol), 1),
+            UnresolvedGlobalIndexed(_, _) => {
+                unimplemented!("this will probably require a refactor to output more statements")
             }
-            UnresolvedGlobalIndexed(ref symbol, index) => UnresolvedGlobalIndexed(
-                SymbolRef::clone(symbol),
-                match index {
-                    Index::Immediate(val) => Index::Immediate((val as isize + offset_by as isize) as u8),
-                    Index::DataStack(val) => Index::DataStack((val as isize + offset_by as isize) as u8),
-                },
-            ),
+            UnresolvedGlobalOffset(_, _) => {
+                unimplemented!("this will probably require a refactor to output more statements")
+            }
             UnresolvedBlock => unreachable!(),
         }
     }

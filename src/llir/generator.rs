@@ -5,7 +5,7 @@ use llir::{AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, CopyData, 
            Location, ReturnData, RunBlock, SPOffset, Statement, Value};
 use parse::ast;
 use symbol_table::{self, SymbolRef, SymbolTable};
-use src_tag::SrcTag;
+use src_tag::{SrcTag, SrcTagged};
 use types::Type;
 
 const RETURN_LOCATION_LO: Location = Location::Global(0x0001);
@@ -53,23 +53,29 @@ fn generate_runs(
 
     for irstmt in input {
         match *irstmt {
-            ir::Statement::Assign(ref data) => if let Some(ref variable) = symbol_table.variable(&data.symbol) {
-                let resolved_value = resolve_expr_to_value(
+            ir::Statement::Assign(ref data) => {
+                let right_value = resolve_expr_to_value(
                     &mut current_block.statements,
                     frame,
                     symbol_table,
-                    &data.value,
+                    &data.right_value,
                 )?;
+
+                let left_location = resolve_expr_to_location(
+                    &mut current_block.statements,
+                    frame,
+                    symbol_table,
+                    &data.left_value,
+                )?;
+
                 generate_copy(
                     &mut current_block.statements,
                     data.tag,
                     data.value_type,
-                    resolved_value,
-                    convert_location(frame.clone(), &variable.location),
+                    right_value,
+                    left_location,
                 )?;
-            } else {
-                unreachable!("variable existence should already be checked in ir_gen");
-            },
+            }
             ir::Statement::Call(ref data) => {
                 generate_function_call(&mut current_block.statements, frame, symbol_table, data)?;
             }
@@ -186,18 +192,43 @@ fn generate_copy(
                 CopyData::new(tag, destination, Value::low_byte(&value)),
             ));
         }
+        Type::ArrayU8 => unimplemented!(),
         Type::Void | Type::Unresolved => unreachable!(),
     }
     Ok(())
 }
 
+fn resolve_expr_to_location(
+    statements: &mut Vec<Statement>,
+    frame: &Option<SymbolRef>,
+    symbol_table: &mut SymbolTable,
+    expr: &ir::Expr,
+) -> error::Result<Location> {
+    match resolve_expr_to_value(statements, frame, symbol_table, expr)? {
+        Value::Immediate(_) => Err(error::ErrorKind::InvalidLeftValue(expr.src_tag()).into()),
+        Value::Memory(location) => Ok(location),
+    }
+}
+
 fn resolve_expr_to_value(
     statements: &mut Vec<Statement>,
-    frame: &Option<Arc<String>>,
+    frame: &Option<SymbolRef>,
     symbol_table: &mut SymbolTable,
     expr: &ir::Expr,
 ) -> error::Result<Value> {
     match *expr {
+        ir::Expr::ArrayIndex(ref data) => if let Some(ref array) = symbol_table.variable(&data.array) {
+            let index_value = resolve_expr_to_value(statements, frame, symbol_table, &data.index)?;
+            match array.location {
+                symbol_table::Location::UndeterminedGlobal => unreachable!(),
+                symbol_table::Location::Global(addr) => Ok(Value::Memory(
+                    Location::GlobalIndexed(addr, Box::new(index_value)),
+                )),
+                symbol_table::Location::FrameOffset(_) => unimplemented!(),
+            }
+        } else {
+            Err(error::ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.array)).into())
+        },
         ir::Expr::Number(ref data) => Ok(Value::Immediate(data.value)),
         ir::Expr::Symbol(ref data) => if let Some(ref variable) = symbol_table.variable(&data.name) {
             Ok(Value::Memory(

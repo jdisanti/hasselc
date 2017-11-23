@@ -31,15 +31,17 @@ pub enum BinaryOperator {
 }
 
 #[derive(Debug, Eq, PartialEq, new)]
-pub struct NumberData {
+pub struct ArrayIndexData {
     pub tag: SrcTag,
-    pub value: i32,
+    pub array: Arc<String>,
+    pub index: Box<Expression>,
 }
 
 #[derive(Debug, Eq, PartialEq, new)]
-pub struct NameData {
+pub struct AssignmentData {
     pub tag: SrcTag,
-    pub name: Arc<String>,
+    pub left_value: Box<Expression>,
+    pub right_value: Box<Expression>,
 }
 
 #[derive(Debug, Eq, PartialEq, new)]
@@ -51,17 +53,18 @@ pub struct BinaryOpData {
 }
 
 #[derive(Debug, Eq, PartialEq, new)]
-pub struct AssignmentData {
-    pub tag: SrcTag,
-    pub name: Arc<String>,
-    pub value: Box<Expression>,
-}
-
-#[derive(Debug, Eq, PartialEq, new)]
 pub struct CallFunctionData {
     pub tag: SrcTag,
     pub name: Arc<String>,
     pub arguments: Vec<Expression>,
+}
+
+#[derive(Debug, Eq, PartialEq, new)]
+pub struct ConditionalData {
+    pub tag: SrcTag,
+    pub condition: Box<Expression>,
+    pub when_true: Vec<Expression>,
+    pub when_false: Vec<Expression>,
 }
 
 #[derive(Debug, Eq, PartialEq, new)]
@@ -81,6 +84,13 @@ pub struct DeclareFunctionData {
 }
 
 #[derive(Debug, Eq, PartialEq, new)]
+pub struct DeclareRegisterData {
+    pub tag: SrcTag,
+    pub name_type: NameType,
+    pub location: i32,
+}
+
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct DeclareVariableData {
     pub tag: SrcTag,
     pub name_type: NameType,
@@ -88,10 +98,21 @@ pub struct DeclareVariableData {
 }
 
 #[derive(Debug, Eq, PartialEq, new)]
-pub struct DeclareRegisterData {
+pub struct GoToData {
     pub tag: SrcTag,
-    pub name_type: NameType,
-    pub location: i32,
+    pub destination: Arc<String>,
+}
+
+#[derive(Debug, Eq, PartialEq, new)]
+pub struct NameData {
+    pub tag: SrcTag,
+    pub name: Arc<String>,
+}
+
+#[derive(Debug, Eq, PartialEq, new)]
+pub struct NumberData {
+    pub tag: SrcTag,
+    pub value: i32,
 }
 
 #[derive(Debug, Eq, PartialEq, new)]
@@ -107,28 +128,15 @@ pub struct ReturnData {
 }
 
 #[derive(Debug, Eq, PartialEq, new)]
-pub struct ConditionalData {
-    pub tag: SrcTag,
-    pub condition: Box<Expression>,
-    pub when_true: Vec<Expression>,
-    pub when_false: Vec<Expression>,
-}
-
-#[derive(Debug, Eq, PartialEq, new)]
 pub struct WhileLoopData {
     pub tag: SrcTag,
     pub condition: Box<Expression>,
     pub body: Vec<Expression>,
 }
 
-#[derive(Debug, Eq, PartialEq, new)]
-pub struct GoToData {
-    pub tag: SrcTag,
-    pub destination: Arc<String>,
-}
-
 #[derive(Debug, Eq, PartialEq)]
 pub enum Expression {
+    ArrayIndex(ArrayIndexData),
     Assignment(AssignmentData),
     BinaryOp(BinaryOpData),
     Break,
@@ -168,6 +176,7 @@ impl SrcTagged for Expression {
         use self::Expression::*;
         match *self {
             Assignment(ref d) => d.tag,
+            ArrayIndex(ref d) => d.tag,
             BinaryOp(ref d) => d.tag,
             Break => unimplemented!(),
             CallFunction(ref d) => d.tag,
@@ -241,7 +250,9 @@ mod test {
         let expected = vec![
             Expression::Assignment(AssignmentData::new(
                 SrcTag(0),
-                Arc::new("a".into()),
+                Box::new(Expression::Name(
+                    NameData::new(SrcTag(0), Arc::new("a".into())),
+                )),
                 Box::new(Expression::BinaryOp(BinaryOpData::new(
                     SrcTag(4),
                     BinaryOperator::Add,
@@ -267,7 +278,9 @@ mod test {
         let expected = vec![
             Expression::Assignment(AssignmentData::new(
                 SrcTag(0),
-                Arc::new("a".into()),
+                Box::new(Expression::Name(
+                    NameData::new(SrcTag(0), Arc::new("a".into())),
+                )),
                 Box::new(Expression::BinaryOp(BinaryOpData::new(
                     SrcTag(4),
                     BinaryOperator::Mul,
@@ -293,7 +306,9 @@ mod test {
         let expected = vec![
             Expression::Assignment(AssignmentData::new(
                 SrcTag(0),
-                Arc::new("a".into()),
+                Box::new(Expression::Name(
+                    NameData::new(SrcTag(0), Arc::new("a".into())),
+                )),
                 Box::new(Expression::BinaryOp(BinaryOpData::new(
                     SrcTag(4),
                     BinaryOperator::GreaterThan,

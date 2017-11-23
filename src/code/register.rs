@@ -1,11 +1,11 @@
 use code::{Code, Parameter};
-use std::mem;
 
 pub const DATA_STACK_POINTER_LOCATION: u16 = 0x0000;
 
 pub const DSP_PARAM: Parameter = Parameter::ZeroPage(DATA_STACK_POINTER_LOCATION as u8);
 const DSP_REG_VALUE: RegisterValue = RegisterValue::Param(DSP_PARAM);
 
+#[derive(Clone)]
 pub struct RegisterEquivalency {
     equivalencies: Vec<RegisterValue>,
 }
@@ -37,7 +37,7 @@ impl RegisterEquivalency {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RegisterValue {
     Intermediate(usize),
     Param(Parameter),
@@ -118,7 +118,7 @@ impl SaveLocation {
 
 pub struct RegisterAllocator {
     values: [RegisterEquivalency; 3],
-    save_locations: [Option<SaveLocation>; 3],
+    save_locations: [Vec<SaveLocation>; 3],
     next_intermediate_differentiator: usize,
 }
 
@@ -130,7 +130,7 @@ impl RegisterAllocator {
                 RegisterEquivalency::new(),
                 RegisterEquivalency::new(),
             ],
-            save_locations: [None, None, None],
+            save_locations: [Vec::new(), Vec::new(), Vec::new()],
             next_intermediate_differentiator: 0,
         }
     }
@@ -142,12 +142,7 @@ impl RegisterAllocator {
     }
 
     fn spillover(&mut self, code: &mut Vec<Code>, register: Register) {
-        let mut save_location = None;
-        mem::swap(
-            &mut save_location,
-            &mut self.save_locations[register.ordinal()],
-        );
-        if let Some(location) = save_location {
+        while let Some(location) = self.save_locations[register.ordinal()].pop() {
             code.push(register.save_op(location.0.clone()));
             self.values[register.ordinal()].add_value(RegisterValue::Param(location.0));
         }
@@ -156,8 +151,8 @@ impl RegisterAllocator {
     fn save_as_necessary(&mut self, code: &mut Vec<Code>, clobbering: Register) {
         let mut spillovers = [false; 3];
         spillovers[clobbering.ordinal()] = true;
-        for (index, optional_location) in self.save_locations.iter().enumerate() {
-            if let Some(ref location) = *optional_location {
+        for (index, locations) in self.save_locations.iter().enumerate() {
+            for location in locations {
                 if location.requires(clobbering) {
                     spillovers[index] = true;
                 }
@@ -204,7 +199,7 @@ impl RegisterAllocator {
     }
 
     pub fn save_later(&mut self, register: Register, location: Parameter) {
-        self.save_locations[register.ordinal()] = Some(SaveLocation(location.clone()));
+        self.save_locations[register.ordinal()].push(SaveLocation(location.clone()));
         self.values[register.ordinal()].add_value(RegisterValue::Param(location));
     }
 
@@ -219,7 +214,7 @@ impl RegisterAllocator {
         for mut value in &mut self.values {
             value.reset();
         }
-        self.save_locations = [None, None, None];
+        self.save_locations = [Vec::new(), Vec::new(), Vec::new()];
     }
 
     pub fn load_dsp(&mut self, code: &mut Vec<Code>, into: Register) {

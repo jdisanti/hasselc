@@ -87,17 +87,14 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
     let mut statements: Vec<ir::Statement> = vec![];
     match *input {
         ast::Expression::Assignment(ref data) => {
-            let symbol_ref = SymbolRef::clone(&data.name);
-            if symbol_table.variable(&symbol_ref).is_some() {
-                statements.push(ir::Statement::Assign(ir::AssignData::new(
-                    data.tag,
-                    symbol_ref,
-                    Type::Unresolved,
-                    generate_expression(&data.value),
-                )));
-            } else {
-                return Err(ErrorKind::SymbolNotFound(data.tag, Arc::clone(&data.name)).into());
-            }
+            let left_value = generate_expression(&data.left_value);
+            let right_value = generate_expression(&data.right_value);
+            statements.push(ir::Statement::Assign(ir::AssignData::new(
+                data.tag,
+                Type::Unresolved,
+                left_value,
+                right_value,
+            )));
         }
         ast::Expression::Break => {
             unimplemented!("ir_gen: break");
@@ -142,8 +139,8 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
 
             let assignment = ir::Statement::Assign(ir::AssignData::new(
                 data.tag,
-                symbol_ref,
                 Type::Unresolved,
+                ir::Expr::Symbol(ir::SymbolData::new(data.tag, symbol_ref, Type::Unresolved)),
                 generate_expression(&data.value),
             ));
             statements.push(assignment);
@@ -181,6 +178,7 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
             ));
         }
         ast::Expression::Comment => {}
+        ast::Expression::ArrayIndex(_) => unreachable!("array_index"),
         ast::Expression::BinaryOp { .. } => unreachable!("binary_op"),
         ast::Expression::DeclareFunction { .. } => unreachable!("declare_function"),
         ast::Expression::Error => unreachable!("error"),
@@ -211,6 +209,7 @@ fn constant_eval(symbol_table: &SymbolTable, type_name: Type, input: &ast::Expre
                     left.as_u16(),
                     right.as_u16(),
                 )?)),
+                Type::ArrayU8 => unimplemented!(),
                 Type::Void => Err(ErrorKind::ConstCantBeVoid(data.tag).into()),
                 Type::Unresolved => unreachable!(),
             }
@@ -239,6 +238,14 @@ fn constant_eval_number(type_name: Type, input: &ast::NumberData) -> error::Resu
                 Err(ErrorKind::OutOfBounds(input.tag, input.value as isize, 0, 0xFFFF).into())
             } else {
                 Ok(TypedValue::U16(input.value as u16))
+            }
+        }
+        Type::ArrayU8 => {
+            let unsigned_val = input.value as usize;
+            if unsigned_val > 0xFFFF {
+                Err(ErrorKind::OutOfBounds(input.tag, input.value as isize, 0, 0xFFFF).into())
+            } else {
+                Ok(TypedValue::ArrayU8(input.value as u16))
             }
         }
         Type::Void => Err(ErrorKind::ConstCantBeVoid(input.tag).into()),
@@ -300,15 +307,23 @@ fn generate_expressions(input: &[ast::Expression]) -> Vec<ir::Expr> {
 
 fn generate_expression(input: &ast::Expression) -> ir::Expr {
     match *input {
+        ast::Expression::ArrayIndex(ref data) => ir::Expr::ArrayIndex(ir::ArrayIndexData::new(
+            data.tag,
+            SymbolRef::clone(&data.array),
+            Box::new(generate_expression(&data.index)),
+            Type::Unresolved,
+        )),
         ast::Expression::BinaryOp(ref data) => ir::Expr::BinaryOp(ir::BinaryOpData::new(
             data.tag,
             data.op,
             Box::new(generate_expression(&data.left)),
             Box::new(generate_expression(&data.right)),
         )),
-        ast::Expression::Name(ref data) => {
-            ir::Expr::Symbol(ir::SymbolData::new(data.tag, SymbolRef::clone(&data.name)))
-        }
+        ast::Expression::Name(ref data) => ir::Expr::Symbol(ir::SymbolData::new(
+            data.tag,
+            SymbolRef::clone(&data.name),
+            Type::Unresolved,
+        )),
         ast::Expression::Number(ref data) => ir::Expr::Number(ir::NumberData::new(
             data.tag,
             TypedValue::UnresolvedInt(data.value),

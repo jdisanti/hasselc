@@ -1,20 +1,16 @@
 use std::sync::{Arc, RwLock};
 use error::{self, ErrorKind};
 use parse::ast::BinaryOperator;
-use src_tag::SrcTag;
+use src_tag::{SrcTag, SrcTagged};
 use symbol_table::{FunctionMetadata, FunctionMetadataPtr, Location, SymbolRef, SymbolTable, Variable};
 use types::{Type, TypedValue};
 
 #[derive(Debug, new)]
-pub struct NumberData {
+pub struct ArrayIndexData {
     pub tag: SrcTag,
-    pub value: TypedValue,
-}
-
-#[derive(Debug, new)]
-pub struct SymbolData {
-    pub tag: SrcTag,
-    pub name: SymbolRef,
+    pub array: SymbolRef,
+    pub index: Box<Expr>,
+    pub value_type: Type,
 }
 
 #[derive(Debug, new)]
@@ -33,12 +29,47 @@ pub struct CallData {
     pub return_type: Type,
 }
 
+#[derive(Debug, new)]
+pub struct NumberData {
+    pub tag: SrcTag,
+    pub value: TypedValue,
+}
+
+#[derive(Debug, new)]
+pub struct SymbolData {
+    pub tag: SrcTag,
+    pub name: SymbolRef,
+    pub value_type: Type,
+}
+
 #[derive(Debug)]
 pub enum Expr {
     Number(NumberData),
     Symbol(SymbolData),
     BinaryOp(BinaryOpData),
     Call(CallData),
+    ArrayIndex(ArrayIndexData),
+}
+
+impl SrcTagged for Expr {
+    fn src_tag(&self) -> SrcTag {
+        use self::Expr::*;
+        match *self {
+            Number(ref d) => d.tag,
+            Symbol(ref d) => d.tag,
+            BinaryOp(ref d) => d.tag,
+            Call(ref d) => d.tag,
+            ArrayIndex(ref d) => d.tag,
+        }
+    }
+}
+
+#[derive(Debug, new)]
+pub struct AssignData {
+    pub tag: SrcTag,
+    pub value_type: Type,
+    pub left_value: Expr,
+    pub right_value: Expr,
 }
 
 #[derive(Debug, new)]
@@ -50,18 +81,9 @@ pub struct ConditionalData {
 }
 
 #[derive(Debug, new)]
-pub struct WhileLoopData {
+pub struct GoToData {
     pub tag: SrcTag,
-    pub condition: Expr,
-    pub body: Vec<Statement>,
-}
-
-#[derive(Debug, new)]
-pub struct AssignData {
-    pub tag: SrcTag,
-    pub symbol: SymbolRef,
-    pub value_type: Type,
-    pub value: Expr,
+    pub destination: Arc<String>,
 }
 
 #[derive(Debug, new)]
@@ -72,9 +94,10 @@ pub struct ReturnData {
 }
 
 #[derive(Debug, new)]
-pub struct GoToData {
+pub struct WhileLoopData {
     pub tag: SrcTag,
-    pub destination: Arc<String>,
+    pub condition: Expr,
+    pub body: Vec<Statement>,
 }
 
 #[derive(Debug)]
