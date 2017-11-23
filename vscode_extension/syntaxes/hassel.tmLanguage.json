@@ -1,0 +1,94 @@
+{
+    "version": "0.1",
+    "name": "Hassel",
+    "scopeName": "source.hassel",
+    "fileTypes": [
+        "hsl"
+    ],
+    "repository": {
+        "line_comment": {
+            "comment": "Single-line comment",
+            "name": "comment.line.hash.hassel",
+            "begin": "#",
+            "end": "$"
+        },
+        "string_literal": {
+            "comment": "Double-quote string literal",
+            "name": "string.quoted.double.hassel",
+            "begin": "\"",
+            "end": "\"",
+            "patterns": [
+                {
+                    "include": "#escaped_character"
+                }
+            ]
+        },
+        "escaped_character": {
+            "name": "constant.character.escape.hassel",
+            "match": "\\\\(x[0-9A-Fa-f]{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.)"
+        },
+        "keyword": {
+            "comment": "Keyword",
+            "name": "keyword.other.hassel",
+            "match": "\\b(register|memory|org|def|return|while|do|for|var|break|if|then|else|end|goto)\\b"
+        },
+        "core_types": {
+            "comment": "Built-in/core type",
+            "name": "storage.type.core.hassel",
+            "match": "\\b(u8|u16|void)\\b"
+        }
+    },
+    "patterns": [
+        {
+            "include": "#line_comment"
+        },
+        {
+            "include": "#string_literal"
+        },
+        {
+            "include": "#keyword"
+        },
+        {
+            "include": "#core_types"
+        },
+        {
+            "comment": "Integer literal (decimal)",
+            "name": "constant.numeric.integer.decimal.hassel",
+            "match": "\\b[0-9][0-9_]*([ui](8|16|32|64|128|s|size))?\\b"
+        },
+        {
+            "comment": "Integer literal (hexadecimal)",
+            "name": "constant.numeric.integer.hexadecimal.hassel",
+            "match": "\\b0x[a-fA-F0-9_]+([ui](8|16|32|64|128|s|size))?\\b"
+        },
+        {
+            "comment": "Comparison operator",
+            "name": "keyword.operator.comparison.hassel",
+            "match": "(&&|\\|\\||==|!=)"
+        },
+        {
+            "comment": "Assignment operator",
+            "name": "keyword.operator.assignment.hassel",
+            "match": "(\\+=|-=|/=|\\*=|%=|\\^=|&=|\\|=|<<=|>>=|=)"
+        },
+        {
+            "comment": "Arithmetic operator",
+            "name": "keyword.operator.arithmetic.hassel",
+            "match": "(!|\\+|-|/|\\*|%|\\^|&|\\||<<|>>)"
+        },
+        {
+            "comment": "Comparison operator (second group because of regex precedence)",
+            "name": "keyword.operator.comparison.hassel",
+            "match": "(<=|>=|<|>)"
+        },
+        {
+            "comment": "Function call",
+            "match": "\\b([A-Za-z][A-Za-z0-9_]*|_[A-Za-z0-9_]+)\\s*\\(",
+            "captures": {
+                "1": {
+                    "name": "entity.name.function.hassel"
+                }
+            }
+        }
+    ]
+}

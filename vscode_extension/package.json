@@ -1,0 +1,31 @@
+{
+    "name": "hassel",
+    "version": "0.1.0",
+    "publisher": "jdisanti",
+    "engines": {
+        "vscode": "*"
+    },
+    "scripts": {},
+    "contributes": {
+        "languages": [
+            {
+                "id": "hassel",
+                "extensions": [
+                    ".hsl"
+                ],
+                "aliases": [
+                    "Hassel",
+                    "hassel"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "hassel",
+                "path": "./syntaxes/hassel.tmLanguage.json",
+                "scopeName": "source.hassel"
+            }
+        ]
+    }
+}
