@@ -1,39 +1,42 @@
 use std::fmt;
 use src_tag::{SrcTag, SrcTagged};
 use symbol_table::{SymbolName, SymbolRef};
-use types::TypedValue;
+use types::{AddressOrSymbol, Type, TypedValue};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Location {
     DataStackOffset(i8),
     FrameOffset(SymbolRef, i8),
+    FrameOffsetIndirect(SymbolRef, i8),
     FrameOffsetBeforeCall(SymbolRef, SymbolRef, i8),
     Global(u16),
     GlobalIndexed(u16, Box<Value>),
     UnresolvedGlobal(SymbolRef),
     UnresolvedGlobalIndexed(SymbolRef, Box<Value>),
-    UnresolvedGlobalOffset(SymbolRef, i8),
+    UnresolvedGlobalLowByte(SymbolRef),
+    UnresolvedGlobalHighByte(SymbolRef),
     UnresolvedBlock,
 }
 
 impl Location {
-    pub fn offset(&self, offset_by: i8) -> Location {
+    pub fn low_byte(&self) -> Location {
         use self::Location::*;
         match *self {
-            DataStackOffset(offset) => DataStackOffset(offset + offset_by),
-            FrameOffset(symbol, offset) => FrameOffset(symbol, offset + offset_by),
-            FrameOffsetBeforeCall(sym1, sym2, offset) => FrameOffsetBeforeCall(sym1, sym2, offset + offset_by),
-            Global(offset) => Global((offset as isize + offset_by as isize) as u16),
+            UnresolvedGlobal(symbol) => UnresolvedGlobalLowByte(symbol),
+            _ => self.clone(),
+        }
+    }
+
+    pub fn high_byte(&self) -> Location {
+        use self::Location::*;
+        match *self {
+            DataStackOffset(offset) => DataStackOffset(offset + 1),
+            FrameOffset(symbol, offset) => FrameOffset(symbol, offset + 1),
+            FrameOffsetBeforeCall(sym1, sym2, offset) => FrameOffsetBeforeCall(sym1, sym2, offset + 1),
+            Global(offset) => Global((offset as isize + 1) as u16),
             GlobalIndexed(offset, ref index) => GlobalIndexed(offset + 1, index.clone()),
-            // TODO: Are these unresolved global's useful? They don't seem to work
-            UnresolvedGlobal(symbol) => UnresolvedGlobalOffset(symbol, 1),
-            UnresolvedGlobalIndexed(_, _) => {
-                unimplemented!("this will probably require a refactor to output more statements")
-            }
-            UnresolvedGlobalOffset(_, _) => {
-                unimplemented!("this will probably require a refactor to output more statements")
-            }
-            UnresolvedBlock => unreachable!(),
+            UnresolvedGlobal(symbol) => UnresolvedGlobalHighByte(symbol),
+            _ => unreachable!(),
         }
     }
 }
@@ -41,17 +44,30 @@ impl Location {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Value {
     Immediate(TypedValue),
-    Memory(Location),
+    Memory(Type, Location),
 }
 
 impl Value {
+    pub fn value_type(&self) -> Type {
+        match *self {
+            Value::Immediate(ref tv) => tv.get_type(),
+            Value::Memory(typ, _) => typ,
+        }
+    }
+
     pub fn high_byte(value: &Value) -> Value {
         use self::Value::*;
         // 16-bit values on the 6502 are in little-endian
         match *value {
             Immediate(TypedValue::U16(val)) => Immediate(TypedValue::U8((val >> 8) as u8)),
+            Immediate(TypedValue::ArrayU8(AddressOrSymbol::Address(addr))) => {
+                Immediate(TypedValue::U8((addr >> 8) as u8))
+            }
+            Immediate(TypedValue::ArrayU8(AddressOrSymbol::Symbol(sym))) => {
+                Value::Memory(Type::U8, Location::UnresolvedGlobalHighByte(sym))
+            }
             Immediate(_) => unreachable!(),
-            Memory(ref location) => Memory(location.offset(1)),
+            Memory(typ, ref location) => Memory(typ, location.high_byte()),
         }
     }
 
@@ -59,9 +75,14 @@ impl Value {
         use self::Value::*;
         // 16-bit values on the 6502 are in little-endian
         match *value {
-            Immediate(TypedValue::U8(_)) | Memory(_) => value.clone(),
+            Immediate(TypedValue::U8(_)) => value.clone(),
             Immediate(TypedValue::U16(val)) => Immediate(TypedValue::U8(val as u8)),
+            Immediate(TypedValue::ArrayU8(AddressOrSymbol::Address(addr))) => Immediate(TypedValue::U8(addr as u8)),
+            Immediate(TypedValue::ArrayU8(AddressOrSymbol::Symbol(sym))) => {
+                Value::Memory(Type::U8, Location::UnresolvedGlobalLowByte(sym))
+            }
             Immediate(_) => unreachable!(),
+            Memory(typ, ref location) => Memory(typ, location.low_byte()),
         }
     }
 }

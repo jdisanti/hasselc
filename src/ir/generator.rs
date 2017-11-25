@@ -5,7 +5,7 @@ use ir;
 use parse::ast;
 use src_tag::{SrcTag, SrcTagged};
 use symbol_table::{FunctionMetadata, FunctionMetadataPtr, Location, SymbolName, SymbolTable, Variable};
-use types::{Type, TypedValue};
+use types::{AddressOrSymbol, Type, TypedValue};
 
 pub fn generate(
     global_symbol_table: &Arc<RwLock<SymbolTable>>,
@@ -133,6 +133,22 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
                 return Err(ErrorKind::DuplicateSymbol(data.tag, SymbolName::clone(&data.name_type.name)).into());
             }
         }
+        ast::Expression::DeclareRegister(ref data) => {
+            if data.location < 0 || data.location > 0xFFFF {
+                return Err(ErrorKind::OutOfBounds(data.tag, data.location as isize, 0, 0xFFFF).into());
+            }
+            let symbol_name = SymbolName::clone(&data.name_type.name);
+            let variable = Variable::new(
+                data.name_type.type_name,
+                Location::Global(data.location as u16),
+            );
+            if symbol_table
+                .insert_variable(symbol_name, variable)
+                .is_none()
+            {
+                return Err(ErrorKind::DuplicateSymbol(data.tag, SymbolName::clone(&data.name_type.name)).into());
+            }
+        }
         ast::Expression::DeclareVariable(ref data) => {
             let symbol_name = SymbolName::clone(&data.name_type.name);
             let next_location = symbol_table.next_frame_offset(data.name_type.type_name.size());
@@ -152,19 +168,10 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
                 return Err(ErrorKind::DuplicateSymbol(data.tag, SymbolName::clone(&data.name_type.name)).into());
             }
         }
-
-        ast::Expression::DeclareRegister(ref data) => {
-            if data.location < 0 || data.location > 0xFFFF {
-                return Err(ErrorKind::OutOfBounds(data.tag, data.location as isize, 0, 0xFFFF).into());
-            }
-            let symbol_name = SymbolName::clone(&data.name_type.name);
-            let variable = Variable::new(
-                data.name_type.type_name,
-                Location::Global(data.location as u16),
-            );
-            if symbol_table.insert_variable(symbol_name, variable).is_none() {
-                return Err(ErrorKind::DuplicateSymbol(data.tag, SymbolName::clone(&data.name_type.name)).into());
-            }
+        ast::Expression::GoTo(ref data) => {
+            statements.push(ir::Statement::GoTo(
+                ir::GoToData::new(data.tag, Arc::clone(&data.destination)),
+            ));
         }
         ast::Expression::Return(ref data) => {
             let value = match data.value {
@@ -173,11 +180,6 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
             };
             statements.push(ir::Statement::Return(
                 ir::ReturnData::new(data.tag, Type::Unresolved, value),
-            ));
-        }
-        ast::Expression::GoTo(ref data) => {
-            statements.push(ir::Statement::GoTo(
-                ir::GoToData::new(data.tag, Arc::clone(&data.destination)),
             ));
         }
         ast::Expression::WhileLoop(ref data) => {
@@ -195,12 +197,17 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
         ast::Expression::Name(_) => unreachable!("name"),
         ast::Expression::Number(_) => unreachable!("number"),
         ast::Expression::Org { .. } => unreachable!("org"),
+        ast::Expression::Text(_) => unreachable!("text"),
     }
 
     Ok(statements)
 }
 
-fn constant_eval(symbol_table: &SymbolTable, type_name: Type, input: &ast::Expression) -> error::Result<TypedValue> {
+fn constant_eval(
+    symbol_table: &mut SymbolTable,
+    type_name: Type,
+    input: &ast::Expression,
+) -> error::Result<TypedValue> {
     match *input {
         ast::Expression::BinaryOp(ref data) => {
             let left = constant_eval(symbol_table, type_name, &*data.left)?;
@@ -226,8 +233,14 @@ fn constant_eval(symbol_table: &SymbolTable, type_name: Type, input: &ast::Expre
         ast::Expression::Name(ref data) => match symbol_table.constant_by_name(&data.name) {
             Some(constant) => Ok(constant),
             None => Err(ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.name)).into()),
-        }
+        },
         ast::Expression::Number(ref data) => constant_eval_number(type_name, data),
+        ast::Expression::Text(ref data) => if type_name != Type::ArrayU8 {
+            Err(ErrorKind::TypeError(data.tag, Type::ArrayU8, type_name).into())
+        } else {
+            let symbol_ref = symbol_table.insert_text(Arc::clone(&data.value));
+            Ok(TypedValue::ArrayU8(AddressOrSymbol::Symbol(symbol_ref)))
+        },
         _ => Err(ErrorKind::ConstEvaluationFailed(input.src_tag()).into()),
     }
 }
@@ -255,7 +268,9 @@ fn constant_eval_number(type_name: Type, input: &ast::NumberData) -> error::Resu
             if unsigned_val > 0xFFFF {
                 Err(ErrorKind::OutOfBounds(input.tag, input.value as isize, 0, 0xFFFF).into())
             } else {
-                Ok(TypedValue::ArrayU8(input.value as u16))
+                Ok(TypedValue::ArrayU8(
+                    AddressOrSymbol::Address(input.value as u16),
+                ))
             }
         }
         Type::Void => Err(ErrorKind::ConstCantBeVoid(input.tag).into()),

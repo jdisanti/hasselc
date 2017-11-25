@@ -30,7 +30,7 @@
         "keyword": {
             "comment": "Keyword",
             "name": "keyword.other.hassel",
-            "match": "\\b(register|memory|org|def|return|while|do|for|var|break|if|then|else|end|goto)\\b"
+            "match": "\\b(register|memory|org|def|return|while|do|for|var|break|if|then|else|end|goto|const)\\b"
         },
         "core_types": {
             "comment": "Built-in/core type",

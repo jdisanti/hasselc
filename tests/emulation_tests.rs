@@ -8,7 +8,7 @@ use std::process;
 use std::io::prelude::*;
 use emulator::cpu::Cpu;
 use emulator::bus::{Bus, PlaceholderBus};
-use compiler::symbol_table::SymbolTable;
+use compiler::code::to_asm;
 
 pub const ROM_SIZE: usize = 0x2000;
 
@@ -51,14 +51,6 @@ impl Emulator {
     }
 }
 
-fn to_asm(global_symbol_table: &SymbolTable, blocks: &[compiler::code::CodeBlock]) -> String {
-    let mut asm = String::new();
-    for block in blocks {
-        asm.push_str(&block.to_asm(global_symbol_table).unwrap());
-    }
-    asm
-}
-
 fn compile(program: &str, optimize_llir: bool, optimize_code: bool) -> compiler::CompilerOutput {
     match compiler::compile(program, optimize_llir, optimize_code) {
         Ok(compiler_output) => compiler_output,
@@ -86,9 +78,9 @@ fn assemble(name: &str, program: &str, optimize_llir: bool, optimize_code: bool)
         .read()
         .unwrap();
     let asm = if optimize_code {
-        to_asm(&*symbol_table, compiler_output.code_opt.as_ref().unwrap())
+        to_asm(&*symbol_table, compiler_output.code_opt.as_ref().unwrap()).unwrap()
     } else {
-        to_asm(&*symbol_table, compiler_output.code.as_ref().unwrap())
+        to_asm(&*symbol_table, compiler_output.code.as_ref().unwrap()).unwrap()
     };
 
     println!("Program:\n{}\n", asm);
@@ -322,8 +314,23 @@ pub fn constants_test_unoptimized() {
 }
 
 #[test]
+pub fn constants_test_optimized() {
+    let emulator = emulate!(optimized: constants_test);
+    assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(15u8, emulator.cpu.bus.read_byte(0x0201));
+    assert_eq!(3u8, emulator.cpu.bus.read_byte(0x0202));
+}
+
+#[test]
 pub fn word_test_unoptimized() {
     let emulator = emulate!(unoptimized: word_test);
+    assert_eq!(0xBBu8, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(0xAAu8, emulator.cpu.bus.read_byte(0x0201));
+}
+
+#[test]
+pub fn word_test_optimized() {
+    let emulator = emulate!(optimized: word_test);
     assert_eq!(0xBBu8, emulator.cpu.bus.read_byte(0x0200));
     assert_eq!(0xAAu8, emulator.cpu.bus.read_byte(0x0201));
 }
@@ -344,4 +351,16 @@ pub fn array_test_optimized() {
         assert_eq!((i + 1) as u8, emulator.cpu.bus.read_byte(0x0200 + i));
     }
     assert_eq!(6, emulator.cpu.bus.read_byte(0x0250));
+}
+
+#[test]
+pub fn string_test_unoptimized() {
+    let emulator = emulate!(unoptimized: string_test);
+    assert_eq!(12, emulator.cpu.bus.read_byte(0x0200));
+}
+
+#[test]
+pub fn string_test_optimized() {
+    let emulator = emulate!(optimized: string_test);
+    assert_eq!(12, emulator.cpu.bus.read_byte(0x0200));
 }

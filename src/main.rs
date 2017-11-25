@@ -19,15 +19,7 @@ pub mod llir;
 pub mod parse;
 pub mod src_tag;
 
-use symbol_table::SymbolTable;
-
-fn to_asm(global_symbol_table: &SymbolTable, blocks: &[code::CodeBlock]) -> String {
-    let mut asm = String::new();
-    for block in blocks {
-        asm.push_str(&block.to_asm(global_symbol_table).unwrap());
-    }
-    asm
-}
+use code::to_asm;
 
 fn main() {
     let program = "
@@ -71,11 +63,11 @@ fn main() {
                 .unwrap();
             println!(
                 "\n\n\n\nCODE:\n\n{}",
-                to_asm(&*symbol_table, compiler_output.code.as_ref().unwrap())
+                to_asm(&*symbol_table, compiler_output.code.as_ref().unwrap()).unwrap()
             );
             println!(
                 "\n\n\n\nOPTIMIZED:\n\n{}",
-                to_asm(&*symbol_table, compiler_output.code_opt.as_ref().unwrap())
+                to_asm(&*symbol_table, compiler_output.code_opt.as_ref().unwrap()).unwrap()
             );
             let unoptimized_count = compiler_output
                 .code

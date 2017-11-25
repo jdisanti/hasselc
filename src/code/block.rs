@@ -7,6 +7,8 @@ pub enum Global {
     Resolved(u16),
     UnresolvedBlock,
     UnresolvedSymbol(SymbolRef),
+    UnresolvedSymbolHighByte(SymbolRef),
+    UnresolvedSymbolLowByte(SymbolRef),
 }
 
 impl Global {
@@ -15,6 +17,12 @@ impl Global {
             Global::Resolved(val) => format!("${:04X}", val),
             Global::UnresolvedBlock => String::from("UNRESOLVED_BLOCK"),
             Global::UnresolvedSymbol(symbol) => format!("{}", global_symbol_table.get_symbol_name(symbol).unwrap()),
+            Global::UnresolvedSymbolHighByte(symbol) => {
+                format!("#>{}", global_symbol_table.get_symbol_name(symbol).unwrap())
+            }
+            Global::UnresolvedSymbolLowByte(symbol) => {
+                format!("#<{}", global_symbol_table.get_symbol_name(symbol).unwrap())
+            }
         }
     }
 }
@@ -47,6 +55,8 @@ impl Parameter {
             Parameter::ZeroPageY(offset) => format!("${:02X}, Y", offset),
             Parameter::Absolute(ref gbl) => gbl.to_asm(global_symbol_table),
             Parameter::AbsoluteY(ref gbl) => format!("{}, Y", gbl.to_asm(global_symbol_table)),
+            Parameter::IndirectX(val) => format!("(${:02X}, X)", val),
+            Parameter::IndirectY(val) => format!("(${:02X}), Y", val),
             _ => unimplemented!(),
         }
     }
@@ -165,4 +175,16 @@ impl CodeBlock {
         }
         Ok(asm)
     }
+}
+
+pub fn to_asm(global_symbol_table: &SymbolTable, blocks: &[CodeBlock]) -> error::Result<String> {
+    let mut asm = String::new();
+    for block in blocks {
+        asm.push_str(&block.to_asm(global_symbol_table).unwrap());
+    }
+    for (symbol_ref, text) in global_symbol_table.texts() {
+        let symbol_name = global_symbol_table.get_symbol_name(symbol_ref).unwrap();
+        write!(asm, "\n{}:\t.byte\t\"{}\",0\n", symbol_name, text)?;
+    }
+    Ok(asm)
 }

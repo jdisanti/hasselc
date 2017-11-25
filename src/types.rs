@@ -1,3 +1,5 @@
+use symbol_table::SymbolRef;
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Type {
     U8,
@@ -19,11 +21,17 @@ impl Type {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum AddressOrSymbol {
+    Address(u16),
+    Symbol(SymbolRef),
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum TypedValue {
     UnresolvedInt(i32),
     U8(u8),
     U16(u16),
-    ArrayU8(u16),
+    ArrayU8(AddressOrSymbol),
 }
 
 impl TypedValue {
@@ -47,13 +55,6 @@ impl TypedValue {
         match *self {
             TypedValue::U16(val) => val,
             _ => panic!("expected u16"),
-        }
-    }
-
-    pub fn as_ptr(&self) -> u16 {
-        match *self {
-            TypedValue::ArrayU8(addr) => addr,
-            _ => panic!("expected array/pointer"),
         }
     }
 }

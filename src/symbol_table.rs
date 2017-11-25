@@ -45,6 +45,7 @@ enum Symbol {
     Constant(TypedValue),
     Variable(Variable),
     Function(FunctionMetadataPtr),
+    Text(Arc<String>),
     Block,
 }
 
@@ -97,6 +98,15 @@ impl SymbolMap {
             _ => None,
         }))
     }
+
+    fn texts<'a>(&'a self) -> Box<Iterator<Item = (SymbolRef, Arc<String>)> + 'a> {
+        Box::new(self.by_ref.iter().filter_map(
+            |(symbol_ref, symbol)| match *symbol {
+                Symbol::Text(ref text) => Some((*symbol_ref, Arc::clone(text))),
+                _ => None,
+            },
+        ))
+    }
 }
 
 #[derive(Default, Debug)]
@@ -141,6 +151,9 @@ pub trait SymbolTable: Send + Sync + Debug {
     fn variable_by_name(&self, symbol_name: &SymbolName) -> Option<Variable>;
     fn variable(&self, symbol_ref: SymbolRef) -> Option<Variable>;
     fn variables<'a>(&'a self) -> Box<Iterator<Item = &'a Variable> + 'a>;
+
+    fn insert_text(&mut self, text: Arc<String>) -> SymbolRef;
+    fn texts<'a>(&'a self) -> Box<Iterator<Item = (SymbolRef, Arc<String>)> + 'a>;
 
     fn type_of(&self, symbol_ref: SymbolRef) -> Option<Type>;
     fn type_of_by_name(&self, symbol_name: &SymbolName) -> Option<Type>;
@@ -284,12 +297,25 @@ impl SymbolTable for DefaultSymbolTable {
         self.symbols.variables()
     }
 
+    fn insert_text(&mut self, text: Arc<String>) -> SymbolRef {
+        let symbol_ref = self.handle_gen.write().unwrap().new_handle();
+        let symbol_name = SymbolName::new(format!("__T{:06X}_", symbol_ref));
+        self.symbols
+            .insert(symbol_name, symbol_ref, Symbol::Text(text))
+            .unwrap()
+    }
+
+    fn texts<'a>(&'a self) -> Box<Iterator<Item = (SymbolRef, Arc<String>)> + 'a> {
+        self.symbols.texts()
+    }
+
     fn type_of(&self, symbol_ref: SymbolRef) -> Option<Type> {
         if let Some(symbol) = self.symbols.find_by_ref(symbol_ref) {
             match *symbol {
                 Symbol::Constant(ref data) => Some(data.get_type()),
                 Symbol::Variable(ref data) => Some(data.type_name),
                 Symbol::Function(ref data) => Some(data.read().unwrap().return_type),
+                Symbol::Text(_) => Some(Type::ArrayU8),
                 Symbol::Block => None,
             }
         } else {
@@ -427,6 +453,14 @@ impl SymbolTable for ParentedSymbolTableWrapper {
 
     fn variables<'a>(&'a self) -> Box<Iterator<Item = &'a Variable> + 'a> {
         self.child.variables()
+    }
+
+    fn insert_text(&mut self, text: Arc<String>) -> SymbolRef {
+        self.parent.write().unwrap().insert_text(text)
+    }
+
+    fn texts<'a>(&'a self) -> Box<Iterator<Item = (SymbolRef, Arc<String>)> + 'a> {
+        self.child.texts()
     }
 
     fn type_of(&self, symbol_ref: SymbolRef) -> Option<Type> {

@@ -1,6 +1,15 @@
 Compiler TODO
 -------------
 
+### Minimum viable product
+
+- [X] String constants
+- [ ] CLI for compiling arbitrary files
+- [ ] Configurable runtime environment
+- [ ] Conditions: && and ||
+
+### Other items
+
 - [ ] Error Handling
   - [X] Type checking
   - [X] Fix all error handling unimplemented!() and TODOs
@@ -10,7 +19,6 @@ Compiler TODO
   - [ ] If a void function doesn't have a return statement, generate a RTS instruction at the end
 - [X] Constants
 - [X] Arrays and pointers
-- [ ] String constants
 - [ ] 16-bit numbers
   - [X] Return/assign support
   - [ ] Addition/subtraction
@@ -27,4 +35,3 @@ Compiler TODO
   - [ ] SEC + SBC #1 -> DEC
   - [ ] LDY imm + STA addr,Y -> STA addr + imm
   - [ ] Peephole: Change load/store of absolute address in zero page to use faster zero page access
-- [ ] CLI for compiling arbitrary files

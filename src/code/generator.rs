@@ -4,6 +4,7 @@ use error;
 use llir;
 use symbol_table::{SymbolName, SymbolRef};
 use src_tag::{SrcTag, SrcTagged};
+use types::Type;
 
 pub struct CodeBlockGenerator<'a> {
     llir_blocks: &'a [llir::FrameBlock],
@@ -188,7 +189,7 @@ impl<'a> CodeGenerator<'a> {
                     Parameter::Immediate(val.as_u8()),
                 );
             }
-            llir::Value::Memory(ref location) => {
+            llir::Value::Memory(_typ, ref location) => {
                 self.load_stack_pointer_if_necessary(location)?;
                 let param = self.location_to_parameter(location)?;
                 code_gen(&mut self.registers, &mut self.code, param);
@@ -215,7 +216,7 @@ impl<'a> CodeGenerator<'a> {
                 self.registers
                     .load(&mut self.code, register, Parameter::Immediate(val.as_u8()))
             }
-            llir::Value::Memory(ref location) => match *location {
+            llir::Value::Memory(typ, ref location) => match *location {
                 llir::Location::Global(addr) => self.registers.load(
                     &mut self.code,
                     register,
@@ -235,6 +236,12 @@ impl<'a> CodeGenerator<'a> {
                         Parameter::ZeroPageX(offset - frame_size),
                     );
                 }
+                llir::Location::FrameOffsetIndirect(frame_ref, offset) => {
+                    self.registers.load_dsp(&mut self.code, Register::XIndex);
+                    let dsp_offset = offset - self.lookup_frame_size(frame_ref)?;
+                    self.registers
+                        .load(&mut self.code, register, Parameter::IndirectX(dsp_offset));
+                }
                 llir::Location::FrameOffsetBeforeCall(original_frame, calling_frame, offset) => {
                     let original_frame_size = self.lookup_frame_size(original_frame)?;
                     let call_to_frame_size = self.lookup_frame_size(calling_frame)?;
@@ -251,6 +258,28 @@ impl<'a> CodeGenerator<'a> {
                         &mut self.code,
                         register,
                         Parameter::AbsoluteY(Global::Resolved(addr)),
+                    );
+                }
+                llir::Location::UnresolvedGlobal(symbol_ref) => {
+                    let param = match typ {
+                        Type::U8 => Parameter::Absolute(Global::UnresolvedSymbol(symbol_ref)),
+                        Type::U16 | Type::ArrayU8 => Parameter::Absolute(Global::UnresolvedSymbolLowByte(symbol_ref)),
+                        _ => unimplemented!(),
+                    };
+                    self.registers.load(&mut self.code, register, param);
+                }
+                llir::Location::UnresolvedGlobalLowByte(symbol_ref) => {
+                    self.registers.load(
+                        &mut self.code,
+                        register,
+                        Parameter::Absolute(Global::UnresolvedSymbolLowByte(symbol_ref)),
+                    );
+                }
+                llir::Location::UnresolvedGlobalHighByte(symbol_ref) => {
+                    self.registers.load(
+                        &mut self.code,
+                        register,
+                        Parameter::Absolute(Global::UnresolvedSymbolHighByte(symbol_ref)),
                     );
                 }
                 _ => {

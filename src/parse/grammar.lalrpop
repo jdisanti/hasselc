@@ -16,12 +16,12 @@ use parse::ast::{
     DeclareVariableData,
     Expression,
     GoToData,
-    Literal,
     NameData,
     NameType,
     NumberData,
     OrgData,
     ReturnData,
+    TextData,
     WhileLoopData,
 };
 use types::Type;
@@ -53,11 +53,6 @@ Str: Arc<String> = {
         let len = val.len();
         Arc::new(String::from_str(&val[1..len-1]).unwrap())
     }
-};
-
-Literal: Literal = {
-    Number => Literal::Int(<>),
-    Str => Literal::Str(<>),
 };
 
 Name: Arc<String> = {
@@ -116,6 +111,7 @@ FactorOp: BinaryOperator = {
 Term: Box<Expression> = {
     <t:@L> <n:Number> => Box::new(Expression::Number(NumberData::new(SrcTag(t), n))),
     <t:@L> <n:Name> => Box::new(Expression::Name(NameData::new(SrcTag(t), n))),
+    <t:@L> <s:Str> => Box::new(Expression::Text(TextData::new(SrcTag(t), s))),
     ArrayIndex,
     FunctionCall,
     "(" <Expression> ")",

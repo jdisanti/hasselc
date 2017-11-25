@@ -4,12 +4,6 @@ use src_tag::{SrcTag, SrcTagged};
 use types::Type;
 use error;
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum Literal {
-    Int(i32),
-    Str(Arc<String>),
-}
-
 #[derive(Debug, Clone, Eq, PartialEq, new)]
 pub struct NameType {
     pub name: Arc<String>,
@@ -128,6 +122,12 @@ pub struct ReturnData {
 }
 
 #[derive(Debug, Eq, PartialEq, new)]
+pub struct TextData {
+    pub tag: SrcTag,
+    pub value: Arc<String>,
+}
+
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct WhileLoopData {
     pub tag: SrcTag,
     pub condition: Box<Expression>,
@@ -153,6 +153,7 @@ pub enum Expression {
     Number(NumberData),
     Org(OrgData),
     Return(ReturnData),
+    Text(TextData),
     WhileLoop(WhileLoopData),
 }
 
@@ -175,8 +176,8 @@ impl SrcTagged for Expression {
     fn src_tag(&self) -> SrcTag {
         use self::Expression::*;
         match *self {
-            Assignment(ref d) => d.tag,
             ArrayIndex(ref d) => d.tag,
+            Assignment(ref d) => d.tag,
             BinaryOp(ref d) => d.tag,
             Break => unimplemented!(),
             CallFunction(ref d) => d.tag,
@@ -192,6 +193,7 @@ impl SrcTagged for Expression {
             Number(ref d) => d.tag,
             Org(ref d) => d.tag,
             Return(ref d) => d.tag,
+            Text(ref d) => d.tag,
             WhileLoop(ref d) => d.tag,
         }
     }

@@ -186,17 +186,18 @@ fn generate_copy(
         Type::U8 => {
             statements.push(Statement::Copy(CopyData::new(tag, destination, value)));
         }
-        Type::U16 => {
+        Type::U16 | Type::ArrayU8 => {
             statements.push(Statement::Copy(CopyData::new(
                 tag,
-                destination.offset(1),
+                destination.high_byte(),
                 Value::high_byte(&value),
             )));
-            statements.push(Statement::Copy(
-                CopyData::new(tag, destination, Value::low_byte(&value)),
-            ));
+            statements.push(Statement::Copy(CopyData::new(
+                tag,
+                destination.low_byte(),
+                Value::low_byte(&value),
+            )));
         }
-        Type::ArrayU8 => unimplemented!(),
         Type::Void | Type::Unresolved => unreachable!(),
     }
     Ok(())
@@ -210,7 +211,7 @@ fn resolve_expr_to_location(
 ) -> error::Result<Location> {
     match resolve_expr_to_value(statements, frame_ref, symbol_table, expr)? {
         Value::Immediate(_) => Err(error::ErrorKind::InvalidLeftValue(expr.src_tag()).into()),
-        Value::Memory(location) => Ok(location),
+        Value::Memory(_, location) => Ok(location),
     }
 }
 
@@ -227,14 +228,43 @@ fn resolve_expr_to_value(
             match array.location {
                 symbol_table::Location::UndeterminedGlobal => unreachable!(),
                 symbol_table::Location::Global(addr) => Ok(Value::Memory(
+                    data.value_type,
                     Location::GlobalIndexed(addr, Box::new(index_value)),
                 )),
-                symbol_table::Location::FrameOffset(_) => unimplemented!(),
+                symbol_table::Location::FrameOffset(_) => {
+                    let addr = convert_location(
+                        frame_ref,
+                        &symbol_table.create_temporary_location(Type::ArrayU8),
+                    );
+                    generate_copy(
+                        statements,
+                        data.tag,
+                        Type::ArrayU8,
+                        Value::Memory(Type::ArrayU8, convert_location(frame_ref, &array.location)),
+                        addr.clone(),
+                    )?;
+                    // TODO: Handle full 16-bit addition rather than this limited 1-byte addition
+                    // that will currently break if it crosses a page boundary
+                    statements.push(Statement::Add(BinaryOpData::new(
+                        data.tag,
+                        addr.low_byte(),
+                        Value::Memory(Type::U8, addr.low_byte()),
+                        index_value,
+                    )));
+                    Ok(Value::Memory(
+                        data.value_type,
+                        match addr {
+                            Location::FrameOffset(sym_ref, offset) => Location::FrameOffsetIndirect(sym_ref, offset),
+                            _ => unreachable!(),
+                        },
+                    ))
+                }
             }
         }
         ir::Expr::Number(ref data) => Ok(Value::Immediate(data.value)),
         ir::Expr::Symbol(ref data) => if let Some(ref variable) = symbol_table.variable(data.symbol) {
             Ok(Value::Memory(
+                variable.type_name,
                 convert_location(frame_ref, &variable.location),
             ))
         } else if let Some(ref value) = symbol_table.constant(data.symbol) {
@@ -264,7 +294,7 @@ fn resolve_expr_to_value(
                 ast::BinaryOperator::GreaterThanEqual => statements.push(Statement::CompareGte(bin_op_data)),
                 _ => unimplemented!(),
             };
-            Ok(Value::Memory(dest))
+            Ok(Value::Memory(Type::U8, dest))
         }
         ir::Expr::Call(ref data) => generate_function_call(statements, frame_ref, symbol_table, data),
     }
@@ -306,11 +336,13 @@ fn generate_function_call(
         if !metadata.parameters.is_empty() {
             let mut frame_offset = 0;
             for (i, argument_value) in argument_values.into_iter().enumerate() {
-                statements.push(Statement::Copy(CopyData::new(
+                generate_copy(
+                    statements,
                     call_data.tag,
-                    Location::FrameOffset(function_ref, frame_offset),
+                    argument_value.value_type(),
                     offset_call(function_ref, argument_value),
-                )));
+                    Location::FrameOffset(function_ref, frame_offset),
+                )?;
                 let name_type = &metadata.parameters[i];
                 frame_offset += name_type.type_name.size() as i8;
             }
@@ -333,13 +365,13 @@ fn generate_function_call(
                 statements,
                 call_data.tag,
                 call_data.return_type,
-                Value::Memory(RETURN_LOCATION_LO),
+                Value::Memory(call_data.return_type, RETURN_LOCATION_LO),
                 dest.clone(),
             )?;
 
-            Ok(Value::Memory(dest))
+            Ok(Value::Memory(call_data.return_type, dest))
         } else {
-            Ok(Value::Memory(RETURN_LOCATION_LO))
+            Ok(Value::Memory(call_data.return_type, RETURN_LOCATION_LO))
         }
     } else {
         Err(error::ErrorKind::SymbolNotFound(call_data.tag, SymbolName::clone(&call_data.function)).into())
@@ -348,10 +380,13 @@ fn generate_function_call(
 
 fn offset_call(calling_frame: SymbolRef, value: Value) -> Value {
     match value {
-        Value::Memory(location) => Value::Memory(match location {
-            Location::FrameOffset(frame, offset) => Location::FrameOffsetBeforeCall(frame, calling_frame, offset),
-            _ => location,
-        }),
+        Value::Memory(typ, location) => Value::Memory(
+            typ,
+            match location {
+                Location::FrameOffset(frame, offset) => Location::FrameOffsetBeforeCall(frame, calling_frame, offset),
+                _ => location,
+            },
+        ),
         _ => value,
     }
 }
