@@ -9,7 +9,7 @@ extern crate derive_new;
 #[macro_use]
 extern crate error_chain;
 
-mod symbol_table;
+pub mod symbol_table;
 mod types;
 pub mod code;
 pub mod compiler;

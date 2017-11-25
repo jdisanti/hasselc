@@ -1,7 +1,6 @@
 use std::fmt;
-use std::sync::Arc;
 use src_tag::{SrcTag, SrcTagged};
-use symbol_table::SymbolRef;
+use symbol_table::{SymbolName, SymbolRef};
 use types::TypedValue;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -22,16 +21,12 @@ impl Location {
         use self::Location::*;
         match *self {
             DataStackOffset(offset) => DataStackOffset(offset + offset_by),
-            FrameOffset(ref symbol, offset) => FrameOffset(SymbolRef::clone(symbol), offset + offset_by),
-            FrameOffsetBeforeCall(ref sym1, ref sym2, offset) => FrameOffsetBeforeCall(
-                SymbolRef::clone(sym1),
-                SymbolRef::clone(sym2),
-                offset + offset_by,
-            ),
+            FrameOffset(symbol, offset) => FrameOffset(symbol, offset + offset_by),
+            FrameOffsetBeforeCall(sym1, sym2, offset) => FrameOffsetBeforeCall(sym1, sym2, offset + offset_by),
             Global(offset) => Global((offset as isize + offset_by as isize) as u16),
             GlobalIndexed(offset, ref index) => GlobalIndexed(offset + 1, index.clone()),
             // TODO: Are these unresolved global's useful? They don't seem to work
-            UnresolvedGlobal(ref symbol) => UnresolvedGlobalOffset(SymbolRef::clone(symbol), 1),
+            UnresolvedGlobal(symbol) => UnresolvedGlobalOffset(symbol, 1),
             UnresolvedGlobalIndexed(_, _) => {
                 unimplemented!("this will probably require a refactor to output more statements")
             }
@@ -228,32 +223,40 @@ impl fmt::Debug for Statement {
 
 #[derive(Debug, Clone)]
 pub struct RunBlock {
-    pub name: Arc<String>,
+    pub name: SymbolName,
+    pub symbol: SymbolRef,
     pub statements: Vec<Statement>,
 }
 
 impl RunBlock {
-    pub fn new(name: Arc<String>) -> RunBlock {
+    pub fn new(name: SymbolName, symbol: SymbolRef) -> RunBlock {
         RunBlock {
             name: name,
+            symbol: symbol,
             statements: Vec::new(),
         }
+    }
+
+    pub fn new_tup(tup: (SymbolName, SymbolRef)) -> RunBlock {
+        RunBlock::new(tup.0, tup.1)
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct FrameBlock {
+    pub name: SymbolName,
+    pub symbol: SymbolRef,
     pub location: Location,
-    pub name: Option<Arc<String>>,
     pub runs: Vec<RunBlock>,
     pub frame_size: i8,
 }
 
 impl FrameBlock {
-    pub fn new(name: Option<Arc<String>>, location: Location) -> FrameBlock {
+    pub fn new(name: SymbolName, symbol: SymbolRef, location: Location) -> FrameBlock {
         FrameBlock {
-            location: location,
             name: name,
+            symbol: symbol,
+            location: location,
             runs: Vec::new(),
             frame_size: 0,
         }

@@ -1,9 +1,8 @@
-use std::sync::Arc;
 use code::{Code, CodeBlock, Global, Parameter};
 use code::register::{Register, RegisterAllocator};
 use error;
 use llir;
-use symbol_table::SymbolRef;
+use symbol_table::{SymbolName, SymbolRef};
 use src_tag::{SrcTag, SrcTagged};
 
 pub struct CodeBlockGenerator<'a> {
@@ -24,7 +23,8 @@ impl<'a> CodeBlockGenerator<'a> {
     pub fn generate(mut self) -> error::Result<Vec<CodeBlock>> {
         for frame_block in self.llir_blocks {
             self.code_blocks.push(CodeBlock::new(
-                frame_block.name.clone(),
+                SymbolName::clone(&frame_block.name),
+                frame_block.symbol,
                 match frame_block.location {
                     llir::Location::Global(val) => Some(val),
                     _ => None,
@@ -32,7 +32,7 @@ impl<'a> CodeBlockGenerator<'a> {
             ));
 
             for run_block in &frame_block.runs {
-                let mut code_block = CodeBlock::new(Some(Arc::clone(&run_block.name)), None);
+                let mut code_block = CodeBlock::new(SymbolName::clone(&run_block.name), run_block.symbol, None);
                 code_block.body =
                     CodeGenerator::new(self.original_source, self.llir_blocks).generate(&run_block.statements)?;
                 self.code_blocks.push(code_block);
@@ -91,8 +91,8 @@ impl<'a> CodeGenerator<'a> {
                     self.registers.load_dsp(&mut self.code, Register::Accum);
                     let add_param = Parameter::Immediate(match data.offset {
                         llir::SPOffset::Immediate(val) => val as u8,
-                        llir::SPOffset::FrameSize(ref name) => self.lookup_frame_size(name)? as u8,
-                        llir::SPOffset::NegativeFrameSize(ref name) => -self.lookup_frame_size(name)? as u8,
+                        llir::SPOffset::FrameSize(frame_ref) => self.lookup_frame_size(frame_ref)? as u8,
+                        llir::SPOffset::NegativeFrameSize(frame_ref) => -self.lookup_frame_size(frame_ref)? as u8,
                     });
                     self.registers.add(&mut self.code, add_param);
                     self.registers.save_dsp_later(Register::Accum);
@@ -102,7 +102,7 @@ impl<'a> CodeGenerator<'a> {
                     self.registers.save_all_now(&mut self.code);
                     self.load_into_accum(&data.value)?;
                     self.code.push(Code::Beq(Parameter::Absolute(
-                        Global::UnresolvedName(SymbolRef::clone(&data.destination)),
+                        Global::UnresolvedSymbol(data.destination),
                     )));
                 }
                 llir::Statement::CompareEq(ref data) => {
@@ -152,7 +152,7 @@ impl<'a> CodeGenerator<'a> {
                 llir::Statement::GoTo(ref data) => {
                     self.registers.save_all_and_reset(&mut self.code);
                     self.code.push(Code::Jmp(Parameter::Absolute(
-                        Global::UnresolvedName(SymbolRef::clone(&data.destination)),
+                        Global::UnresolvedSymbol(data.destination),
                     )));
                 }
                 llir::Statement::JumpRoutine(ref data) => {
@@ -160,9 +160,7 @@ impl<'a> CodeGenerator<'a> {
                     self.code
                         .push(Code::Jsr(Parameter::Absolute(match data.destination {
                             llir::Location::Global(addr) => Global::Resolved(addr),
-                            llir::Location::UnresolvedGlobal(ref name) => {
-                                Global::UnresolvedName(SymbolRef::clone(name))
-                            }
+                            llir::Location::UnresolvedGlobal(symbol) => Global::UnresolvedSymbol(symbol),
                             _ => unreachable!(),
                         })));
                 }
@@ -228,16 +226,16 @@ impl<'a> CodeGenerator<'a> {
                     self.registers
                         .load(&mut self.code, register, Parameter::ZeroPageX(offset));
                 }
-                llir::Location::FrameOffset(ref frame, offset) => {
+                llir::Location::FrameOffset(frame_ref, offset) => {
                     self.registers.load_dsp(&mut self.code, Register::XIndex);
-                    let frame_size = self.lookup_frame_size(frame)?;
+                    let frame_size = self.lookup_frame_size(frame_ref)?;
                     self.registers.load(
                         &mut self.code,
                         register,
                         Parameter::ZeroPageX(offset - frame_size),
                     );
                 }
-                llir::Location::FrameOffsetBeforeCall(ref original_frame, ref calling_frame, offset) => {
+                llir::Location::FrameOffsetBeforeCall(original_frame, calling_frame, offset) => {
                     let original_frame_size = self.lookup_frame_size(original_frame)?;
                     let call_to_frame_size = self.lookup_frame_size(calling_frame)?;
                     self.registers.load_dsp(&mut self.code, Register::XIndex);
@@ -271,9 +269,9 @@ impl<'a> CodeGenerator<'a> {
         Ok(())
     }
 
-    fn lookup_frame_size(&self, name: &SymbolRef) -> error::Result<i8> {
+    fn lookup_frame_size(&self, symbol: SymbolRef) -> error::Result<i8> {
         for block in self.llir_blocks {
-            if block.name.is_some() && block.name.as_ref().unwrap() == name {
+            if block.symbol == symbol {
                 return Ok(block.frame_size);
             }
         }
@@ -298,17 +296,13 @@ impl<'a> CodeGenerator<'a> {
                 Ok(Parameter::AbsoluteY(Global::Resolved(addr)))
             }
             llir::Location::DataStackOffset(offset) => Ok(Parameter::ZeroPageX(offset)),
-            llir::Location::FrameOffset(ref frame, offset) => Ok(Parameter::ZeroPageX(
-                offset - self.lookup_frame_size(frame)?,
+            llir::Location::FrameOffset(frame_ref, offset) => Ok(Parameter::ZeroPageX(
+                offset - self.lookup_frame_size(frame_ref)?,
             )),
-            llir::Location::UnresolvedGlobal(ref symbol) => Ok(Parameter::Absolute(
-                Global::UnresolvedName(SymbolRef::clone(symbol)),
-            )),
-            llir::Location::UnresolvedGlobalIndexed(ref symbol, ref index) => {
+            llir::Location::UnresolvedGlobal(symbol) => Ok(Parameter::Absolute(Global::UnresolvedSymbol(symbol))),
+            llir::Location::UnresolvedGlobalIndexed(symbol, ref index) => {
                 self.load_value(Register::YIndex, index)?;
-                Ok(Parameter::Absolute(
-                    Global::UnresolvedName(SymbolRef::clone(symbol)),
-                ))
+                Ok(Parameter::Absolute(Global::UnresolvedSymbol(symbol)))
             }
             _ => {
                 println!("WARN: Unimplemented location_to_parameter: {:?}", location);

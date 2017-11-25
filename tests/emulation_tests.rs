@@ -8,6 +8,7 @@ use std::process;
 use std::io::prelude::*;
 use emulator::cpu::Cpu;
 use emulator::bus::{Bus, PlaceholderBus};
+use compiler::symbol_table::SymbolTable;
 
 pub const ROM_SIZE: usize = 0x2000;
 
@@ -50,10 +51,10 @@ impl Emulator {
     }
 }
 
-fn to_asm(blocks: &[compiler::code::CodeBlock]) -> String {
+fn to_asm(global_symbol_table: &SymbolTable, blocks: &[compiler::code::CodeBlock]) -> String {
     let mut asm = String::new();
     for block in blocks {
-        asm.push_str(&block.to_asm().unwrap());
+        asm.push_str(&block.to_asm(global_symbol_table).unwrap());
     }
     asm
 }
@@ -78,10 +79,16 @@ fn assembler_name() -> &'static str {
 fn assemble(name: &str, program: &str, optimize_llir: bool, optimize_code: bool) -> Vec<u8> {
     let compiler_output = compile(program, optimize_llir, optimize_code);
 
+    let symbol_table = compiler_output
+        .global_symbol_table
+        .as_ref()
+        .unwrap()
+        .read()
+        .unwrap();
     let asm = if optimize_code {
-        to_asm(compiler_output.code_opt.as_ref().unwrap())
+        to_asm(&*symbol_table, compiler_output.code_opt.as_ref().unwrap())
     } else {
-        to_asm(compiler_output.code.as_ref().unwrap())
+        to_asm(&*symbol_table, compiler_output.code.as_ref().unwrap())
     };
 
     println!("Program:\n{}\n", asm);

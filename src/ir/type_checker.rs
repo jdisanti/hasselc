@@ -3,13 +3,13 @@ use num_traits::*;
 use error::{self, ErrorKind};
 use ir::block::{Block, CallData, Expr, Statement};
 use src_tag::{SrcTag, SrcTagged};
-use symbol_table::{SymbolRef, SymbolTable};
+use symbol_table::{SymbolName, SymbolTable};
 use types::{Type, TypedValue};
 
 pub fn resolve_types(blocks: &mut Vec<Block>) -> error::Result<()> {
     for block in blocks {
         resolve_statements(
-            &block.symbol_table.read().unwrap(),
+            &*block.symbol_table.read().unwrap(),
             block.metadata.read().unwrap().return_type,
             &mut block.body,
         )?;
@@ -66,19 +66,17 @@ fn resolve_left_value(symbol_table: &SymbolTable, expression: &mut Expr) -> erro
     use ir::block::Expr::*;
 
     match *expression {
-        Symbol(ref mut data) => if let Some(variable) = symbol_table.variable(&data.name) {
+        Symbol(ref mut data) => {
+            let variable = symbol_table.variable(data.symbol).unwrap();
             data.value_type = variable.type_name;
             Ok(data.value_type)
-        } else {
-            Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.name)).into())
-        },
-        ArrayIndex(ref mut data) => if let Some(array) = symbol_table.variable(&data.array) {
+        }
+        ArrayIndex(ref mut data) => {
+            let array = symbol_table.variable(data.array).unwrap();
             resolve_expression(symbol_table, Type::U8, &mut *data.index)?;
             data.value_type = array.type_name;
             Ok(data.value_type)
-        } else {
-            Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.array)).into())
-        },
+        }
         _ => Err(ErrorKind::InvalidLeftValue(expression.src_tag()).into()),
     }
 }
@@ -87,21 +85,18 @@ fn resolve_expression(symbol_table: &SymbolTable, required_type: Type, expressio
     use ir::block::Expr::*;
 
     match *expression {
-        ArrayIndex(ref mut data) => match symbol_table.type_of(&data.array) {
-            Some(_) => resolve_expression(symbol_table, required_type, &mut *data.index)?,
-            None => return Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.array)).into()),
-        },
+        ArrayIndex(ref mut data) => resolve_expression(symbol_table, required_type, &mut *data.index)?,
         BinaryOp(ref mut data) => {
             resolve_expression(symbol_table, required_type, &mut *data.left)?;
             resolve_expression(symbol_table, required_type, &mut *data.right)?;
         }
         Call(ref mut data) => {
             resolve_call(symbol_table, data)?;
-            match symbol_table.type_of(&data.function) {
+            match symbol_table.type_of_by_name(&data.function) {
                 Some(typ) => if required_type != typ {
                     return Err(ErrorKind::TypeError(data.tag, required_type, typ).into());
                 },
-                None => return Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.function)).into()),
+                None => return Err(ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.function)).into()),
             }
         }
         Number(ref mut data) => {
@@ -116,30 +111,28 @@ fn resolve_expression(symbol_table: &SymbolTable, required_type: Type, expressio
                 Type::Unresolved | Type::Void => unreachable!(),
             };
         }
-        Symbol(ref mut data) => match symbol_table.type_of(&data.name) {
-            Some(typ) => if required_type != typ {
+        Symbol(ref mut data) => {
+            let typ = symbol_table.type_of(data.symbol).unwrap();
+            if required_type != typ {
                 return Err(ErrorKind::TypeError(data.tag, required_type, typ).into());
             } else {
                 data.value_type = typ;
-            },
-            None => {
-                return Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.name)).into());
             }
-        },
+        }
     }
 
     Ok(())
 }
 
 fn resolve_call(symbol_table: &SymbolTable, call_data: &mut CallData) -> error::Result<()> {
-    if let Some(function) = symbol_table.function(&call_data.function) {
+    if let Some(function) = symbol_table.function_by_name(&call_data.function) {
         call_data.return_type = function.read().unwrap().return_type;
         let arguments = &function.read().unwrap().parameters;
         if arguments.len() != call_data.arguments.len() {
             return Err(
                 ErrorKind::ExpectedNArgumentsGotM(
                     call_data.tag,
-                    SymbolRef::clone(&call_data.function),
+                    SymbolName::clone(&call_data.function),
                     arguments.len(),
                     call_data.arguments.len(),
                 ).into(),
@@ -154,7 +147,7 @@ fn resolve_call(symbol_table: &SymbolTable, call_data: &mut CallData) -> error::
         }
         Ok(())
     } else {
-        Err(ErrorKind::SymbolNotFound(call_data.tag, SymbolRef::clone(&call_data.function)).into())
+        Err(ErrorKind::SymbolNotFound(call_data.tag, SymbolName::clone(&call_data.function)).into())
     }
 }
 

@@ -242,12 +242,19 @@ impl RegisterAllocator {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, RwLock};
     use super::*;
     use code::CodeBlock;
+    use symbol_table::{DefaultSymbolTable, HandleGenerator, SymbolName};
+
+    fn symbol_table() -> DefaultSymbolTable {
+        let handle_gen = Arc::new(RwLock::new(HandleGenerator::new()));
+        DefaultSymbolTable::new(handle_gen, 0)
+    }
 
     #[test]
     fn store_then_load_equivalency() {
-        let mut code_block = CodeBlock::new(None, None);
+        let mut code_block = CodeBlock::new(SymbolName::new("test".into()), 1, None);
         let mut registers = RegisterAllocator::new();
 
         registers.load(
@@ -264,17 +271,17 @@ mod tests {
         );
 
         assert_eq!(
-            "\
+            "\ntest:\n\
              \tLDA\t$05\n\
              \tCLC\t\n\
              \tADC\t$06\n",
-            code_block.to_asm().unwrap()
+            code_block.to_asm(&symbol_table()).unwrap()
         );
     }
 
     #[test]
     fn save_as_necessary_a_only() {
-        let mut code_block = CodeBlock::new(None, None);
+        let mut code_block = CodeBlock::new(SymbolName::new("test".into()), 1, None);
         let mut registers = RegisterAllocator::new();
 
         registers.load(
@@ -290,17 +297,17 @@ mod tests {
         );
 
         assert_eq!(
-            "\
+            "\ntest:\n\
              \tLDA\t#0\n\
              \tSTA\t$00\n\
              \tLDA\t#1\n",
-            code_block.to_asm().unwrap()
+            code_block.to_asm(&symbol_table()).unwrap()
         );
     }
 
     #[test]
     fn save_as_necessary_x_change() {
-        let mut code_block = CodeBlock::new(None, None);
+        let mut code_block = CodeBlock::new(SymbolName::new("test".into()), 1, None);
         let mut registers = RegisterAllocator::new();
 
         registers.load(
@@ -321,12 +328,12 @@ mod tests {
         );
 
         assert_eq!(
-            "\
+            "\ntest:\n\
              \tLDX\t#0\n\
              \tLDA\t#5\n\
              \tSTA\t$02, X\n\
              \tLDX\t#1\n",
-            code_block.to_asm().unwrap()
+            code_block.to_asm(&symbol_table()).unwrap()
         );
     }
 }

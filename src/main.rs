@@ -19,10 +19,12 @@ pub mod llir;
 pub mod parse;
 pub mod src_tag;
 
-fn to_asm(blocks: &[code::CodeBlock]) -> String {
+use symbol_table::SymbolTable;
+
+fn to_asm(global_symbol_table: &SymbolTable, blocks: &[code::CodeBlock]) -> String {
     let mut asm = String::new();
     for block in blocks {
-        asm.push_str(&block.to_asm().unwrap());
+        asm.push_str(&block.to_asm(global_symbol_table).unwrap());
     }
     asm
 }
@@ -60,13 +62,20 @@ fn main() {
             println!("\n\n\n\nIR: {:#?}", compiler_output.ir);
             println!("\n\n\n\nLLIR: {:#?}", compiler_output.llir);
             println!("\n\n\n\nOPTIMIZED LLIR: {:#?}", compiler_output.llir_opt);
+
+            let symbol_table = compiler_output
+                .global_symbol_table
+                .as_ref()
+                .unwrap()
+                .read()
+                .unwrap();
             println!(
                 "\n\n\n\nCODE:\n\n{}",
-                to_asm(compiler_output.code.as_ref().unwrap())
+                to_asm(&*symbol_table, compiler_output.code.as_ref().unwrap())
             );
             println!(
                 "\n\n\n\nOPTIMIZED:\n\n{}",
-                to_asm(compiler_output.code_opt.as_ref().unwrap())
+                to_asm(&*symbol_table, compiler_output.code_opt.as_ref().unwrap())
             );
             let unoptimized_count = compiler_output
                 .code

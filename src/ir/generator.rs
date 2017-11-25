@@ -4,12 +4,14 @@ use error::{self, ErrorKind};
 use ir;
 use parse::ast;
 use src_tag::{SrcTag, SrcTagged};
-use symbol_table::{FunctionMetadata, Location, SymbolRef, SymbolTable, Variable};
+use symbol_table::{FunctionMetadata, FunctionMetadataPtr, Location, SymbolName, SymbolTable, Variable};
 use types::{Type, TypedValue};
 
-pub fn generate(input: &[ast::Expression]) -> error::Result<Vec<ir::Block>> {
-    let global_symbol_table = Arc::new(RwLock::new(SymbolTable::new()));
-    let mut blocks = vec![ir::Block::new_anonymous(Arc::clone(&global_symbol_table))];
+pub fn generate(
+    global_symbol_table: &Arc<RwLock<SymbolTable>>,
+    input: &[ast::Expression],
+) -> error::Result<Vec<ir::Block>> {
+    let mut blocks = vec![ir::Block::new_anonymous(Arc::clone(global_symbol_table))];
 
     for ast_expr in input {
         match *ast_expr {
@@ -21,7 +23,7 @@ pub fn generate(input: &[ast::Expression]) -> error::Result<Vec<ir::Block>> {
                     None
                 };
 
-                let symbol_ref = SymbolRef::clone(&data.name);
+                let symbol_name = SymbolName::clone(&data.name);
                 let metadata = Arc::new(RwLock::new(FunctionMetadata {
                     name: Arc::clone(&data.name),
                     location: location,
@@ -30,23 +32,25 @@ pub fn generate(input: &[ast::Expression]) -> error::Result<Vec<ir::Block>> {
                     frame_size: 127, // 127 is an intentional non-sensical value
                 }));
 
-                let mut function = ir::Block::new_named(
-                    data.tag,
-                    Arc::clone(&global_symbol_table),
-                    location,
-                    Arc::clone(&metadata),
-                )?;
-                if !global_symbol_table
-                    .write()
-                    .unwrap()
-                    .insert_function(Arc::clone(&symbol_ref), Arc::clone(&metadata))
-                {
-                    return Err(ErrorKind::DuplicateSymbol(data.tag, Arc::clone(&symbol_ref)).into());
-                }
+                let optional_function_ref = global_symbol_table.write().unwrap().insert_function(
+                    SymbolName::clone(&symbol_name),
+                    FunctionMetadataPtr::clone(&metadata),
+                );
+                if let Some(function_ref) = optional_function_ref {
+                    let mut function = ir::Block::new_named(
+                        data.tag,
+                        function_ref,
+                        Arc::clone(global_symbol_table),
+                        location,
+                        FunctionMetadataPtr::clone(&metadata),
+                    )?;
 
-                let body_ir = generate_statement_irs(&mut *function.symbol_table.write().unwrap(), &data.body)?;
-                function.body.extend(body_ir);
-                blocks.push(function);
+                    let body_ir = generate_statement_irs(&mut *function.symbol_table.write().unwrap(), &data.body)?;
+                    function.body.extend(body_ir);
+                    blocks.push(function);
+                } else {
+                    return Err(ErrorKind::DuplicateSymbol(data.tag, Arc::clone(&symbol_name)).into());
+                }
             }
             ast::Expression::Org(ref data) => {
                 if data.address < 0x200 || data.address > 0xFFFF {
@@ -87,8 +91,8 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
     let mut statements: Vec<ir::Statement> = vec![];
     match *input {
         ast::Expression::Assignment(ref data) => {
-            let left_value = generate_expression(&data.left_value);
-            let right_value = generate_expression(&data.right_value);
+            let left_value = generate_expression(symbol_table, &data.left_value)?;
+            let right_value = generate_expression(symbol_table, &data.right_value)?;
             statements.push(ir::Statement::Assign(ir::AssignData::new(
                 data.tag,
                 Type::Unresolved,
@@ -102,14 +106,14 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
         ast::Expression::CallFunction(ref data) => {
             let stmt = ir::Statement::Call(ir::CallData::new(
                 data.tag,
-                SymbolRef::clone(&data.name),
-                generate_expressions(&data.arguments),
+                SymbolName::clone(&data.name),
+                generate_expressions(symbol_table, &data.arguments)?,
                 Type::Unresolved,
             ));
             statements.push(stmt);
         }
         ast::Expression::Conditional(ref data) => {
-            let condition = generate_expression(&data.condition);
+            let condition = generate_expression(symbol_table, &data.condition)?;
             let when_true = generate_statement_irs(symbol_table, &data.when_true)?;
             let when_false = generate_statement_irs(symbol_table, &data.when_false)?;
             statements.push(ir::Statement::Conditional(ir::ConditionalData::new(
@@ -120,50 +124,56 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
             )));
         }
         ast::Expression::DeclareConst(ref data) => {
-            let symbol_ref = SymbolRef::clone(&data.name_type.name);
+            let symbol_name = SymbolName::clone(&data.name_type.name);
             let value = constant_eval(symbol_table, data.name_type.type_name, &*data.value)?;
-            if !symbol_table.insert_constant(SymbolRef::clone(&symbol_ref), value) {
-                return Err(ErrorKind::DuplicateSymbol(data.tag, SymbolRef::clone(&data.name_type.name)).into());
+            if symbol_table
+                .insert_constant(SymbolName::clone(&symbol_name), value)
+                .is_none()
+            {
+                return Err(ErrorKind::DuplicateSymbol(data.tag, SymbolName::clone(&data.name_type.name)).into());
             }
         }
         ast::Expression::DeclareVariable(ref data) => {
-            let symbol_ref = SymbolRef::clone(&data.name_type.name);
+            let symbol_name = SymbolName::clone(&data.name_type.name);
             let next_location = symbol_table.next_frame_offset(data.name_type.type_name.size());
             let variable = Variable::new(
                 data.name_type.type_name,
                 Location::FrameOffset(next_location as i8),
             );
-            if !symbol_table.insert_variable(SymbolRef::clone(&symbol_ref), variable) {
-                return Err(ErrorKind::DuplicateSymbol(data.tag, SymbolRef::clone(&data.name_type.name)).into());
+            if let Some(symbol_ref) = symbol_table.insert_variable(SymbolName::clone(&symbol_name), variable) {
+                let assignment = ir::Statement::Assign(ir::AssignData::new(
+                    data.tag,
+                    Type::Unresolved,
+                    ir::Expr::Symbol(ir::SymbolData::new(data.tag, symbol_ref, Type::Unresolved)),
+                    generate_expression(symbol_table, &data.value)?,
+                ));
+                statements.push(assignment);
+            } else {
+                return Err(ErrorKind::DuplicateSymbol(data.tag, SymbolName::clone(&data.name_type.name)).into());
             }
-
-            let assignment = ir::Statement::Assign(ir::AssignData::new(
-                data.tag,
-                Type::Unresolved,
-                ir::Expr::Symbol(ir::SymbolData::new(data.tag, symbol_ref, Type::Unresolved)),
-                generate_expression(&data.value),
-            ));
-            statements.push(assignment);
         }
+
         ast::Expression::DeclareRegister(ref data) => {
             if data.location < 0 || data.location > 0xFFFF {
                 return Err(ErrorKind::OutOfBounds(data.tag, data.location as isize, 0, 0xFFFF).into());
             }
-            let symbol_ref = SymbolRef::clone(&data.name_type.name);
+            let symbol_name = SymbolName::clone(&data.name_type.name);
             let variable = Variable::new(
                 data.name_type.type_name,
                 Location::Global(data.location as u16),
             );
-            if !symbol_table.insert_variable(symbol_ref, variable) {
-                return Err(ErrorKind::DuplicateSymbol(data.tag, Arc::clone(&data.name_type.name)).into());
+            if symbol_table.insert_variable(symbol_name, variable).is_none() {
+                return Err(ErrorKind::DuplicateSymbol(data.tag, SymbolName::clone(&data.name_type.name)).into());
             }
         }
         ast::Expression::Return(ref data) => {
-            statements.push(ir::Statement::Return(ir::ReturnData::new(
-                data.tag,
-                Type::Unresolved,
-                data.value.as_ref().map(|e| generate_expression(e)),
-            )));
+            let value = match data.value {
+                Some(ref val) => Some(generate_expression(symbol_table, val)?),
+                None => None,
+            };
+            statements.push(ir::Statement::Return(
+                ir::ReturnData::new(data.tag, Type::Unresolved, value),
+            ));
         }
         ast::Expression::GoTo(ref data) => {
             statements.push(ir::Statement::GoTo(
@@ -171,7 +181,7 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
             ));
         }
         ast::Expression::WhileLoop(ref data) => {
-            let condition = generate_expression(&data.condition);
+            let condition = generate_expression(symbol_table, &data.condition)?;
             let body = generate_statement_irs(symbol_table, &data.body)?;
             statements.push(ir::Statement::WhileLoop(
                 ir::WhileLoopData::new(data.tag, condition, body),
@@ -192,7 +202,6 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
 
 fn constant_eval(symbol_table: &SymbolTable, type_name: Type, input: &ast::Expression) -> error::Result<TypedValue> {
     match *input {
-        ast::Expression::Number(ref data) => constant_eval_number(type_name, data),
         ast::Expression::BinaryOp(ref data) => {
             let left = constant_eval(symbol_table, type_name, &*data.left)?;
             let right = constant_eval(symbol_table, type_name, &*data.right)?;
@@ -214,10 +223,11 @@ fn constant_eval(symbol_table: &SymbolTable, type_name: Type, input: &ast::Expre
                 Type::Unresolved => unreachable!(),
             }
         }
-        ast::Expression::Name(ref data) => match symbol_table.constant(&data.name) {
+        ast::Expression::Name(ref data) => match symbol_table.constant_by_name(&data.name) {
             Some(constant) => Ok(constant),
-            None => Err(ErrorKind::SymbolNotFound(data.tag, SymbolRef::clone(&data.name)).into()),
-        },
+            None => Err(ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.name)).into()),
+        }
+        ast::Expression::Number(ref data) => constant_eval_number(type_name, data),
         _ => Err(ErrorKind::ConstEvaluationFailed(input.src_tag()).into()),
     }
 }
@@ -297,46 +307,52 @@ fn constant_eval_binop<N: PrimInt>(tag: SrcTag, op: ast::BinaryOperator, left: N
     }
 }
 
-fn generate_expressions(input: &[ast::Expression]) -> Vec<ir::Expr> {
+fn generate_expressions(symbol_table: &SymbolTable, input: &[ast::Expression]) -> error::Result<Vec<ir::Expr>> {
     let mut result = Vec::new();
     for expression in input {
-        result.push(generate_expression(expression));
+        result.push(generate_expression(symbol_table, expression)?);
     }
-    result
+    Ok(result)
 }
 
-fn generate_expression(input: &ast::Expression) -> ir::Expr {
+fn generate_expression(symbol_table: &SymbolTable, input: &ast::Expression) -> error::Result<ir::Expr> {
     match *input {
-        ast::Expression::ArrayIndex(ref data) => ir::Expr::ArrayIndex(ir::ArrayIndexData::new(
-            data.tag,
-            SymbolRef::clone(&data.array),
-            Box::new(generate_expression(&data.index)),
-            Type::Unresolved,
-        )),
-        ast::Expression::BinaryOp(ref data) => ir::Expr::BinaryOp(ir::BinaryOpData::new(
+        ast::Expression::ArrayIndex(ref data) => if let Some(symbol_ref) = symbol_table.find_symbol(&data.array) {
+            Ok(ir::Expr::ArrayIndex(ir::ArrayIndexData::new(
+                data.tag,
+                symbol_ref,
+                Box::new(generate_expression(symbol_table, &data.index)?),
+                Type::Unresolved,
+            )))
+        } else {
+            Err(ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.array)).into())
+        },
+        ast::Expression::BinaryOp(ref data) => Ok(ir::Expr::BinaryOp(ir::BinaryOpData::new(
             data.tag,
             data.op,
-            Box::new(generate_expression(&data.left)),
-            Box::new(generate_expression(&data.right)),
-        )),
-        ast::Expression::Name(ref data) => ir::Expr::Symbol(ir::SymbolData::new(
-            data.tag,
-            SymbolRef::clone(&data.name),
-            Type::Unresolved,
-        )),
-        ast::Expression::Number(ref data) => ir::Expr::Number(ir::NumberData::new(
+            Box::new(generate_expression(symbol_table, &data.left)?),
+            Box::new(generate_expression(symbol_table, &data.right)?),
+        ))),
+        ast::Expression::Name(ref data) => if let Some(symbol_ref) = symbol_table.find_symbol(&data.name) {
+            Ok(ir::Expr::Symbol(
+                ir::SymbolData::new(data.tag, symbol_ref, Type::Unresolved),
+            ))
+        } else {
+            Err(ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.name)).into())
+        },
+        ast::Expression::Number(ref data) => Ok(ir::Expr::Number(ir::NumberData::new(
             data.tag,
             TypedValue::UnresolvedInt(data.value),
-        )),
+        ))),
         ast::Expression::CallFunction(ref data) => {
-            let function = SymbolRef::clone(&data.name);
-            let args = generate_expressions(&data.arguments);
-            ir::Expr::Call(ir::CallData::new(
+            let function = SymbolName::clone(&data.name);
+            let args = generate_expressions(symbol_table, &data.arguments)?;
+            Ok(ir::Expr::Call(ir::CallData::new(
                 data.tag,
                 function,
                 args,
                 Type::Unresolved,
-            ))
+            )))
         }
         _ => panic!("not an expression: {:?}", input),
     }
