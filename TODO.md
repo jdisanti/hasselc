@@ -4,7 +4,7 @@ Compiler TODO
 ### Minimum viable product
 
 - [X] String constants
-- [ ] CLI for compiling arbitrary files
+- [X] CLI for compiling arbitrary files
 - [ ] Configurable runtime environment
 - [ ] Conditions: && and ||
 
