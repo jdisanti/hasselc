@@ -173,6 +173,11 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
                 ir::GoToData::new(data.tag, Arc::clone(&data.destination)),
             ));
         }
+        ast::Expression::InlineAsm(ref data) => {
+            statements.push(ir::Statement::InlineAsm(
+                ir::InlineAsmData::new(data.tag, Arc::clone(&data.asm)),
+            ));
+        }
         ast::Expression::Return(ref data) => {
             let value = match data.value {
                 Some(ref val) => Some(generate_expression(symbol_table, val)?),

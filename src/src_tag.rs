@@ -1,10 +1,23 @@
 /// Represents the character offset in the program code where something is located
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct SrcTag(pub usize);
+pub struct SrcTag {
+    pub unit: usize,
+    pub offset: usize,
+}
 
 impl SrcTag {
+    pub fn new(unit: usize, offset: usize) -> SrcTag {
+        SrcTag {
+            unit: unit,
+            offset: offset,
+        }
+    }
+
     pub fn invalid() -> SrcTag {
-        SrcTag(usize::max_value())
+        SrcTag {
+            unit: usize::max_value(),
+            offset: usize::max_value(),
+        }
     }
 
     /// Returns the (row, column) of this tag in the given program text
@@ -12,7 +25,7 @@ impl SrcTag {
         let mut row: usize = 1;
         let mut col: usize = 1;
 
-        for i in 0..self.0 {
+        for i in 0..self.offset {
             if &program[i..i + 1] == "\n" {
                 row += 1;
                 col = 1;
@@ -26,9 +39,9 @@ impl SrcTag {
 
     /// Given the source program, returns the line of code that the tag points to
     pub fn line<'a>(&self, source: &'a str) -> &'a str {
-        match source[self.0..].find('\n') {
-            Some(end_index) => &source[self.0..(self.0 + end_index)],
-            None => &source[self.0..],
+        match source[self.offset..].find('\n') {
+            Some(end_index) => &source[self.offset..(self.offset + end_index)],
+            None => &source[self.offset..],
         }
     }
 }
@@ -48,9 +61,9 @@ mod tests {
                    l2\n\
                    l3\
                    ";
-        let tag1 = SrcTag(0);
-        let tag2 = SrcTag(3);
-        let tag3 = SrcTag(6);
+        let tag1 = SrcTag::new(0, 0);
+        let tag2 = SrcTag::new(0, 3);
+        let tag3 = SrcTag::new(0, 6);
 
         assert_eq!("l1", tag1.line(src));
         assert_eq!("l2", tag2.line(src));

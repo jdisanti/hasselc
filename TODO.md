@@ -5,7 +5,7 @@ Compiler TODO
 
 - [X] String constants
 - [X] CLI for compiling arbitrary files
-- [ ] Configurable runtime environment
+- [X] Configurable runtime environment
 - [ ] Conditions: && and ||
 
 ### Other items

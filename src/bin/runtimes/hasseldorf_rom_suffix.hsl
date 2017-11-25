@@ -1,0 +1,9 @@
+# TODO: Figure out how to set the interrupt handler to
+# a user defined function
+inline_asm "
+.advance    $FFFA
+.org        $FFFA
+.word       __rt_halt_
+.word       $E000
+.word       $E000
+";

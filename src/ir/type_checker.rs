@@ -56,7 +56,7 @@ fn resolve_statement(symbol_table: &SymbolTable, return_type: Type, statement: &
             resolve_expression(symbol_table, Type::U8, &mut data.condition)?;
             resolve_statements(symbol_table, return_type, &mut data.body)?;
         }
-        Break | GoTo(_) => {}
+        Break | GoTo(_) | InlineAsm(_) => {}
     }
 
     Ok(())

@@ -5,8 +5,35 @@ extern crate clap;
 
 use std::fs::File;
 use std::io::prelude::*;
+use std::process;
 
 use compiler::code::to_asm;
+use compiler::Compiler;
+use compiler::error;
+
+const RUNTIME_NONE: (&'static str, &'static str, &'static str,) = ("no_rt", "", "");
+const RUNTIME_HASSELDORF: (&'static str, &'static str, &'static str) = (
+    "hasseldorf_rt",
+    include_str!("./runtimes/hasseldorf_prefix.hsl"),
+    include_str!("./runtimes/hasseldorf_suffix.hsl"),
+);
+const RUNTIME_HASSELDORF_ROM: (&'static str, &'static str, &'static str) = (
+    "hasseldorf_rom_rt",
+    include_str!("./runtimes/hasseldorf_rom_prefix.hsl"),
+    include_str!("./runtimes/hasseldorf_rom_suffix.hsl"),
+);
+
+fn die(err: error::Error) -> ! {
+    println!("{}", err.0);
+    process::exit(1);
+}
+
+fn handle_result<T>(result: error::Result<T>) -> T {
+    match result {
+        Ok(t) => t,
+        Err(err) => die(err),
+    }
+}
 
 fn main() {
     let cli_app = clap_app!(hasselc =>
@@ -18,8 +45,9 @@ fn main() {
         (@arg OUTPUT: -o --output +takes_value "Sets output file name; otherwise outputs to STDOUT"));
     let cli_matches = cli_app.get_matches();
 
+    let input_name = cli_matches.value_of("INPUT").unwrap();
     let input_source = {
-        let mut file = match File::open(cli_matches.value_of("INPUT").unwrap()) {
+        let mut file = match File::open(input_name) {
             Ok(file) => file,
             Err(e) => {
                 println!("Failed to open input source file: {}", e);
@@ -34,20 +62,28 @@ fn main() {
         file_contents
     };
 
-    let optimized_asm = match compiler::compile(&input_source, true, true) {
-        Ok(compiler_output) => {
-            let symbol_table = compiler_output
-                .global_symbol_table
-                .as_ref()
-                .unwrap()
-                .read()
-                .unwrap();
-            to_asm(&*symbol_table, compiler_output.code_opt.as_ref().unwrap()).unwrap()
+    let (rt_name, rt_prefix, rt_suffix) = if let Some(name) = cli_matches.value_of("RUNTIME") {
+        'outer: loop {
+            for &(rt_name, rt_prefix, rt_suffix) in &[RUNTIME_HASSELDORF, RUNTIME_HASSELDORF_ROM] {
+                if rt_name == name {
+                    break 'outer (rt_name, rt_prefix, rt_suffix);
+                }
+            }
+            break RUNTIME_NONE;
         }
-        Err(error) => {
-            println!("{}", error.0);
-            return;
-        }
+    } else {
+        RUNTIME_NONE
+    };
+
+    let mut compiler = Compiler::new(true, true);
+    handle_result(compiler.parse_unit(rt_name, rt_prefix));
+    handle_result(compiler.parse_unit(input_name, &input_source));
+    handle_result(compiler.parse_unit(rt_name, rt_suffix));
+
+    let compiler_output = handle_result(compiler.compile());
+    let optimized_asm = {
+        let symbol_table = compiler_output.global_symbol_table.read().unwrap();
+        to_asm(&*symbol_table, compiler_output.code_opt.as_ref().unwrap()).unwrap()
     };
 
     match cli_matches.value_of("OUTPUT") {

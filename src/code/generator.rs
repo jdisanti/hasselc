@@ -1,23 +1,25 @@
+use std::sync::Arc;
 use code::{Code, CodeBlock, Global, Parameter};
 use code::register::{Register, RegisterAllocator};
 use error;
 use llir;
 use symbol_table::{SymbolName, SymbolRef};
 use src_tag::{SrcTag, SrcTagged};
+use src_unit::SrcUnits;
 use types::Type;
 
 pub struct CodeBlockGenerator<'a> {
     llir_blocks: &'a [llir::FrameBlock],
     code_blocks: Vec<CodeBlock>,
-    original_source: &'a str,
+    src_units: &'a SrcUnits,
 }
 
 impl<'a> CodeBlockGenerator<'a> {
-    pub fn new<'b>(original_source: &'b str, input: &'b [llir::FrameBlock]) -> CodeBlockGenerator<'b> {
+    pub fn new<'b>(src_units: &'b SrcUnits, input: &'b [llir::FrameBlock]) -> CodeBlockGenerator<'b> {
         CodeBlockGenerator {
             llir_blocks: input,
             code_blocks: Vec::new(),
-            original_source: original_source,
+            src_units: src_units,
         }
     }
 
@@ -34,8 +36,7 @@ impl<'a> CodeBlockGenerator<'a> {
 
             for run_block in &frame_block.runs {
                 let mut code_block = CodeBlock::new(SymbolName::clone(&run_block.name), run_block.symbol, None);
-                code_block.body =
-                    CodeGenerator::new(self.original_source, self.llir_blocks).generate(&run_block.statements)?;
+                code_block.body = CodeGenerator::new(self.src_units, self.llir_blocks).generate(&run_block.statements)?;
                 self.code_blocks.push(code_block);
             }
         }
@@ -47,24 +48,17 @@ struct CodeGenerator<'a> {
     llir_blocks: &'a [llir::FrameBlock],
     registers: RegisterAllocator,
     code: Vec<Code>,
-    original_source: &'a str,
+    src_units: &'a SrcUnits,
 }
 
 impl<'a> CodeGenerator<'a> {
-    pub fn new<'b>(original_source: &'b str, llir_blocks: &'b [llir::FrameBlock]) -> CodeGenerator<'b> {
+    pub fn new<'b>(src_units: &'b SrcUnits, llir_blocks: &'b [llir::FrameBlock]) -> CodeGenerator<'b> {
         CodeGenerator {
             llir_blocks: llir_blocks,
             registers: RegisterAllocator::new(),
             code: Vec::new(),
-            original_source: original_source,
+            src_units: src_units,
         }
-    }
-
-    fn statement_comment(&self, statement: &llir::Statement) -> Code {
-        let tag = statement.src_tag();
-        let (row, col) = tag.row_col(self.original_source);
-        let line = tag.line(self.original_source);
-        Code::Comment(format!("{}:{}: {}", row, col, line))
     }
 
     fn generate(mut self, llir_statements: &[llir::Statement]) -> error::Result<Vec<Code>> {
@@ -72,8 +66,9 @@ impl<'a> CodeGenerator<'a> {
 
         for statement in llir_statements {
             if statement.src_tag() != last_original_line {
-                let comment = self.statement_comment(statement);
-                self.code.push(comment);
+                self.code.push(Code::Comment(
+                    self.src_units.line_comment(statement.src_tag()),
+                ));
                 last_original_line = statement.src_tag();
             }
             self.code.push(Code::Comment(format!("{:?}", statement)));
@@ -155,6 +150,9 @@ impl<'a> CodeGenerator<'a> {
                     self.code.push(Code::Jmp(Parameter::Absolute(
                         Global::UnresolvedSymbol(data.destination),
                     )));
+                }
+                llir::Statement::InlineAsm(ref data) => {
+                    self.code.push(Code::InlineAsm(Arc::clone(&data.asm)));
                 }
                 llir::Statement::JumpRoutine(ref data) => {
                     self.registers.save_all_and_reset(&mut self.code);

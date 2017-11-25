@@ -1,4 +1,5 @@
 use std::fmt;
+use std::sync::Arc;
 use src_tag::{SrcTag, SrcTagged};
 use symbol_table::{SymbolName, SymbolRef};
 use types::{AddressOrSymbol, Type, TypedValue};
@@ -123,6 +124,12 @@ pub struct GoToData {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, new)]
+pub struct InlineAsmData {
+    pub tag: SrcTag,
+    pub asm: Arc<String>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, new)]
 pub struct JumpRoutineData {
     pub tag: SrcTag,
     pub destination: Location,
@@ -150,6 +157,7 @@ pub enum Statement {
     CompareGte(BinaryOpData),
     Copy(CopyData),
     GoTo(GoToData),
+    InlineAsm(InlineAsmData),
     JumpRoutine(JumpRoutineData),
     Return(ReturnData),
     Subtract(BinaryOpData),
@@ -175,6 +183,7 @@ impl SrcTagged for Statement {
             BranchIfZero(ref d) => d.tag,
             Copy(ref d) => d.tag,
             GoTo(ref d) => d.tag,
+            InlineAsm(ref d) => d.tag,
             JumpRoutine(ref d) => d.tag,
             Return(ref d) => d.tag,
         }
@@ -228,6 +237,7 @@ impl fmt::Debug for Statement {
             )?,
             Statement::Copy(ref data) => write!(f, "copy {:?} => {:?}", data.value, data.destination)?,
             Statement::GoTo(ref data) => write!(f, "goto {}", data.destination)?,
+            Statement::InlineAsm(_) => write!(f, "inline_asm")?,
             Statement::JumpRoutine(ref location) => write!(f, "jsr {:?}", location)?,
             Statement::Return(_) => write!(f, "rts")?,
             Statement::Subtract(ref data) => write!(

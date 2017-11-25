@@ -1,0 +1,11 @@
+# Runtime environment for an off-ROM program on the Hasseldorf Computer
+
+# Hasseldorf off-ROM programs are loaded into 0x8000 by the OS
+org 0x8000;
+
+# The OS will jump to 0x8000 as if it were a subroutine, so
+# treat it as such and call the program's entry point
+def __rt_entry_(): void
+    main();
+    return;
+end

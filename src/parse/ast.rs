@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use lalrpop_util;
 use src_tag::{SrcTag, SrcTagged};
+use src_unit::SrcUnit;
 use types::Type;
 use error;
 
@@ -98,6 +99,12 @@ pub struct GoToData {
 }
 
 #[derive(Debug, Eq, PartialEq, new)]
+pub struct InlineAsmData {
+    pub tag: SrcTag,
+    pub asm: Arc<String>,
+}
+
+#[derive(Debug, Eq, PartialEq, new)]
 pub struct NameData {
     pub tag: SrcTag,
     pub name: Arc<String>,
@@ -149,6 +156,7 @@ pub enum Expression {
     DeclareVariable(DeclareVariableData),
     Error,
     GoTo(GoToData),
+    InlineAsm(InlineAsmData),
     Name(NameData),
     Number(NumberData),
     Org(OrgData),
@@ -158,16 +166,16 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn parse<'a>(text: &'a str) -> error::Result<Vec<Expression>> {
+    pub fn parse<'a>(src_unit: &'a SrcUnit) -> error::Result<Vec<Expression>> {
         let mut errors: Vec<lalrpop_util::ErrorRecovery<usize, (usize, &'a str), ()>> = Vec::new();
-        let ast = ::parse::grammar::parse_Program(&mut errors, text);
+        let ast = ::parse::grammar::parse_Program(src_unit.id, &mut errors, &src_unit.source);
         if errors.is_empty() {
             match ast {
                 Ok(expression) => Ok(expression),
-                Err(err) => Err(translate_errors(text, [err].iter()).into()),
+                Err(err) => Err(translate_errors(src_unit, [err].iter()).into()),
             }
         } else {
-            Err(translate_errors(text, errors.iter().map(|err| &err.error)).into())
+            Err(translate_errors(src_unit, errors.iter().map(|err| &err.error)).into())
         }
     }
 }
@@ -188,6 +196,7 @@ impl SrcTagged for Expression {
             DeclareRegister(ref d) => d.tag,
             DeclareVariable(ref d) => d.tag,
             Error => unimplemented!(),
+            InlineAsm(ref d) => d.tag,
             GoTo(ref d) => d.tag,
             Name(ref d) => d.tag,
             Number(ref d) => d.tag,
@@ -199,7 +208,7 @@ impl SrcTagged for Expression {
     }
 }
 
-fn translate_errors<'a, I>(program: &str, errors: I) -> error::ErrorKind
+fn translate_errors<'a, I>(unit: &SrcUnit, errors: I) -> error::ErrorKind
 where
     I: Iterator<Item = &'a lalrpop_util::ParseError<usize, (usize, &'a str), ()>>,
 {
@@ -207,17 +216,18 @@ where
     for error in errors {
         match *error {
             lalrpop_util::ParseError::InvalidToken { location } => {
-                let (row, col) = SrcTag(location).row_col(program);
-                messages.push(format!("{}:{}: invalid token", row, col));
+                let (row, col) = SrcTag::new(0, location).row_col(&unit.source);
+                messages.push(format!("{}:{}:{}: invalid token", unit.name, row, col));
             }
             lalrpop_util::ParseError::UnrecognizedToken {
                 ref token,
                 ref expected,
             } => match *token {
                 Some((start, token, _end)) => {
-                    let (row, col) = SrcTag(start).row_col(program);
+                    let (row, col) = SrcTag::new(0, start).row_col(&unit.source);
                     messages.push(format!(
-                        "{}:{}: unexpected token \"{}\". Expected one of: {:?}",
+                        "{}:{}:{}: unexpected token \"{}\". Expected one of: {:?}",
+                        unit.name,
                         row,
                         col,
                         token.1,
@@ -229,8 +239,14 @@ where
                 }
             },
             lalrpop_util::ParseError::ExtraToken { ref token } => {
-                let (row, col) = SrcTag(token.0).row_col(program);
-                messages.push(format!("{}:{}: extra token \"{}\"", row, col, (token.1).1));
+                let (row, col) = SrcTag::new(0, token.0).row_col(&unit.source);
+                messages.push(format!(
+                    "{}:{}:{}: extra token \"{}\"",
+                    unit.name,
+                    row,
+                    col,
+                    (token.1).1
+                ));
             }
             lalrpop_util::ParseError::User { ref error } => {
                 messages.push(format!("{:?}", error));
@@ -247,23 +263,23 @@ mod test {
     #[test]
     fn operator_precedence_multiplication() {
         let program = "a = 2 + 9 * 1;";
-        let ast = Expression::parse(&program).expect("parse");
+        let ast = Expression::parse(&SrcUnit::new(0, "".into(), program.into())).expect("parse");
 
         let expected = vec![
             Expression::Assignment(AssignmentData::new(
-                SrcTag(0),
+                SrcTag::new(0, 0),
                 Box::new(Expression::Name(
-                    NameData::new(SrcTag(0), Arc::new("a".into())),
+                    NameData::new(SrcTag::new(0, 0), Arc::new("a".into())),
                 )),
                 Box::new(Expression::BinaryOp(BinaryOpData::new(
-                    SrcTag(4),
+                    SrcTag::new(0, 4),
                     BinaryOperator::Add,
-                    Box::new(Expression::Number(NumberData::new(SrcTag(4), 2))),
+                    Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 4), 2))),
                     Box::new(Expression::BinaryOp(BinaryOpData::new(
-                        SrcTag(8),
+                        SrcTag::new(0, 8),
                         BinaryOperator::Mul,
-                        Box::new(Expression::Number(NumberData::new(SrcTag(8), 9))),
-                        Box::new(Expression::Number(NumberData::new(SrcTag(12), 1))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 8), 9))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 12), 1))),
                     ))),
                 ))),
             )),
@@ -275,23 +291,23 @@ mod test {
     #[test]
     fn operator_precedence_parenthesis() {
         let program = "a = 2 * (9 + 1);";
-        let ast = Expression::parse(&program).expect("parse");
+        let ast = Expression::parse(&SrcUnit::new(0, "".into(), program.into())).expect("parse");
 
         let expected = vec![
             Expression::Assignment(AssignmentData::new(
-                SrcTag(0),
+                SrcTag::new(0, 0),
                 Box::new(Expression::Name(
-                    NameData::new(SrcTag(0), Arc::new("a".into())),
+                    NameData::new(SrcTag::new(0, 0), Arc::new("a".into())),
                 )),
                 Box::new(Expression::BinaryOp(BinaryOpData::new(
-                    SrcTag(4),
+                    SrcTag::new(0, 4),
                     BinaryOperator::Mul,
-                    Box::new(Expression::Number(NumberData::new(SrcTag(4), 2))),
+                    Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 4), 2))),
                     Box::new(Expression::BinaryOp(BinaryOpData::new(
-                        SrcTag(9),
+                        SrcTag::new(0, 9),
                         BinaryOperator::Add,
-                        Box::new(Expression::Number(NumberData::new(SrcTag(9), 9))),
-                        Box::new(Expression::Number(NumberData::new(SrcTag(13), 1))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 9), 9))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 13), 1))),
                     ))),
                 ))),
             )),
@@ -303,28 +319,28 @@ mod test {
     #[test]
     fn operator_precedence_comparison() {
         let program = "a = 2 + 1 > 3 - 1;";
-        let ast = Expression::parse(&program).expect("parse");
+        let ast = Expression::parse(&SrcUnit::new(0, "".into(), program.into())).expect("parse");
 
         let expected = vec![
             Expression::Assignment(AssignmentData::new(
-                SrcTag(0),
+                SrcTag::new(0, 0),
                 Box::new(Expression::Name(
-                    NameData::new(SrcTag(0), Arc::new("a".into())),
+                    NameData::new(SrcTag::new(0, 0), Arc::new("a".into())),
                 )),
                 Box::new(Expression::BinaryOp(BinaryOpData::new(
-                    SrcTag(4),
+                    SrcTag::new(0, 4),
                     BinaryOperator::GreaterThan,
                     Box::new(Expression::BinaryOp(BinaryOpData::new(
-                        SrcTag(4),
+                        SrcTag::new(0, 4),
                         BinaryOperator::Add,
-                        Box::new(Expression::Number(NumberData::new(SrcTag(4), 2))),
-                        Box::new(Expression::Number(NumberData::new(SrcTag(8), 1))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 4), 2))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 8), 1))),
                     ))),
                     Box::new(Expression::BinaryOp(BinaryOpData::new(
-                        SrcTag(12),
+                        SrcTag::new(0, 12),
                         BinaryOperator::Sub,
-                        Box::new(Expression::Number(NumberData::new(SrcTag(12), 3))),
-                        Box::new(Expression::Number(NumberData::new(SrcTag(16), 1))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 12), 3))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 16), 1))),
                     ))),
                 ))),
             )),
@@ -336,11 +352,11 @@ mod test {
     #[test]
     fn parse_const() {
         let program = "register test_register: u8 @ 0x8000;";
-        let ast = Expression::parse(&program).expect("parse");
+        let ast = Expression::parse(&SrcUnit::new(0, "".into(), program.into())).expect("parse");
 
         let expected = vec![
             Expression::DeclareRegister(DeclareRegisterData::new(
-                SrcTag(0),
+                SrcTag::new(0, 0),
                 NameType::new(Arc::new("test_register".into()), Type::U8),
                 0x8000,
             )),

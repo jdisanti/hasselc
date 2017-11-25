@@ -88,6 +88,12 @@ pub struct GoToData {
 }
 
 #[derive(Debug, new)]
+pub struct InlineAsmData {
+    pub tag: SrcTag,
+    pub asm: Arc<String>,
+}
+
+#[derive(Debug, new)]
 pub struct ReturnData {
     pub tag: SrcTag,
     pub value_type: Type,
@@ -107,8 +113,9 @@ pub enum Statement {
     Break,
     Call(CallData),
     Conditional(ConditionalData),
-    Return(ReturnData),
     GoTo(GoToData),
+    InlineAsm(InlineAsmData),
+    Return(ReturnData),
     WhileLoop(WhileLoopData),
 }
 

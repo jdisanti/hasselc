@@ -18,6 +18,7 @@ pub mod ir;
 pub mod llir;
 pub mod parse;
 pub mod src_tag;
+pub mod src_unit;
 
 pub use compiler::CompilerOutput;
-pub use compiler::compile;
+pub use compiler::Compiler;

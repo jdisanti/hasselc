@@ -1,4 +1,5 @@
 use std::fmt::Write;
+use std::sync::Arc;
 use symbol_table::{SymbolName, SymbolRef, SymbolTable};
 use error;
 
@@ -90,6 +91,7 @@ pub enum Code {
     Tya(Parameter),
 
     Comment(String),
+    InlineAsm(Arc<String>),
 }
 
 impl Code {
@@ -102,6 +104,7 @@ impl Code {
                 p
             }
             Comment(_) => unreachable!(),
+            InlineAsm(_) => unreachable!(),
         }
     }
 
@@ -139,6 +142,7 @@ impl Code {
             Code::Txa(ref p) => format!("TXA\t{}", p.to_asm(global_symbol_table)),
             Code::Tya(ref p) => format!("TYA\t{}", p.to_asm(global_symbol_table)),
             Code::Comment(ref msg) => format!("; {}", msg),
+            Code::InlineAsm(ref asm) => format!("{}", asm),
         }
     }
 }

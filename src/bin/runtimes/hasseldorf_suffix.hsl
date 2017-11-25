@@ -1,0 +1,3 @@
+inline_asm "
+.advance    $DC00
+";

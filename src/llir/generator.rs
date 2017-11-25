@@ -1,7 +1,8 @@
+use std::sync::Arc;
 use error;
 use ir;
-use llir::{AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, CopyData, FrameBlock, GoToData, JumpRoutineData,
-           Location, ReturnData, RunBlock, SPOffset, Statement, Value};
+use llir::{AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, CopyData, FrameBlock, GoToData, InlineAsmData,
+           JumpRoutineData, Location, ReturnData, RunBlock, SPOffset, Statement, Value};
 use parse::ast;
 use symbol_table::{self, SymbolName, SymbolRef, SymbolTable};
 use src_tag::{SrcTag, SrcTagged};
@@ -111,6 +112,11 @@ fn generate_runs(
                 blocks.extend(false_blocks);
                 blocks.push(after_both_block);
                 current_block = RunBlock::new_tup(symbol_table.new_block_name());
+            }
+            ir::Statement::InlineAsm(ref data) => {
+                current_block.statements.push(Statement::InlineAsm(
+                    InlineAsmData::new(data.tag, Arc::clone(&data.asm)),
+                ));
             }
             ir::Statement::WhileLoop(ref data) => {
                 let mut condition_block = RunBlock::new_tup(symbol_table.new_block_name());

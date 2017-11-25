@@ -16,6 +16,7 @@ use parse::ast::{
     DeclareVariableData,
     Expression,
     GoToData,
+    InlineAsmData,
     NameData,
     NameType,
     NumberData,
@@ -28,7 +29,7 @@ use types::Type;
 use src_tag::SrcTag;
 use lalrpop_util::ErrorRecovery;
 
-grammar<'err>(errors: &'err mut Vec<ErrorRecovery<usize, (usize, &'input str), ()>>);
+grammar<'err>(src_unit: usize, errors: &'err mut Vec<ErrorRecovery<usize, (usize, &'input str), ()>>);
 
 match {
     r"#[^\n]*"
@@ -89,7 +90,7 @@ ComparisonOp: BinaryOperator = {
 };
 
 Comparison: Box<Expression> = {
-    <t:@L> <l:Comparison> <o:ExprOp> <r:Factor> => Box::new(Expression::BinaryOp(BinaryOpData::new(SrcTag(t), o, l, r))),
+    <t:@L> <l:Comparison> <o:ExprOp> <r:Factor> => Box::new(Expression::BinaryOp(BinaryOpData::new(SrcTag::new(src_unit, t), o, l, r))),
     Factor,
 };
 
@@ -99,7 +100,7 @@ ExprOp: BinaryOperator = {
 };
 
 Factor: Box<Expression> = {
-    <t:@L> <l:Factor> <o:FactorOp> <r:Term> => Box::new(Expression::BinaryOp(BinaryOpData::new(SrcTag(t), o, l, r))),
+    <t:@L> <l:Factor> <o:FactorOp> <r:Term> => Box::new(Expression::BinaryOp(BinaryOpData::new(SrcTag::new(src_unit, t), o, l, r))),
     Term,
 };
 
@@ -109,30 +110,30 @@ FactorOp: BinaryOperator = {
 };
 
 Term: Box<Expression> = {
-    <t:@L> <n:Number> => Box::new(Expression::Number(NumberData::new(SrcTag(t), n))),
-    <t:@L> <n:Name> => Box::new(Expression::Name(NameData::new(SrcTag(t), n))),
-    <t:@L> <s:Str> => Box::new(Expression::Text(TextData::new(SrcTag(t), s))),
+    <t:@L> <n:Number> => Box::new(Expression::Number(NumberData::new(SrcTag::new(src_unit, t), n))),
+    <t:@L> <n:Name> => Box::new(Expression::Name(NameData::new(SrcTag::new(src_unit, t), n))),
+    <t:@L> <s:Str> => Box::new(Expression::Text(TextData::new(SrcTag::new(src_unit, t), s))),
     ArrayIndex,
     FunctionCall,
     "(" <Expression> ")",
 };
 
 ArrayIndex: Box<Expression> = {
-    <t:@L> <n:Name> "[" <idx:Expression> "]" => Box::new(Expression::ArrayIndex(ArrayIndexData::new(SrcTag(t), n, idx))),
+    <t:@L> <n:Name> "[" <idx:Expression> "]" => Box::new(Expression::ArrayIndex(ArrayIndexData::new(SrcTag::new(src_unit, t), n, idx))),
 };
 
 FunctionCall: Box<Expression> = {
-    <t:@L> <n:Name> "(" ")" => Box::new(Expression::CallFunction(CallFunctionData::new(SrcTag(t), n, Vec::new()))),
-    <t:@L> <n:Name> "(" <args:ExpressionCommaList> ")" => Box::new(Expression::CallFunction(CallFunctionData::new(SrcTag(t), n, args))),
+    <t:@L> <n:Name> "(" ")" => Box::new(Expression::CallFunction(CallFunctionData::new(SrcTag::new(src_unit, t), n, Vec::new()))),
+    <t:@L> <n:Name> "(" <args:ExpressionCommaList> ")" => Box::new(Expression::CallFunction(CallFunctionData::new(SrcTag::new(src_unit, t), n, args))),
 };
 
 LValue: Box<Expression> = {
-    <t:@L> <n:Name> => Box::new(Expression::Name(NameData::new(SrcTag(t), n))),
+    <t:@L> <n:Name> => Box::new(Expression::Name(NameData::new(SrcTag::new(src_unit, t), n))),
     ArrayIndex,
 };
 
 Expression: Box<Expression> = {
-    <t:@L> <l:Expression> <o:ComparisonOp> <r:Comparison> => Box::new(Expression::BinaryOp(BinaryOpData::new(SrcTag(t), o, l, r))),
+    <t:@L> <l:Expression> <o:ComparisonOp> <r:Comparison> => Box::new(Expression::BinaryOp(BinaryOpData::new(SrcTag::new(src_unit, t), o, l, r))),
     Comparison,
 };
 
@@ -148,21 +149,21 @@ ExpressionCommaList: Vec<Expression> = {
 Statement: Box<Expression> = {
     Comment => Box::new(Expression::Comment),
     <t:@L> "const" <nt:NameType> "=" <l:Expression> ";" =>
-        Box::new(Expression::DeclareConst(DeclareConstData::new(SrcTag(t), nt, l))),
+        Box::new(Expression::DeclareConst(DeclareConstData::new(SrcTag::new(src_unit, t), nt, l))),
     <t:@L> "var" <nt:NameType> "=" <l:Expression> ";" =>
-        Box::new(Expression::DeclareVariable(DeclareVariableData::new(SrcTag(t), nt, l))),
+        Box::new(Expression::DeclareVariable(DeclareVariableData::new(SrcTag::new(src_unit, t), nt, l))),
     <t:@L> <val:LValue> "=" <l:Expression> ";" =>
-        Box::new(Expression::Assignment(AssignmentData::new(SrcTag(t), val, l))),
+        Box::new(Expression::Assignment(AssignmentData::new(SrcTag::new(src_unit, t), val, l))),
     <t:@L> "if" <cnd:Expression> "then" <trb:StatementList> "end" =>
-        Box::new(Expression::Conditional(ConditionalData::new(SrcTag(t), cnd, trb, Vec::new()))),
+        Box::new(Expression::Conditional(ConditionalData::new(SrcTag::new(src_unit, t), cnd, trb, Vec::new()))),
     <t:@L> "if" <cnd:Expression> "then" <trb:StatementList> "else" <frb:StatementList> "end" =>
-        Box::new(Expression::Conditional(ConditionalData::new(SrcTag(t), cnd, trb, frb))),
+        Box::new(Expression::Conditional(ConditionalData::new(SrcTag::new(src_unit, t), cnd, trb, frb))),
     <t:@L> "while" <cnd:Expression> "do" <bdy:StatementList> "end" =>
-        Box::new(Expression::WhileLoop(WhileLoopData::new(SrcTag(t), cnd, bdy))),
+        Box::new(Expression::WhileLoop(WhileLoopData::new(SrcTag::new(src_unit, t), cnd, bdy))),
     "break" ";" => Box::new(Expression::Break),
-    <t:@L> "return" <v:Expression> ";" => Box::new(Expression::Return(ReturnData::new(SrcTag(t), Some(v)))),
-    <t:@L> "return" ";" => Box::new(Expression::Return(ReturnData::new(SrcTag(t), None))),
-    <t:@L> "goto" <n:Name> ";" => Box::new(Expression::GoTo(GoToData::new(SrcTag(t), n))),
+    <t:@L> "return" <v:Expression> ";" => Box::new(Expression::Return(ReturnData::new(SrcTag::new(src_unit, t), Some(v)))),
+    <t:@L> "return" ";" => Box::new(Expression::Return(ReturnData::new(SrcTag::new(src_unit, t), None))),
+    <t:@L> "goto" <n:Name> ";" => Box::new(Expression::GoTo(GoToData::new(SrcTag::new(src_unit, t), n))),
     <f:FunctionCall> ";" => f,
     // Error recovery was causing infinite loops
     // See: https://github.com/nikomatsakis/lalrpop/issues/240
@@ -183,15 +184,17 @@ StatementList: Vec<Expression> = {
 };
 
 TopLevelStatement: Box<Expression> = {
-    <t:@L> "org" <n:Number> ";" => Box::new(Expression::Org(OrgData::new(SrcTag(t), n))),
+    <t:@L> "org" <n:Number> ";" => Box::new(Expression::Org(OrgData::new(SrcTag::new(src_unit, t), n))),
     <t:@L> "register" <nt:NameType> "@" <l:Number> ";" =>
-        Box::new(Expression::DeclareRegister(DeclareRegisterData::new(SrcTag(t), nt, l))),
+        Box::new(Expression::DeclareRegister(DeclareRegisterData::new(SrcTag::new(src_unit, t), nt, l))),
     <t:@L> "memory" <nt:NameType> "@" <l:Number> ";" =>
-        Box::new(Expression::DeclareRegister(DeclareRegisterData::new(SrcTag(t), nt, l))),
+        Box::new(Expression::DeclareRegister(DeclareRegisterData::new(SrcTag::new(src_unit, t), nt, l))),
     <t:@L> "def" <n:Name> "(" ")" ":" <rt:Type> <b:StatementList> "end" =>
-        Box::new(Expression::DeclareFunction(DeclareFunctionData::new(SrcTag(t), n, Vec::new(), rt, b))),
+        Box::new(Expression::DeclareFunction(DeclareFunctionData::new(SrcTag::new(src_unit, t), n, Vec::new(), rt, b))),
     <t:@L> "def" <n:Name> "(" <pl:ParameterList> ")" ":" <rt:Type> <b:StatementList> "end" =>
-        Box::new(Expression::DeclareFunction(DeclareFunctionData::new(SrcTag(t), n, pl, rt, b))),
+        Box::new(Expression::DeclareFunction(DeclareFunctionData::new(SrcTag::new(src_unit, t), n, pl, rt, b))),
+    <t:@L> "inline_asm" <asm:Str> ";" =>
+        Box::new(Expression::InlineAsm(InlineAsmData::new(SrcTag::new(src_unit, t), asm))),
     Statement,
 };
 

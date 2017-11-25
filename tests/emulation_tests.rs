@@ -51,11 +51,10 @@ impl Emulator {
     }
 }
 
-fn compile(program: &str, optimize_llir: bool, optimize_code: bool) -> compiler::CompilerOutput {
-    match compiler::compile(program, optimize_llir, optimize_code) {
-        Ok(compiler_output) => compiler_output,
-        Err(err) => panic!("failed to compile: {:#?}", err),
-    }
+fn compile(name: &str, program: &str, optimize_llir: bool, optimize_code: bool) -> compiler::CompilerOutput {
+    let mut compiler = compiler::Compiler::new(optimize_llir, optimize_code);
+    compiler.parse_unit(name, program).unwrap();
+    compiler.compile().unwrap()
 }
 
 #[cfg(target_os = "windows")]
@@ -69,14 +68,9 @@ fn assembler_name() -> &'static str {
 }
 
 fn assemble(name: &str, program: &str, optimize_llir: bool, optimize_code: bool) -> Vec<u8> {
-    let compiler_output = compile(program, optimize_llir, optimize_code);
+    let compiler_output = compile(name, program, optimize_llir, optimize_code);
 
-    let symbol_table = compiler_output
-        .global_symbol_table
-        .as_ref()
-        .unwrap()
-        .read()
-        .unwrap();
+    let symbol_table = compiler_output.global_symbol_table.read().unwrap();
     let asm = if optimize_code {
         to_asm(&*symbol_table, compiler_output.code_opt.as_ref().unwrap()).unwrap()
     } else {
