@@ -4,6 +4,9 @@ extern crate lalrpop_util;
 extern crate num_traits;
 
 #[macro_use]
+extern crate derive_builder;
+
+#[macro_use]
 extern crate derive_new;
 
 #[macro_use]
@@ -20,5 +23,4 @@ pub mod parse;
 pub mod src_tag;
 pub mod src_unit;
 
-pub use compiler::CompilerOutput;
-pub use compiler::Compiler;
+pub use compiler::{Compiler, CompilerOptions, CompilerOptionsBuilder, CompilerOutput};

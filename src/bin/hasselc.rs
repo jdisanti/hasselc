@@ -1,27 +1,13 @@
 extern crate compiler;
 
-#[macro_use]
 extern crate clap;
 
 use std::fs::File;
 use std::io::prelude::*;
 use std::process;
 
-use compiler::code::to_asm;
-use compiler::Compiler;
+use compiler::{Compiler, CompilerOptions, CompilerOptionsBuilder};
 use compiler::error;
-
-const RUNTIME_NONE: (&'static str, &'static str, &'static str,) = ("no_rt", "", "");
-const RUNTIME_HASSELDORF: (&'static str, &'static str, &'static str) = (
-    "hasseldorf_rt",
-    include_str!("./runtimes/hasseldorf_prefix.hsl"),
-    include_str!("./runtimes/hasseldorf_suffix.hsl"),
-);
-const RUNTIME_HASSELDORF_ROM: (&'static str, &'static str, &'static str) = (
-    "hasseldorf_rom_rt",
-    include_str!("./runtimes/hasseldorf_rom_prefix.hsl"),
-    include_str!("./runtimes/hasseldorf_rom_suffix.hsl"),
-);
 
 fn die(err: error::Error) -> ! {
     println!("{}", err.0);
@@ -35,19 +21,103 @@ fn handle_result<T>(result: error::Result<T>) -> T {
     }
 }
 
-fn main() {
-    let cli_app = clap_app!(hasselc =>
-        (version: "v0.1.0")
-        (author: "John DiSanti <johndisanti@gmail.com>")
-        (about: "6502 Compiler for the Hassel programming language")
-        (@arg RUNTIME: -r --runtime +takes_value "Tells the compiler to use a pre-configured runtime environment")
-        (@arg INPUT: +required "Input source file to use")
-        (@arg OUTPUT: -o --output +takes_value "Sets output file name; otherwise outputs to STDOUT"));
+struct Options {
+    compiler_options: CompilerOptions,
+    input_name: String,
+    output_name: Option<String>,
+}
+
+fn get_options() -> Options {
+    let cli_app = clap::App::new("hasselc")
+        .version("v0.1.0")
+        .author("John DiSanti <johndisanti@gmail.com>")
+        .about("6502 Compiler for the Hassel programming language")
+        .arg(
+            clap::Arg::with_name("RUNTIME")
+                .short("r")
+                .long("runtime")
+                .value_name("RUNTIME")
+                .help("Tells the compiler to use a pre-configured runtime environment")
+                .takes_value(true),
+        )
+        .arg(
+            clap::Arg::with_name("OUTPUT")
+                .short("o")
+                .long("output")
+                .value_name("OUTPUT")
+                .help("Sets output file name; otherwise outputs to STDOUT")
+                .takes_value(true),
+        )
+        .arg(
+            clap::Arg::with_name("OPTIMIZE")
+                .short("O")
+                .value_name("OPTIMIZE")
+                .help("Sets optimization level")
+                .takes_value(true),
+        )
+        .arg(
+            clap::Arg::with_name("VECTOR_RESET")
+                .long("vector-reset")
+                .value_name("OPTIMIZE")
+                .help("Generates a reset vector pointing to the given label")
+                .takes_value(true),
+        )
+        .arg(
+            clap::Arg::with_name("VECTOR_IRQ")
+                .long("vector-irq")
+                .value_name("VECTOR_IRQ")
+                .help("Generates an IRQ vector pointing to the given label")
+                .takes_value(true),
+        )
+        .arg(
+            clap::Arg::with_name("VECTOR_NMI")
+                .long("vector-nmi")
+                .value_name("VECTOR_NMI")
+                .help("Generates a NMI vector pointing to the given label")
+                .takes_value(true),
+        )
+        .arg(
+            clap::Arg::with_name("INPUT")
+                .help("Input source file to use")
+                .required(true),
+        );
     let cli_matches = cli_app.get_matches();
 
-    let input_name = cli_matches.value_of("INPUT").unwrap();
+    let mut compiler_options = CompilerOptionsBuilder::default();
+    match cli_matches.value_of("OPTIMIZE") {
+        Some("1") => {
+            compiler_options.optimize_llir(true);
+        }
+        Some("2") => {
+            compiler_options.optimize_llir(true);
+            compiler_options.optimize_code(true);
+        }
+        _ => {}
+    }
+
+    compiler_options.vector_reset_label(
+        cli_matches
+            .value_of("VECTOR_RESET")
+            .map(|s| String::from(s)),
+    );
+    compiler_options.vector_irq_label(cli_matches.value_of("VECTOR_IRQ").map(|s| String::from(s)));
+    compiler_options.vector_nmi_label(cli_matches.value_of("VECTOR_NMI").map(|s| String::from(s)));
+
+    Options {
+        compiler_options: compiler_options.build().unwrap(),
+        input_name: cli_matches.value_of("INPUT").unwrap().into(),
+        output_name: cli_matches
+            .value_of("OUTPUT")
+            .map(|o| String::from(o))
+            .into(),
+    }
+}
+
+fn main() {
+    let options = get_options();
+
     let input_source = {
-        let mut file = match File::open(input_name) {
+        let mut file = match File::open(&options.input_name) {
             Ok(file) => file,
             Err(e) => {
                 println!("Failed to open input source file: {}", e);
@@ -62,31 +132,12 @@ fn main() {
         file_contents
     };
 
-    let (rt_name, rt_prefix, rt_suffix) = if let Some(name) = cli_matches.value_of("RUNTIME") {
-        'outer: loop {
-            for &(rt_name, rt_prefix, rt_suffix) in &[RUNTIME_HASSELDORF, RUNTIME_HASSELDORF_ROM] {
-                if rt_name == name {
-                    break 'outer (rt_name, rt_prefix, rt_suffix);
-                }
-            }
-            break RUNTIME_NONE;
-        }
-    } else {
-        RUNTIME_NONE
-    };
-
-    let mut compiler = Compiler::new(true, true);
-    handle_result(compiler.parse_unit(rt_name, rt_prefix));
-    handle_result(compiler.parse_unit(input_name, &input_source));
-    handle_result(compiler.parse_unit(rt_name, rt_suffix));
+    let mut compiler = Compiler::new(options.compiler_options);
+    handle_result(compiler.parse_unit(&options.input_name, &input_source));
 
     let compiler_output = handle_result(compiler.compile());
-    let optimized_asm = {
-        let symbol_table = compiler_output.global_symbol_table.read().unwrap();
-        to_asm(&*symbol_table, compiler_output.code_opt.as_ref().unwrap()).unwrap()
-    };
 
-    match cli_matches.value_of("OUTPUT") {
+    match options.output_name {
         Some(output_file_name) => {
             let mut file = match File::create(output_file_name) {
                 Ok(file) => file,
@@ -95,13 +146,15 @@ fn main() {
                     return;
                 }
             };
-            if !file.write_all(optimized_asm.as_bytes()).is_ok() {
+            if !file.write_all(compiler_output.asm.unwrap().as_bytes())
+                .is_ok()
+            {
                 println!("Failed to write to output file");
                 return;
             }
         }
         None => {
-            println!("{}", optimized_asm);
+            println!("{}", compiler_output.asm.unwrap());
         }
     }
 }

@@ -13,28 +13,35 @@ pub struct CompilerOutput {
     pub ast: Option<Vec<ast::Expression>>,
     pub ir: Option<Vec<ir::Block>>,
     pub llir: Option<Vec<llir::FrameBlock>>,
-    pub llir_opt: Option<Vec<llir::FrameBlock>>,
     pub code: Option<Vec<code::CodeBlock>>,
-    pub code_opt: Option<Vec<code::CodeBlock>>,
+    pub asm: Option<String>,
+}
+
+#[derive(Default, Builder, Debug)]
+#[builder(setter(into))]
+pub struct CompilerOptions {
+    pub optimize_llir: bool,
+    pub optimize_code: bool,
+    pub vector_reset_label: Option<String>,
+    pub vector_irq_label: Option<String>,
+    pub vector_nmi_label: Option<String>,
 }
 
 pub struct Compiler {
     global_symbol_table: Arc<RwLock<SymbolTable>>,
     src_units: SrcUnits,
     units: Vec<ast::Expression>,
-    optimize_llir: bool,
-    optimize_code: bool,
+    options: CompilerOptions,
 }
 
 impl Compiler {
-    pub fn new(optimize_llir: bool, optimize_code: bool) -> Compiler {
+    pub fn new(options: CompilerOptions) -> Compiler {
         let handle_gen = Arc::new(RwLock::new(HandleGenerator::new()));
         Compiler {
             global_symbol_table: Arc::new(RwLock::new(DefaultSymbolTable::new(handle_gen, 0))),
             src_units: SrcUnits::new(),
             units: Vec::new(),
-            optimize_llir: optimize_llir,
-            optimize_code: optimize_code,
+            options: options,
         }
     }
 
@@ -51,9 +58,8 @@ impl Compiler {
             ast: Some(self.units),
             ir: None,
             llir: None,
-            llir_opt: None,
             code: None,
-            code_opt: None,
+            asm: None,
         };
 
         match ir::generate(
@@ -65,21 +71,51 @@ impl Compiler {
         }
 
         compiler_output.llir = Some(llir::generate_llir(compiler_output.ir.as_ref().unwrap())?);
-        if self.optimize_llir {
-            compiler_output.llir_opt = Some(llir::optimize_llir(compiler_output.llir.as_ref().unwrap())?);
+        if self.options.optimize_llir {
+            compiler_output.llir = Some(llir::optimize_llir(compiler_output.llir.as_ref().unwrap())?);
         }
 
         compiler_output.code = Some(code::CodeBlockGenerator::new(
             &self.src_units,
-            compiler_output
-                .llir_opt
-                .as_ref()
-                .or_else(|| compiler_output.llir.as_ref())
-                .unwrap(),
+            compiler_output.llir.as_ref().unwrap(),
         ).generate()?);
 
-        if self.optimize_code {
-            compiler_output.code_opt = Some(code::optimize_code(compiler_output.code.as_ref().unwrap())?);
+        if self.options.optimize_code {
+            compiler_output.code = Some(code::optimize_code(compiler_output.code.as_ref().unwrap())?);
+        }
+
+        compiler_output.asm = Some(code::to_asm(
+            &*self.global_symbol_table.read().unwrap(),
+            compiler_output.code.as_ref().unwrap(),
+        )?);
+
+        if self.options.vector_irq_label.is_some() || self.options.vector_nmi_label.is_some()
+            || self.options.vector_reset_label.is_some()
+        {
+            compiler_output.asm.as_mut().unwrap().push_str(&format!(
+                "\n\
+                 .advance\t$FFFA\n\
+                 .org\t$FFFA\n\
+                 .word\t{}\n\
+                 .word\t{}\n\
+                 .word\t{}\n\
+                 ",
+                self.options
+                    .vector_nmi_label
+                    .as_ref()
+                    .map(|s| s as &str)
+                    .unwrap_or("main"),
+                self.options
+                    .vector_reset_label
+                    .as_ref()
+                    .map(|s| s as &str)
+                    .unwrap_or("main"),
+                self.options
+                    .vector_irq_label
+                    .as_ref()
+                    .map(|s| s as &str)
+                    .unwrap_or("main"),
+            ));
         }
 
         Ok(compiler_output)

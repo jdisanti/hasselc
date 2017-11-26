@@ -167,6 +167,10 @@ pub enum Expression {
 
 impl Expression {
     pub fn parse<'a>(src_unit: &'a SrcUnit) -> error::Result<Vec<Expression>> {
+        if src_unit.source == "" {
+            return Ok(Vec::new());
+        }
+
         let mut errors: Vec<lalrpop_util::ErrorRecovery<usize, (usize, &'a str), ()>> = Vec::new();
         let ast = ::parse::grammar::parse_Program(src_unit.id, &mut errors, &src_unit.source);
         if errors.is_empty() {
@@ -235,7 +239,11 @@ where
                     ));
                 }
                 None => {
-                    messages.push(String::from("unexpected EOF"));
+                    messages.push(format!(
+                        "{}: unexpected EOF; expected: {:?}",
+                        unit.name,
+                        expected
+                    ));
                 }
             },
             lalrpop_util::ParseError::ExtraToken { ref token } => {

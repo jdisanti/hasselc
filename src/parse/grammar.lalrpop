@@ -28,6 +28,7 @@ use parse::ast::{
 use types::Type;
 use src_tag::SrcTag;
 use lalrpop_util::ErrorRecovery;
+use parse::unescape_string;
 
 grammar<'err>(src_unit: usize, errors: &'err mut Vec<ErrorRecovery<usize, (usize, &'input str), ()>>);
 
@@ -52,7 +53,7 @@ Str: Arc<String> = {
     r"\x22(?:[^\x22\\]|\\.)*\x22" => {
         let val = <>;
         let len = val.len();
-        Arc::new(String::from_str(&val[1..len-1]).unwrap())
+        Arc::new(unescape_string(&String::from_str(&val[1..len-1]).unwrap()))
     }
 };
 
@@ -160,6 +161,10 @@ Statement: Box<Expression> = {
         Box::new(Expression::Conditional(ConditionalData::new(SrcTag::new(src_unit, t), cnd, trb, frb))),
     <t:@L> "while" <cnd:Expression> "do" <bdy:StatementList> "end" =>
         Box::new(Expression::WhileLoop(WhileLoopData::new(SrcTag::new(src_unit, t), cnd, bdy))),
+    <t:@L> "inline_asm" <asm:Str> ";" =>
+        Box::new(Expression::InlineAsm(InlineAsmData::new(SrcTag::new(src_unit, t), asm))),
+    <t:@L> "memory" <nt:NameType> "@" <l:Number> ";" =>
+        Box::new(Expression::DeclareRegister(DeclareRegisterData::new(SrcTag::new(src_unit, t), nt, l))),
     "break" ";" => Box::new(Expression::Break),
     <t:@L> "return" <v:Expression> ";" => Box::new(Expression::Return(ReturnData::new(SrcTag::new(src_unit, t), Some(v)))),
     <t:@L> "return" ";" => Box::new(Expression::Return(ReturnData::new(SrcTag::new(src_unit, t), None))),
@@ -187,14 +192,10 @@ TopLevelStatement: Box<Expression> = {
     <t:@L> "org" <n:Number> ";" => Box::new(Expression::Org(OrgData::new(SrcTag::new(src_unit, t), n))),
     <t:@L> "register" <nt:NameType> "@" <l:Number> ";" =>
         Box::new(Expression::DeclareRegister(DeclareRegisterData::new(SrcTag::new(src_unit, t), nt, l))),
-    <t:@L> "memory" <nt:NameType> "@" <l:Number> ";" =>
-        Box::new(Expression::DeclareRegister(DeclareRegisterData::new(SrcTag::new(src_unit, t), nt, l))),
     <t:@L> "def" <n:Name> "(" ")" ":" <rt:Type> <b:StatementList> "end" =>
         Box::new(Expression::DeclareFunction(DeclareFunctionData::new(SrcTag::new(src_unit, t), n, Vec::new(), rt, b))),
     <t:@L> "def" <n:Name> "(" <pl:ParameterList> ")" ":" <rt:Type> <b:StatementList> "end" =>
         Box::new(Expression::DeclareFunction(DeclareFunctionData::new(SrcTag::new(src_unit, t), n, pl, rt, b))),
-    <t:@L> "inline_asm" <asm:Str> ";" =>
-        Box::new(Expression::InlineAsm(InlineAsmData::new(SrcTag::new(src_unit, t), asm))),
     Statement,
 };
 

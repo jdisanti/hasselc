@@ -85,7 +85,10 @@ fn resolve_expression(symbol_table: &SymbolTable, required_type: Type, expressio
     use ir::block::Expr::*;
 
     match *expression {
-        ArrayIndex(ref mut data) => resolve_expression(symbol_table, required_type, &mut *data.index)?,
+        ArrayIndex(ref mut data) => {
+            resolve_expression(symbol_table, required_type, &mut *data.index)?;
+            data.value_type = required_type;
+        }
         BinaryOp(ref mut data) => {
             resolve_expression(symbol_table, required_type, &mut *data.left)?;
             resolve_expression(symbol_table, required_type, &mut *data.right)?;
