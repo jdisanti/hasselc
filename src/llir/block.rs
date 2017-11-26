@@ -42,17 +42,24 @@ impl Location {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, new)]
+pub struct MemoryData {
+    pub type_name: Type,
+    pub location: Location,
+    debug: Option<Arc<String>>,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Value {
     Immediate(TypedValue),
-    Memory(Type, Location),
+    Memory(MemoryData),
 }
 
 impl Value {
     pub fn value_type(&self) -> Type {
         match *self {
             Value::Immediate(ref tv) => tv.get_type(),
-            Value::Memory(typ, _) => typ,
+            Value::Memory(ref data) => data.type_name,
         }
     }
 
@@ -64,11 +71,17 @@ impl Value {
             Immediate(TypedValue::ArrayU8(AddressOrSymbol::Address(addr))) => {
                 Immediate(TypedValue::U8((addr >> 8) as u8))
             }
-            Immediate(TypedValue::ArrayU8(AddressOrSymbol::Symbol(sym))) => {
-                Value::Memory(Type::U8, Location::UnresolvedGlobalHighByte(sym))
-            }
+            Immediate(TypedValue::ArrayU8(AddressOrSymbol::Symbol(sym))) => Value::Memory(MemoryData::new(
+                Type::U8,
+                Location::UnresolvedGlobalHighByte(sym),
+                None,
+            )),
             Immediate(_) => unreachable!(),
-            Memory(typ, ref location) => Memory(typ, location.high_byte()),
+            Memory(ref data) => Memory(MemoryData::new(
+                data.type_name,
+                data.location.high_byte(),
+                data.debug.as_ref().map(|n| Arc::new(format!("hi:{}", n))),
+            )),
         }
     }
 
@@ -79,11 +92,17 @@ impl Value {
             Immediate(TypedValue::U8(_)) => value.clone(),
             Immediate(TypedValue::U16(val)) => Immediate(TypedValue::U8(val as u8)),
             Immediate(TypedValue::ArrayU8(AddressOrSymbol::Address(addr))) => Immediate(TypedValue::U8(addr as u8)),
-            Immediate(TypedValue::ArrayU8(AddressOrSymbol::Symbol(sym))) => {
-                Value::Memory(Type::U8, Location::UnresolvedGlobalLowByte(sym))
-            }
+            Immediate(TypedValue::ArrayU8(AddressOrSymbol::Symbol(sym))) => Value::Memory(MemoryData::new(
+                Type::U8,
+                Location::UnresolvedGlobalLowByte(sym),
+                None,
+            )),
             Immediate(_) => unreachable!(),
-            Memory(typ, ref location) => Memory(typ, location.low_byte()),
+            Memory(ref data) => Memory(MemoryData::new(
+                data.type_name,
+                data.location.low_byte(),
+                data.debug.as_ref().map(|n| Arc::new(format!("lo:{}", n))),
+            )),
         }
     }
 }

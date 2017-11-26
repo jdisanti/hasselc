@@ -52,7 +52,12 @@ impl Emulator {
 }
 
 fn compile(name: &str, program: &str, optimize_llir: bool, optimize_code: bool) -> compiler::CompilerOutput {
-    let mut compiler = compiler::Compiler::new(optimize_llir, optimize_code);
+    let compiler_options = compiler::CompilerOptionsBuilder::default()
+        .optimize_llir(optimize_llir)
+        .optimize_code(optimize_code)
+        .build()
+        .unwrap();
+    let mut compiler = compiler::Compiler::new(compiler_options);
     compiler.parse_unit(name, program).unwrap();
     compiler.compile().unwrap()
 }
@@ -71,13 +76,8 @@ fn assemble(name: &str, program: &str, optimize_llir: bool, optimize_code: bool)
     let compiler_output = compile(name, program, optimize_llir, optimize_code);
 
     let symbol_table = compiler_output.global_symbol_table.read().unwrap();
-    let asm = if optimize_code {
-        to_asm(&*symbol_table, compiler_output.code_opt.as_ref().unwrap()).unwrap()
-    } else {
-        to_asm(&*symbol_table, compiler_output.code.as_ref().unwrap()).unwrap()
-    };
 
-    println!("Program:\n{}\n", asm);
+    println!("Program:\n{}\n", compiler_output.asm.as_ref().unwrap());
 
     fs::create_dir_all("test_output").expect("create_dir_all");
 
@@ -87,7 +87,8 @@ fn assemble(name: &str, program: &str, optimize_llir: bool, optimize_code: bool)
     drop(file);
 
     let mut file = fs::File::create(format!("test_output/{}.s", name)).unwrap();
-    file.write_all(asm.as_bytes()).unwrap();
+    file.write_all(compiler_output.asm.unwrap().as_bytes())
+        .unwrap();
     drop(file);
 
     let assemble_result = process::Command::new(assembler_name())
@@ -357,4 +358,26 @@ pub fn string_test_unoptimized() {
 pub fn string_test_optimized() {
     let emulator = emulate!(optimized: string_test);
     assert_eq!(12, emulator.cpu.bus.read_byte(0x0200));
+}
+
+#[test]
+pub fn memcpy_test_unoptimized() {
+    let emulator = emulate!(unoptimized: memcpy_test);
+    assert_eq!('h', emulator.cpu.bus.read_byte(0x0200) as char);
+    assert_eq!('e', emulator.cpu.bus.read_byte(0x0201) as char);
+    assert_eq!('l', emulator.cpu.bus.read_byte(0x0202) as char);
+    assert_eq!('l', emulator.cpu.bus.read_byte(0x0203) as char);
+    assert_eq!('o', emulator.cpu.bus.read_byte(0x0204) as char);
+    assert_eq!(0, emulator.cpu.bus.read_byte(0x0205));
+}
+
+#[test]
+pub fn memcpy_test_optimized() {
+    let emulator = emulate!(optimized: memcpy_test);
+    assert_eq!('h', emulator.cpu.bus.read_byte(0x0200) as char);
+    assert_eq!('e', emulator.cpu.bus.read_byte(0x0201) as char);
+    assert_eq!('l', emulator.cpu.bus.read_byte(0x0202) as char);
+    assert_eq!('l', emulator.cpu.bus.read_byte(0x0203) as char);
+    assert_eq!('o', emulator.cpu.bus.read_byte(0x0204) as char);
+    assert_eq!(0, emulator.cpu.bus.read_byte(0x0205));
 }

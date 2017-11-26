@@ -1,0 +1,32 @@
+# Declare stack frame locations
+register data_stack_pointer: u8 @ 0x0000;
+
+# String constants to play with
+const str1: &[u8] = "hello";
+
+# Outputs
+memory output: &[u8] @ 0x0200;
+
+# Entry point: Initialize the stack
+org 0xE000;
+data_stack_pointer = 3;
+main();
+goto halt;
+
+def main(): void
+    memcpy(output, str1, 6);
+    return;
+end
+
+def memcpy(dest: &[u8], src: &[u8], len: u8): void
+    var index: u8 = 0;
+    while index != len do
+        dest[index] = src[index];
+        index = index + 1;
+    end
+    return;
+end
+
+def halt(): void
+    goto halt;
+end

@@ -20,11 +20,15 @@ pub struct CompilerOutput {
 #[derive(Default, Builder, Debug)]
 #[builder(setter(into))]
 pub struct CompilerOptions {
-    pub optimize_llir: bool,
-    pub optimize_code: bool,
-    pub vector_reset_label: Option<String>,
-    pub vector_irq_label: Option<String>,
-    pub vector_nmi_label: Option<String>,
+    #[builder(default)] pub optimize_llir: bool,
+
+    #[builder(default)] pub optimize_code: bool,
+
+    #[builder(default)] pub vector_reset_label: Option<String>,
+
+    #[builder(default)] pub vector_irq_label: Option<String>,
+
+    #[builder(default)] pub vector_nmi_label: Option<String>,
 }
 
 pub struct Compiler {

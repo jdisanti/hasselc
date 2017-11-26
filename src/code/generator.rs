@@ -187,9 +187,9 @@ impl<'a> CodeGenerator<'a> {
                     Parameter::Immediate(val.as_u8()),
                 );
             }
-            llir::Value::Memory(_typ, ref location) => {
-                self.load_stack_pointer_if_necessary(location)?;
-                let param = self.location_to_parameter(location)?;
+            llir::Value::Memory(ref data) => {
+                self.load_stack_pointer_if_necessary(&data.location)?;
+                let param = self.location_to_parameter(&data.location)?;
                 code_gen(&mut self.registers, &mut self.code, param);
             }
         }
@@ -214,7 +214,7 @@ impl<'a> CodeGenerator<'a> {
                 self.registers
                     .load(&mut self.code, register, Parameter::Immediate(val.as_u8()))
             }
-            llir::Value::Memory(typ, ref location) => match *location {
+            llir::Value::Memory(ref data) => match data.location {
                 llir::Location::Global(addr) => self.registers.load(
                     &mut self.code,
                     register,
@@ -259,7 +259,7 @@ impl<'a> CodeGenerator<'a> {
                     );
                 }
                 llir::Location::UnresolvedGlobal(symbol_ref) => {
-                    let param = match typ {
+                    let param = match data.type_name {
                         Type::U8 => Parameter::Absolute(Global::UnresolvedSymbol(symbol_ref)),
                         Type::U16 | Type::ArrayU8 => Parameter::Absolute(Global::UnresolvedSymbolLowByte(symbol_ref)),
                         _ => unimplemented!(),
@@ -281,7 +281,10 @@ impl<'a> CodeGenerator<'a> {
                     );
                 }
                 _ => {
-                    println!("WARN: Unimplemented load_value location: {:?}", location);
+                    println!(
+                        "WARN: Unimplemented load_value location: {:?}",
+                        data.location
+                    );
                     unimplemented!()
                 }
             },
@@ -307,7 +310,9 @@ impl<'a> CodeGenerator<'a> {
 
     fn load_stack_pointer_if_necessary(&mut self, location: &llir::Location) -> error::Result<()> {
         match *location {
-            llir::Location::DataStackOffset(_) | llir::Location::FrameOffset(_, _) => {
+            llir::Location::DataStackOffset(_)
+            | llir::Location::FrameOffset(_, _)
+            | llir::Location::FrameOffsetIndirect(_, _) => {
                 self.registers.load_dsp(&mut self.code, Register::XIndex);
             }
             _ => {}
@@ -324,6 +329,9 @@ impl<'a> CodeGenerator<'a> {
             }
             llir::Location::DataStackOffset(offset) => Ok(Parameter::ZeroPageX(offset)),
             llir::Location::FrameOffset(frame_ref, offset) => Ok(Parameter::ZeroPageX(
+                offset - self.lookup_frame_size(frame_ref)?,
+            )),
+            llir::Location::FrameOffsetIndirect(frame_ref, offset) => Ok(Parameter::IndirectX(
                 offset - self.lookup_frame_size(frame_ref)?,
             )),
             llir::Location::UnresolvedGlobal(symbol) => Ok(Parameter::Absolute(Global::UnresolvedSymbol(symbol))),
