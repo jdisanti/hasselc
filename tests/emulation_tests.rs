@@ -8,7 +8,6 @@ use std::process;
 use std::io::prelude::*;
 use emulator::cpu::Cpu;
 use emulator::bus::{Bus, PlaceholderBus};
-use compiler::code::to_asm;
 
 pub const ROM_SIZE: usize = 0x2000;
 
@@ -74,8 +73,6 @@ fn assembler_name() -> &'static str {
 
 fn assemble(name: &str, program: &str, optimize_llir: bool, optimize_code: bool) -> Vec<u8> {
     let compiler_output = compile(name, program, optimize_llir, optimize_code);
-
-    let symbol_table = compiler_output.global_symbol_table.read().unwrap();
 
     println!("Program:\n{}\n", compiler_output.asm.as_ref().unwrap());
 

@@ -71,7 +71,7 @@ impl Compiler {
             compiler_output.ast.as_ref().unwrap(),
         ) {
             Ok(ir) => compiler_output.ir = Some(ir),
-            Err(err) => return Err(to_compiler_error(&self.src_units, err, compiler_output).into()),
+            Err(err) => return Err(to_compiler_error(&self.src_units, err, compiler_output)),
         }
 
         compiler_output.llir = Some(llir::generate_llir(compiler_output.ir.as_ref().unwrap())?);

@@ -75,13 +75,14 @@ impl<'a> CodeGenerator<'a> {
 
             match *statement {
                 llir::Statement::Add(ref data) => {
-                    self.generate_binary_op(data, |registers, body, param| registers.add(body, param))?;
+                    self.generate_binary_op(data, |registers, body, param, carry| {
+                        registers.add(body, param, carry)
+                    })?;
                 }
                 llir::Statement::Subtract(ref data) => {
-                    self.generate_binary_op(
-                        data,
-                        |registers, body, param| registers.subtract(body, param),
-                    )?;
+                    self.generate_binary_op(data, |registers, body, param, carry| {
+                        registers.subtract(body, param, carry)
+                    })?;
                 }
                 llir::Statement::AddToDataStackPointer(ref data) => {
                     self.registers.load_dsp(&mut self.code, Register::Accum);
@@ -90,7 +91,7 @@ impl<'a> CodeGenerator<'a> {
                         llir::SPOffset::FrameSize(frame_ref) => self.lookup_frame_size(frame_ref)? as u8,
                         llir::SPOffset::NegativeFrameSize(frame_ref) => -self.lookup_frame_size(frame_ref)? as u8,
                     });
-                    self.registers.add(&mut self.code, add_param);
+                    self.registers.add(&mut self.code, add_param, llir::CarryMode::ClearCarry);
                     self.registers.save_dsp_later(Register::Accum);
                     self.registers.load_dsp(&mut self.code, Register::XIndex);
                 }
@@ -102,7 +103,7 @@ impl<'a> CodeGenerator<'a> {
                     )));
                 }
                 llir::Statement::CompareEq(ref data) => {
-                    self.generate_binary_op(data, |registers, body, param| {
+                    self.generate_binary_op(data, |registers, body, param, _carry| {
                         body.push(Code::Cmp(param));
                         registers.load_status_into_accum(body);
                         // The Z flag in position 2 will be 1 if equal
@@ -112,7 +113,7 @@ impl<'a> CodeGenerator<'a> {
                     })?;
                 }
                 llir::Statement::CompareNotEq(ref data) => {
-                    self.generate_binary_op(data, |registers, body, param| {
+                    self.generate_binary_op(data, |registers, body, param, _carry| {
                         body.push(Code::Cmp(param));
                         registers.load_status_into_accum(body);
                         // The Z flag in position 2 will be 1 if equal
@@ -124,7 +125,7 @@ impl<'a> CodeGenerator<'a> {
                     })?;
                 }
                 llir::Statement::CompareLt(ref data) => {
-                    self.generate_binary_op(data, |registers, body, param| {
+                    self.generate_binary_op(data, |registers, body, param, _carry| {
                         body.push(Code::Cmp(param));
                         registers.load_status_into_accum(body);
                         // The C flag in position 1 will be 1 if greater than or equal
@@ -134,7 +135,7 @@ impl<'a> CodeGenerator<'a> {
                     })?;
                 }
                 llir::Statement::CompareGte(ref data) => {
-                    self.generate_binary_op(data, |registers, body, param| {
+                    self.generate_binary_op(data, |registers, body, param, _carry| {
                         body.push(Code::Cmp(param));
                         registers.load_status_into_accum(body);
                         // The C flag in position 1 will be 1 if greater than or equal
@@ -175,7 +176,7 @@ impl<'a> CodeGenerator<'a> {
 
     fn generate_binary_op<F>(&mut self, binary_op: &llir::BinaryOpData, code_gen: F) -> error::Result<()>
     where
-        F: Fn(&mut RegisterAllocator, &mut Vec<Code>, Parameter) -> (),
+        F: Fn(&mut RegisterAllocator, &mut Vec<Code>, Parameter, llir::CarryMode) -> (),
     {
         // TODO: Choose left or right to go into accum based on least work
         self.load_into_accum(&binary_op.left)?;
@@ -185,12 +186,18 @@ impl<'a> CodeGenerator<'a> {
                     &mut self.registers,
                     &mut self.code,
                     Parameter::Immediate(val.as_u8()),
+                    binary_op.carry_mode,
                 );
             }
             llir::Value::Memory(ref data) => {
                 self.load_stack_pointer_if_necessary(&data.location)?;
                 let param = self.location_to_parameter(&data.location)?;
-                code_gen(&mut self.registers, &mut self.code, param);
+                code_gen(
+                    &mut self.registers,
+                    &mut self.code,
+                    param,
+                    binary_op.carry_mode,
+                );
             }
         }
         self.store_accum(&binary_op.destination)?;

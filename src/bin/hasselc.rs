@@ -9,7 +9,7 @@ use std::process;
 use compiler::{Compiler, CompilerOptions, CompilerOptionsBuilder};
 use compiler::error;
 
-fn die(err: error::Error) -> ! {
+fn die(err: &error::Error) -> ! {
     println!("{}", err.0);
     process::exit(1);
 }
@@ -17,7 +17,7 @@ fn die(err: error::Error) -> ! {
 fn handle_result<T>(result: error::Result<T>) -> T {
     match result {
         Ok(t) => t,
-        Err(err) => die(err),
+        Err(err) => die(&err),
     }
 }
 
@@ -98,18 +98,17 @@ fn get_options() -> Options {
     compiler_options.vector_reset_label(
         cli_matches
             .value_of("VECTOR_RESET")
-            .map(|s| String::from(s)),
+            .map(String::from),
     );
-    compiler_options.vector_irq_label(cli_matches.value_of("VECTOR_IRQ").map(|s| String::from(s)));
-    compiler_options.vector_nmi_label(cli_matches.value_of("VECTOR_NMI").map(|s| String::from(s)));
+    compiler_options.vector_irq_label(cli_matches.value_of("VECTOR_IRQ").map(String::from));
+    compiler_options.vector_nmi_label(cli_matches.value_of("VECTOR_NMI").map(String::from));
 
     Options {
         compiler_options: compiler_options.build().unwrap(),
         input_name: cli_matches.value_of("INPUT").unwrap().into(),
         output_name: cli_matches
             .value_of("OUTPUT")
-            .map(|o| String::from(o))
-            .into(),
+            .map(String::from),
     }
 }
 

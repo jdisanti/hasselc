@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use error;
 use ir;
-use llir::{AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, CopyData, FrameBlock, GoToData, InlineAsmData,
-           JumpRoutineData, Location, MemoryData, ReturnData, RunBlock, SPOffset, Statement, Value};
+use llir::{AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, CarryMode, CopyData, FrameBlock, GoToData,
+           InlineAsmData, JumpRoutineData, Location, MemoryData, ReturnData, RunBlock, SPOffset, Statement, Value};
 use parse::ast;
 use symbol_table::{self, SymbolName, SymbolRef, SymbolTable};
 use src_tag::{SrcTag, SrcTagged};
@@ -255,18 +255,31 @@ fn resolve_expr_to_value(
                         )),
                         addr.clone(),
                     )?;
-                    // TODO: Handle full 16-bit addition rather than this limited 1-byte addition
-                    // that will currently break if it crosses a page boundary
+
+                    // Do a full 16-bit addition to the indexed address
                     statements.push(Statement::Add(BinaryOpData::new(
                         data.tag,
                         addr.low_byte(),
                         Value::Memory(MemoryData::new(
-                            Type::U8,
+                            Type::U16,
                             addr.low_byte(),
-                            Some(Arc::new(format!("tmp_indexed_addr:{}", array_name))),
+                            Some(Arc::new(format!("tmp_indexed_addr_lo:{}", array_name))),
                         )),
                         index_value,
+                        CarryMode::ClearCarry,
                     )));
+                    statements.push(Statement::Add(BinaryOpData::new(
+                        data.tag,
+                        addr.high_byte(),
+                        Value::Memory(MemoryData::new(
+                            Type::U16,
+                            addr.high_byte(),
+                            Some(Arc::new(format!("tmp_indexed_addr_hi:{}", array_name))),
+                        )),
+                        Value::Immediate(TypedValue::U8(0)),
+                        CarryMode::DontCare,
+                    )));
+
                     Ok(Value::Memory(MemoryData::new(
                         data.value_type,
                         match addr {
@@ -282,8 +295,8 @@ fn resolve_expr_to_value(
         ir::Expr::Symbol(ref data) => if let Some(ref variable) = symbol_table.variable(data.symbol) {
             match variable.type_name {
                 Type::ArrayU8 => {
-                    // Return the address as a U16 when naming an array without an index
                     match variable.location {
+                        // Return the address as a U16 when naming an array without an index
                         symbol_table::Location::Global(addr) => Ok(Value::Immediate(TypedValue::U16(addr))),
                         _ => Ok(Value::Memory(MemoryData::new(
                             Type::U16,
@@ -304,6 +317,7 @@ fn resolve_expr_to_value(
             unreachable!()
         },
         ir::Expr::BinaryOp(ref data) => {
+            // TODO: Support 16-bit ops, and mixed 16-bit/8-bit ops
             let dest = convert_location(frame_ref, &symbol_table.create_temporary_location(Type::U8));
             let left_value = resolve_expr_to_value(statements, frame_ref, symbol_table, &*data.left)?;
             let right_value = resolve_expr_to_value(statements, frame_ref, symbol_table, &*data.right)?;
@@ -312,8 +326,19 @@ fn resolve_expr_to_value(
                 dest.clone(),
                 left_value.clone(),
                 right_value.clone(),
+                match data.op {
+                    ast::BinaryOperator::Add => CarryMode::ClearCarry,
+                    ast::BinaryOperator::Sub => CarryMode::SetCarry,
+                    _ => CarryMode::DontCare,
+                },
             );
-            let bin_op_inverted_data = BinaryOpData::new(data.tag, dest.clone(), right_value, left_value);
+            let bin_op_inverted_data = BinaryOpData::new(
+                data.tag,
+                dest.clone(),
+                right_value,
+                left_value,
+                bin_op_data.carry_mode,
+            );
             match data.op {
                 ast::BinaryOperator::Add => statements.push(Statement::Add(bin_op_data)),
                 ast::BinaryOperator::Sub => statements.push(Statement::Subtract(bin_op_data)),

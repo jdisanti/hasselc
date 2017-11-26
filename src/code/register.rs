@@ -1,4 +1,5 @@
 use code::{Code, Parameter};
+use llir::CarryMode;
 
 pub const DATA_STACK_POINTER_LOCATION: u16 = 0x0000;
 
@@ -166,17 +167,25 @@ impl RegisterAllocator {
         }
     }
 
-    pub fn add(&mut self, code: &mut Vec<Code>, param: Parameter) {
+    pub fn add(&mut self, code: &mut Vec<Code>, param: Parameter, carry_mode: CarryMode) {
         self.save_as_necessary(code, Register::Accum);
-        code.push(Code::Clc(Parameter::Implicit));
+        match carry_mode {
+            CarryMode::ClearCarry => code.push(Code::Clc(Parameter::Implicit)),
+            CarryMode::SetCarry => code.push(Code::Sec(Parameter::Implicit)),
+            _ => {}
+        }
         code.push(Code::Adc(param));
         let next_intermediate = self.next_intermediate();
         self.values[Register::Accum.ordinal()].clobber(next_intermediate);
     }
 
-    pub fn subtract(&mut self, code: &mut Vec<Code>, param: Parameter) {
+    pub fn subtract(&mut self, code: &mut Vec<Code>, param: Parameter, carry_mode: CarryMode) {
         self.save_as_necessary(code, Register::Accum);
-        code.push(Code::Sec(Parameter::Implicit));
+        match carry_mode {
+            CarryMode::ClearCarry => code.push(Code::Clc(Parameter::Implicit)),
+            CarryMode::SetCarry => code.push(Code::Sec(Parameter::Implicit)),
+            _ => {}
+        }
         code.push(Code::Sbc(param));
         let next_intermediate = self.next_intermediate();
         self.values[Register::Accum.ordinal()].clobber(next_intermediate);
@@ -262,7 +271,7 @@ mod tests {
             Register::Accum,
             Parameter::ZeroPage(5),
         );
-        registers.add(&mut code_block.body, Parameter::ZeroPage(6));
+        registers.add(&mut code_block.body, Parameter::ZeroPage(6), CarryMode::ClearCarry);
         registers.save_later(Register::Accum, Parameter::ZeroPage(5));
         registers.load(
             &mut code_block.body,

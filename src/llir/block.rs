@@ -121,12 +121,20 @@ pub struct CopyData {
     pub value: Value,
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum CarryMode {
+    DontCare,
+    SetCarry,
+    ClearCarry,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, new)]
 pub struct BinaryOpData {
     pub tag: SrcTag,
     pub destination: Location,
     pub left: Value,
     pub right: Value,
+    pub carry_mode: CarryMode,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, new)]
