@@ -1,17 +1,36 @@
 # Declare stack frame locations
 register data_stack_pointer: u8 @ 0x0000;
 
-register output: u16 @ 0x0200;
+register output1: u16 @ 0x0200;
+register output2: u16 @ 0x0202;
+register output3: u16 @ 0x0204;
+
+const test_str: &[u8] = "test";
 
 # Initialize the stack
 org 0xE000;
 data_stack_pointer = 3;
 
-output = test();
+output1 = test1();
+output2 = test2(1, 0xFF);
+output3 = strlen16(test_str);
+
 goto halt;
 
-def test(): u16
+def test1(): u16
     return 0xAABB;
+end
+
+def test2(a: u16, b: u16): u16
+    return a + b;
+end
+
+def strlen16(str: &[u8]): u16
+    var index: u16 = 0;
+    while str[index] != 0 do
+        index = index + 1;
+    end
+    return index;
 end
 
 def halt(): void

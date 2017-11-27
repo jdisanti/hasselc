@@ -188,7 +188,12 @@ pub fn to_asm(global_symbol_table: &SymbolTable, blocks: &[CodeBlock]) -> error:
     }
     for (symbol_ref, text) in global_symbol_table.texts() {
         let symbol_name = global_symbol_table.get_symbol_name(symbol_ref).unwrap();
-        write!(asm, "\n{}:\t.byte\t\"{}\",0\n", symbol_name, text)?;
+        let bytes = text.as_bytes();
+        write!(asm, "\n{}:\t.byte\t", symbol_name)?;
+        for byte in bytes {
+            write!(asm, "${:02X},", byte)?;
+        }
+        write!(asm, "$00\n")?;
     }
     Ok(asm)
 }

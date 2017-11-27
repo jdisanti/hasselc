@@ -8,6 +8,7 @@ use std::process;
 use std::io::prelude::*;
 use emulator::cpu::Cpu;
 use emulator::bus::{Bus, PlaceholderBus};
+use compiler::error;
 
 pub const ROM_SIZE: usize = 0x2000;
 
@@ -50,15 +51,15 @@ impl Emulator {
     }
 }
 
-fn compile(name: &str, program: &str, optimize_llir: bool, optimize_code: bool) -> compiler::CompilerOutput {
+fn compile(name: &str, program: &str, optimize_llir: bool, optimize_code: bool) -> error::Result<compiler::CompilerOutput> {
     let compiler_options = compiler::CompilerOptionsBuilder::default()
         .optimize_llir(optimize_llir)
         .optimize_code(optimize_code)
         .build()
         .unwrap();
     let mut compiler = compiler::Compiler::new(compiler_options);
-    compiler.parse_unit(name, program).unwrap();
-    compiler.compile().unwrap()
+    compiler.parse_unit(name, program)?;
+    compiler.compile()
 }
 
 #[cfg(target_os = "windows")]
@@ -72,7 +73,10 @@ fn assembler_name() -> &'static str {
 }
 
 fn assemble(name: &str, program: &str, optimize_llir: bool, optimize_code: bool) -> Vec<u8> {
-    let compiler_output = compile(name, program, optimize_llir, optimize_code);
+    let compiler_output = match compile(name, program, optimize_llir, optimize_code) {
+        Ok(output) => output,
+        Err(err) => panic!(format!("{}", err.0)),
+    };
 
     println!("Program:\n{}\n", compiler_output.asm.as_ref().unwrap());
 
@@ -318,6 +322,10 @@ pub fn word_test_unoptimized() {
     let emulator = emulate!(unoptimized: word_test);
     assert_eq!(0xBBu8, emulator.cpu.bus.read_byte(0x0200));
     assert_eq!(0xAAu8, emulator.cpu.bus.read_byte(0x0201));
+    assert_eq!(0x00u8, emulator.cpu.bus.read_byte(0x0202));
+    assert_eq!(0x01u8, emulator.cpu.bus.read_byte(0x0203));
+    assert_eq!(0x04u8, emulator.cpu.bus.read_byte(0x0204));
+    assert_eq!(0x00u8, emulator.cpu.bus.read_byte(0x0205));
 }
 
 #[test]
@@ -325,6 +333,10 @@ pub fn word_test_optimized() {
     let emulator = emulate!(optimized: word_test);
     assert_eq!(0xBBu8, emulator.cpu.bus.read_byte(0x0200));
     assert_eq!(0xAAu8, emulator.cpu.bus.read_byte(0x0201));
+    assert_eq!(0x00u8, emulator.cpu.bus.read_byte(0x0202));
+    assert_eq!(0x01u8, emulator.cpu.bus.read_byte(0x0203));
+    assert_eq!(0x04u8, emulator.cpu.bus.read_byte(0x0204));
+    assert_eq!(0x00u8, emulator.cpu.bus.read_byte(0x0205));
 }
 
 #[test]
