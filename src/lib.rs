@@ -14,6 +14,7 @@ extern crate error_chain;
 
 pub mod symbol_table;
 mod types;
+mod type_expr;
 pub mod code;
 pub mod compiler;
 pub mod error;

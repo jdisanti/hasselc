@@ -95,20 +95,14 @@ fn get_options() -> Options {
         _ => {}
     }
 
-    compiler_options.vector_reset_label(
-        cli_matches
-            .value_of("VECTOR_RESET")
-            .map(String::from),
-    );
+    compiler_options.vector_reset_label(cli_matches.value_of("VECTOR_RESET").map(String::from));
     compiler_options.vector_irq_label(cli_matches.value_of("VECTOR_IRQ").map(String::from));
     compiler_options.vector_nmi_label(cli_matches.value_of("VECTOR_NMI").map(String::from));
 
     Options {
         compiler_options: compiler_options.build().unwrap(),
         input_name: cli_matches.value_of("INPUT").unwrap().into(),
-        output_name: cli_matches
-            .value_of("OUTPUT")
-            .map(String::from),
+        output_name: cli_matches.value_of("OUTPUT").map(String::from),
     }
 }
 

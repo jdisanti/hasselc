@@ -1,5 +1,6 @@
 use symbol_table::SymbolRef;
 
+#[deprecated]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Type {
     U8,
@@ -20,12 +21,14 @@ impl Type {
     }
 }
 
+#[deprecated]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum AddressOrSymbol {
     Address(u16),
     Symbol(SymbolRef),
 }
 
+#[deprecated]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum TypedValue {
     UnresolvedInt(i32),

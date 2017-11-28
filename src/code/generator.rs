@@ -91,7 +91,8 @@ impl<'a> CodeGenerator<'a> {
                         llir::SPOffset::FrameSize(frame_ref) => self.lookup_frame_size(frame_ref)? as u8,
                         llir::SPOffset::NegativeFrameSize(frame_ref) => -self.lookup_frame_size(frame_ref)? as u8,
                     });
-                    self.registers.add(&mut self.code, add_param, llir::CarryMode::ClearCarry);
+                    self.registers
+                        .add(&mut self.code, add_param, llir::CarryMode::ClearCarry);
                     self.registers.save_dsp_later(Register::Accum);
                     self.registers.load_dsp(&mut self.code, Register::XIndex);
                 }

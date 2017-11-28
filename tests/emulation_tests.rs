@@ -51,7 +51,12 @@ impl Emulator {
     }
 }
 
-fn compile(name: &str, program: &str, optimize_llir: bool, optimize_code: bool) -> error::Result<compiler::CompilerOutput> {
+fn compile(
+    name: &str,
+    program: &str,
+    optimize_llir: bool,
+    optimize_code: bool,
+) -> error::Result<compiler::CompilerOutput> {
     let compiler_options = compiler::CompilerOptionsBuilder::default()
         .optimize_llir(optimize_llir)
         .optimize_code(optimize_code)

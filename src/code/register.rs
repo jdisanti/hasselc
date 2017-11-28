@@ -271,7 +271,11 @@ mod tests {
             Register::Accum,
             Parameter::ZeroPage(5),
         );
-        registers.add(&mut code_block.body, Parameter::ZeroPage(6), CarryMode::ClearCarry);
+        registers.add(
+            &mut code_block.body,
+            Parameter::ZeroPage(6),
+            CarryMode::ClearCarry,
+        );
         registers.save_later(Register::Accum, Parameter::ZeroPage(5));
         registers.load(
             &mut code_block.body,
