@@ -13,9 +13,7 @@ pub struct RegisterEquivalency {
 
 impl RegisterEquivalency {
     pub fn new() -> RegisterEquivalency {
-        RegisterEquivalency {
-            equivalencies: Vec::new(),
-        }
+        RegisterEquivalency { equivalencies: Vec::new() }
     }
 
     pub fn clobber(&mut self, value: RegisterValue) {
@@ -88,19 +86,25 @@ impl Register {
     pub fn to_other(&self, register: Register) -> Option<Code> {
         use self::Register::*;
         match *self {
-            Accum => match register {
-                Accum => None,
-                XIndex => Some(Code::Tax(Parameter::Implicit)),
-                YIndex => Some(Code::Tay(Parameter::Implicit)),
-            },
-            XIndex => match register {
-                Accum => Some(Code::Txa(Parameter::Implicit)),
-                XIndex | YIndex => None,
-            },
-            YIndex => match register {
-                Accum => Some(Code::Tya(Parameter::Implicit)),
-                XIndex | YIndex => None,
-            },
+            Accum => {
+                match register {
+                    Accum => None,
+                    XIndex => Some(Code::Tax(Parameter::Implicit)),
+                    YIndex => Some(Code::Tay(Parameter::Implicit)),
+                }
+            }
+            XIndex => {
+                match register {
+                    Accum => Some(Code::Txa(Parameter::Implicit)),
+                    XIndex | YIndex => None,
+                }
+            }
+            YIndex => {
+                match register {
+                    Accum => Some(Code::Tya(Parameter::Implicit)),
+                    XIndex | YIndex => None,
+                }
+            }
         }
     }
 }
@@ -110,8 +114,12 @@ struct SaveLocation(pub Parameter);
 impl SaveLocation {
     pub fn requires(&self, register: Register) -> bool {
         match self.0 {
-            Parameter::AbsoluteX(_) | Parameter::IndirectX(_) | Parameter::ZeroPageX(_) => register == Register::XIndex,
-            Parameter::AbsoluteY(_) | Parameter::IndirectY(_) | Parameter::ZeroPageY(_) => register == Register::YIndex,
+            Parameter::AbsoluteX(_) |
+            Parameter::IndirectX(_) |
+            Parameter::ZeroPageX(_) => register == Register::XIndex,
+            Parameter::AbsoluteY(_) |
+            Parameter::IndirectY(_) |
+            Parameter::ZeroPageY(_) => register == Register::YIndex,
             _ => false,
         }
     }

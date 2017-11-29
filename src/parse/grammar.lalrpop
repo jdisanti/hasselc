@@ -25,7 +25,7 @@ use parse::ast::{
     TextData,
     WhileLoopData,
 };
-use types::Type;
+use type_expr::BaseType;
 use src_tag::SrcTag;
 use lalrpop_util::ErrorRecovery;
 use parse::unescape_string;
@@ -61,15 +61,15 @@ Name: Arc<String> = {
     r"[a-zA-Z_][\w]*" => Arc::new(String::from_str(<>).unwrap())
 };
 
-Type: Type = {
-    "u8" => Type::U8,
-    "u16" => Type::U16,
-    "void" => Type::Void,
-    "&" "[" "u8" "]" => Type::ArrayU8,
+Type: BaseType = {
+    "u8" => BaseType::U8,
+    "u16" => BaseType::U16,
+    "void" => BaseType::Void,
+    "&" "[" <t:Type> "]" => BaseType::Pointer(Box::new(t)),
 };
 
 NameType: NameType = {
-    <n:Name> ":" <t:Type> => NameType { name: n, type_name: t },
+    <n:Name> ":" <t:Type> => NameType::new(n, t),
 };
 
 ParameterList: Vec<NameType> = {

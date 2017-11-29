@@ -2,11 +2,12 @@ use std::sync::Arc;
 use error;
 use ir;
 use llir::{AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, CarryMode, CopyData, FrameBlock, GoToData,
-           InlineAsmData, JumpRoutineData, Location, MemoryData, ReturnData, RunBlock, SPOffset, Statement, Value};
+           ImmediateValue, InlineAsmData, JumpRoutineData, Location, MemoryData, ReturnData, RunBlock, SPOffset,
+           Statement, Value};
 use parse::ast;
 use symbol_table::{self, SymbolName, SymbolRef, SymbolTable};
 use src_tag::{SrcTag, SrcTagged};
-use types::{Type, TypedValue};
+use type_expr::BaseType;
 
 const RETURN_LOCATION_LO: Location = Location::Global(0x0001);
 
@@ -39,7 +40,7 @@ pub fn generate_llir(input: &[ir::Block]) -> error::Result<Vec<FrameBlock>> {
 fn calculate_frame_size(symbol_table: &SymbolTable) -> i8 {
     let mut size = 0;
     for variable in symbol_table.variables() {
-        size += variable.type_name.size() as i8;
+        size += variable.base_type.size().unwrap() as i8;
     }
     size
 }
@@ -73,7 +74,7 @@ fn generate_runs(
                 generate_copy(
                     &mut current_block.statements,
                     data.tag,
-                    data.value_type,
+                    data.value_type.as_ref().unwrap(),
                     right_value,
                     left_location,
                 )?;
@@ -87,11 +88,9 @@ fn generate_runs(
 
                 let after_both_block = RunBlock::new_tup(symbol_table.new_block_name());
                 let last_true_block_index = true_blocks.len() - 1;
-                true_blocks[last_true_block_index]
-                    .statements
-                    .push(Statement::GoTo(
-                        GoToData::new(data.tag, after_both_block.symbol),
-                    ));
+                true_blocks[last_true_block_index].statements.push(Statement::GoTo(
+                    GoToData::new(data.tag, after_both_block.symbol),
+                ));
 
                 let condition = resolve_expr_to_value(
                     &mut current_block.statements,
@@ -99,13 +98,11 @@ fn generate_runs(
                     symbol_table,
                     &data.condition,
                 )?;
-                current_block
-                    .statements
-                    .push(Statement::BranchIfZero(BranchIfZeroData::new(
-                        data.tag,
-                        condition,
-                        false_blocks[0].symbol,
-                    )));
+                current_block.statements.push(Statement::BranchIfZero(BranchIfZeroData::new(
+                    data.tag,
+                    condition,
+                    false_blocks[0].symbol,
+                )));
 
                 blocks.push(current_block);
                 blocks.extend(true_blocks);
@@ -130,20 +127,16 @@ fn generate_runs(
                     &data.condition,
                 )?;
 
-                condition_block
-                    .statements
-                    .push(Statement::BranchIfZero(BranchIfZeroData::new(
-                        data.tag,
-                        condition,
-                        after_body_block.symbol,
-                    )));
+                condition_block.statements.push(Statement::BranchIfZero(BranchIfZeroData::new(
+                    data.tag,
+                    condition,
+                    after_body_block.symbol,
+                )));
 
                 let last_body_block_index = body_blocks.len() - 1;
-                body_blocks[last_body_block_index]
-                    .statements
-                    .push(Statement::GoTo(
-                        GoToData::new(data.tag, condition_block.symbol),
-                    ));
+                body_blocks[last_body_block_index].statements.push(Statement::GoTo(
+                    GoToData::new(data.tag, condition_block.symbol),
+                ));
 
                 blocks.push(current_block);
                 blocks.push(condition_block);
@@ -157,22 +150,24 @@ fn generate_runs(
                     generate_copy(
                         &mut current_block.statements,
                         data.tag,
-                        data.value_type,
+                        data.value_type.as_ref().unwrap(),
                         value,
                         RETURN_LOCATION_LO,
                     )?;
                 }
-                current_block
-                    .statements
-                    .push(Statement::Return(ReturnData::new(data.tag)));
+                current_block.statements.push(Statement::Return(ReturnData::new(data.tag)));
             }
-            ir::Statement::GoTo(ref data) => if let Some(symbol_ref) = symbol_table.find_symbol(&data.destination) {
-                current_block
-                    .statements
-                    .push(Statement::GoTo(GoToData::new(data.tag, symbol_ref)));
-            } else {
-                return Err(error::ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.destination)).into());
-            },
+            ir::Statement::GoTo(ref data) => {
+                if let Some(symbol_ref) = symbol_table.find_symbol(&data.destination) {
+                    current_block.statements.push(
+                        Statement::GoTo(GoToData::new(data.tag, symbol_ref)),
+                    );
+                } else {
+                    return Err(
+                        error::ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.destination)).into(),
+                    );
+                }
+            }
             _ => unimplemented!("llir_gen: generate_runs statement"),
         }
     }
@@ -184,15 +179,16 @@ fn generate_runs(
 fn generate_copy(
     statements: &mut Vec<Statement>,
     tag: SrcTag,
-    value_type: Type,
+    value_type: &BaseType,
     value: Value,
     destination: Location,
 ) -> error::Result<()> {
-    match value_type {
-        Type::U8 => {
+    match *value_type {
+        BaseType::Bool | BaseType::U8 => {
             statements.push(Statement::Copy(CopyData::new(tag, destination, value)));
         }
-        Type::U16 | Type::ArrayU8 => {
+        BaseType::U16 |
+        BaseType::Pointer(_) => {
             statements.push(Statement::Copy(CopyData::new(
                 tag,
                 destination.high_byte(),
@@ -204,7 +200,7 @@ fn generate_copy(
                 Value::low_byte(&value),
             )));
         }
-        Type::Void | Type::Unresolved => unreachable!(),
+        BaseType::Void => unreachable!(),
     }
     Ok(())
 }
@@ -216,7 +212,7 @@ fn resolve_expr_to_location(
     expr: &ir::Expr,
 ) -> error::Result<Location> {
     match resolve_expr_to_value(statements, frame_ref, symbol_table, expr)? {
-        Value::Immediate(_) => Err(error::ErrorKind::InvalidLeftValue(expr.src_tag()).into()),
+        Value::Immediate(_, _) => Err(error::ErrorKind::InvalidLeftValue(expr.src_tag()).into()),
         Value::Memory(data) => Ok(data.location),
     }
 }
@@ -235,21 +231,26 @@ fn resolve_expr_to_value(
             match array.location {
                 symbol_table::Location::UndeterminedGlobal => unreachable!(),
                 symbol_table::Location::Global(addr) => Ok(Value::Memory(MemoryData::new(
-                    data.value_type,
+                    data.array_type
+                        .as_ref()
+                        .unwrap()
+                        .underlying_type()
+                        .unwrap()
+                        .clone(),
                     Location::GlobalIndexed(addr, Box::new(index_value)),
                     Some(Arc::new(format!("{}[]", array_name))),
                 ))),
                 symbol_table::Location::FrameOffset(_) => {
                     let addr = convert_location(
                         frame_ref,
-                        &symbol_table.create_temporary_location(Type::ArrayU8),
+                        &symbol_table.create_temporary_location(data.array_type.as_ref().unwrap()),
                     );
                     generate_copy(
                         statements,
                         data.tag,
-                        Type::ArrayU8,
+                        data.array_type.as_ref().unwrap(),
                         Value::Memory(MemoryData::new(
-                            Type::ArrayU8,
+                            data.array_type.as_ref().unwrap().clone(),
                             convert_location(frame_ref, &array.location),
                             Some(Arc::new(format!("{}[]", array_name))),
                         )),
@@ -261,9 +262,11 @@ fn resolve_expr_to_value(
                         data.tag,
                         addr.low_byte(),
                         Value::Memory(MemoryData::new(
-                            Type::U16,
+                            BaseType::U16,
                             addr.low_byte(),
-                            Some(Arc::new(format!("tmp_indexed_addr_lo:{}", array_name))),
+                            Some(
+                                Arc::new(format!("tmp_indexed_addr_lo:{}", array_name)),
+                            ),
                         )),
                         index_value,
                         CarryMode::ClearCarry,
@@ -272,16 +275,23 @@ fn resolve_expr_to_value(
                         data.tag,
                         addr.high_byte(),
                         Value::Memory(MemoryData::new(
-                            Type::U16,
+                            BaseType::U16,
                             addr.high_byte(),
-                            Some(Arc::new(format!("tmp_indexed_addr_hi:{}", array_name))),
+                            Some(
+                                Arc::new(format!("tmp_indexed_addr_hi:{}", array_name)),
+                            ),
                         )),
-                        Value::Immediate(TypedValue::U8(0)),
+                        Value::Immediate(BaseType::U8, ImmediateValue::Number(0)),
                         CarryMode::DontCare,
                     )));
 
                     Ok(Value::Memory(MemoryData::new(
-                        data.value_type,
+                        data.array_type
+                            .as_ref()
+                            .unwrap()
+                            .underlying_type()
+                            .unwrap()
+                            .clone(),
                         match addr {
                             Location::FrameOffset(sym_ref, offset) => Location::FrameOffsetIndirect(sym_ref, offset),
                             _ => unreachable!(),
@@ -291,34 +301,55 @@ fn resolve_expr_to_value(
                 }
             }
         }
-        ir::Expr::Number(ref data) => Ok(Value::Immediate(data.value)),
-        ir::Expr::Symbol(ref data) => if let Some(ref variable) = symbol_table.variable(data.symbol) {
-            match variable.type_name {
-                Type::ArrayU8 => {
-                    match variable.location {
-                        // Return the address as a U16 when naming an array without an index
-                        symbol_table::Location::Global(addr) => Ok(Value::Immediate(TypedValue::U16(addr))),
-                        _ => Ok(Value::Memory(MemoryData::new(
-                            Type::U16,
-                            convert_location(frame_ref, &variable.location),
-                            Some(symbol_table.get_symbol_name(data.symbol).unwrap()),
-                        ))),
+        ir::Expr::Number(ref data) => Ok(Value::Immediate(
+            data.value_type.as_ref().unwrap().clone(),
+            ImmediateValue::Number(data.value),
+        )),
+        ir::Expr::Symbol(ref data) => {
+            if let Some(ref variable) = symbol_table.variable(data.symbol) {
+                match variable.base_type {
+                    BaseType::Pointer(_) => {
+                        match variable.location {
+                            // Return the address as a U16 when naming an array without an index
+                            symbol_table::Location::Global(addr) => Ok(Value::Immediate(
+                                BaseType::U16,
+                                ImmediateValue::Number(addr as i32),
+                            )),
+                            _ => Ok(Value::Memory(MemoryData::new(
+                                BaseType::U16,
+                                convert_location(frame_ref, &variable.location),
+                                Some(symbol_table.get_symbol_name(data.symbol).unwrap()),
+                            ))),
+                        }
                     }
+                    _ => Ok(Value::Memory(MemoryData::new(
+                        variable.base_type.clone(),
+                        convert_location(frame_ref, &variable.location),
+                        Some(symbol_table.get_symbol_name(data.symbol).unwrap()),
+                    ))),
                 }
-                _ => Ok(Value::Memory(MemoryData::new(
-                    variable.type_name,
-                    convert_location(frame_ref, &variable.location),
-                    Some(symbol_table.get_symbol_name(data.symbol).unwrap()),
-                ))),
+            } else if let Some(ref constant) = symbol_table.constant(data.symbol) {
+                if constant.base_type.is_pointer() {
+                    Ok(Value::Immediate(
+                        data.value_type.as_ref().unwrap().clone(),
+                        ImmediateValue::Symbol(data.symbol),
+                    ))
+                } else {
+                    Ok(Value::Immediate(
+                        data.value_type.as_ref().unwrap().clone(),
+                        ImmediateValue::Number(constant.value.number()),
+                    ))
+                }
+            } else {
+                unreachable!()
             }
-        } else if let Some(ref value) = symbol_table.constant(data.symbol) {
-            Ok(Value::Immediate(*value))
-        } else {
-            unreachable!()
-        },
+        }
         ir::Expr::BinaryOp(ref data) => {
             // TODO: Support 16-bit ops, and mixed 16-bit/8-bit ops
-            let dest = convert_location(frame_ref, &symbol_table.create_temporary_location(Type::U8));
+            let dest = convert_location(
+                frame_ref,
+                &symbol_table.create_temporary_location(&BaseType::U8),
+            );
             let left_value = resolve_expr_to_value(statements, frame_ref, symbol_table, &*data.left)?;
             let right_value = resolve_expr_to_value(statements, frame_ref, symbol_table, &*data.right)?;
             let bin_op_data = BinaryOpData::new(
@@ -350,7 +381,7 @@ fn resolve_expr_to_value(
                 ast::BinaryOperator::GreaterThanEqual => statements.push(Statement::CompareGte(bin_op_data)),
                 _ => unimplemented!(),
             };
-            Ok(Value::Memory(MemoryData::new(Type::U8, dest, None)))
+            Ok(Value::Memory(MemoryData::new(BaseType::U8, dest, None)))
         }
         ir::Expr::Call(ref data) => generate_function_call(statements, frame_ref, symbol_table, data),
     }
@@ -387,7 +418,10 @@ fn generate_function_call(
             )?)
         }
         statements.push(Statement::AddToDataStackPointer(
-            AddToDataStackPointerData::new(call_data.tag, SPOffset::FrameSize(function_ref)),
+            AddToDataStackPointerData::new(
+                call_data.tag,
+                SPOffset::FrameSize(function_ref),
+            ),
         ));
         if !metadata.parameters.is_empty() {
             let mut frame_offset = 0;
@@ -395,12 +429,12 @@ fn generate_function_call(
                 generate_copy(
                     statements,
                     call_data.tag,
-                    argument_value.value_type(),
+                    &argument_value.value_type(),
                     offset_call(function_ref, argument_value),
                     Location::FrameOffset(function_ref, frame_offset),
                 )?;
                 let name_type = &metadata.parameters[i];
-                frame_offset += name_type.type_name.size() as i8;
+                frame_offset += name_type.base_type.size().unwrap() as i8;
             }
         }
 
@@ -412,42 +446,52 @@ fn generate_function_call(
 
         // Restore the stack pointer
         statements.push(Statement::AddToDataStackPointer(
-            AddToDataStackPointerData::new(call_data.tag, SPOffset::NegativeFrameSize(function_ref)),
+            AddToDataStackPointerData::new(
+                call_data.tag,
+                SPOffset::NegativeFrameSize(function_ref),
+            ),
         ));
 
-        if call_data.return_type != Type::Void {
-            let dest = convert_location(frame_ref, &symbol_table.create_temporary_location(Type::U8));
+        if call_data.return_type.as_ref().unwrap().size().is_some() {
+            let dest = convert_location(
+                frame_ref,
+                &symbol_table.create_temporary_location(&BaseType::U8),
+            );
             generate_copy(
                 statements,
                 call_data.tag,
-                call_data.return_type,
+                call_data.return_type.as_ref().unwrap(),
                 Value::Memory(MemoryData::new(
-                    call_data.return_type,
+                    call_data.return_type.as_ref().unwrap().clone(),
                     RETURN_LOCATION_LO,
                     None,
                 )),
                 dest.clone(),
             )?;
 
-            Ok(Value::Memory(
-                MemoryData::new(call_data.return_type, dest, None),
-            ))
+            Ok(Value::Memory(MemoryData::new(
+                call_data.return_type.as_ref().unwrap().clone(),
+                dest,
+                None,
+            )))
         } else {
             Ok(Value::Memory(MemoryData::new(
-                call_data.return_type,
+                call_data.return_type.as_ref().unwrap().clone(),
                 RETURN_LOCATION_LO,
                 None,
             )))
         }
     } else {
-        Err(error::ErrorKind::SymbolNotFound(call_data.tag, SymbolName::clone(&call_data.function)).into())
+        Err(
+            error::ErrorKind::SymbolNotFound(call_data.tag, SymbolName::clone(&call_data.function)).into(),
+        )
     }
 }
 
 fn offset_call(calling_frame: SymbolRef, value: Value) -> Value {
     match value {
         Value::Memory(data) => Value::Memory(MemoryData::new(
-            data.type_name,
+            data.base_type.clone(),
             match data.location {
                 Location::FrameOffset(frame, offset) => Location::FrameOffsetBeforeCall(frame, calling_frame, offset),
                 _ => data.location,

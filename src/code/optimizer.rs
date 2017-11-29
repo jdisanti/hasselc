@@ -24,9 +24,7 @@ fn optimize_code_block(code_block: &CodeBlock) -> error::Result<CodeBlock> {
             last_branch = i;
         }
     }
-    optimized
-        .body
-        .extend(optimize_run(&body[last_branch..body.len()])?);
+    optimized.body.extend(optimize_run(&body[last_branch..body.len()])?);
 
     Ok(optimized)
 }

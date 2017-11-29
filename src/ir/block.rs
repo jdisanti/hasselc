@@ -4,20 +4,21 @@ use parse::ast::BinaryOperator;
 use src_tag::{SrcTag, SrcTagged};
 use symbol_table::{DefaultSymbolTable, FunctionMetadata, FunctionMetadataPtr, Location, ParentedSymbolTableWrapper,
                    SymbolName, SymbolRef, SymbolTable, Variable};
-use types::{Type, TypedValue};
+use type_expr::BaseType;
 
 #[derive(Debug, new)]
 pub struct ArrayIndexData {
     pub tag: SrcTag,
     pub array: SymbolRef,
     pub index: Box<Expr>,
-    pub value_type: Type,
+    pub array_type: Option<BaseType>,
 }
 
 #[derive(Debug, new)]
 pub struct BinaryOpData {
     pub tag: SrcTag,
     pub op: BinaryOperator,
+    pub result_type: Option<BaseType>,
     pub left: Box<Expr>,
     pub right: Box<Expr>,
 }
@@ -27,20 +28,21 @@ pub struct CallData {
     pub tag: SrcTag,
     pub function: SymbolName,
     pub arguments: Vec<Expr>,
-    pub return_type: Type,
+    pub return_type: Option<BaseType>,
 }
 
 #[derive(Debug, new)]
 pub struct NumberData {
     pub tag: SrcTag,
-    pub value: TypedValue,
+    pub value: i32,
+    pub value_type: Option<BaseType>,
 }
 
 #[derive(Debug, new)]
 pub struct SymbolData {
     pub tag: SrcTag,
     pub symbol: SymbolRef,
-    pub value_type: Type,
+    pub value_type: Option<BaseType>,
 }
 
 #[derive(Debug)]
@@ -68,7 +70,7 @@ impl SrcTagged for Expr {
 #[derive(Debug, new)]
 pub struct AssignData {
     pub tag: SrcTag,
-    pub value_type: Type,
+    pub value_type: Option<BaseType>,
     pub left_value: Expr,
     pub right_value: Expr,
 }
@@ -96,7 +98,7 @@ pub struct InlineAsmData {
 #[derive(Debug, new)]
 pub struct ReturnData {
     pub tag: SrcTag,
-    pub value_type: Type,
+    pub value_type: Option<BaseType>,
     pub value: Option<Expr>,
 }
 
@@ -144,7 +146,7 @@ impl Block {
                 name: symbol_name,
                 location: None,
                 parameters: Vec::new(),
-                return_type: Type::Void,
+                return_type: BaseType::Void,
                 frame_size: 0,
             })),
             anonymous: true,
@@ -164,7 +166,7 @@ impl Block {
             .unwrap()
             .parameters
             .iter()
-            .map(|p| p.type_name.size())
+            .map(|p| p.base_type.size().unwrap())
             .fold(0, |acc, size| acc + size);
         let handle_gen = parent_symbol_table.read().unwrap().handle_gen();
         let mut symbol_table = ParentedSymbolTableWrapper::new(
@@ -175,14 +177,14 @@ impl Block {
         let mut frame_offset = 0i8;
         for parameter in &metadata.read().unwrap().parameters {
             let name = SymbolName::clone(&parameter.name);
-            let variable = Variable::new(parameter.type_name, Location::FrameOffset(frame_offset));
-            if symbol_table
-                .insert_variable(SymbolName::clone(&name), variable)
-                .is_none()
-            {
+            let variable = Variable::new(
+                parameter.base_type.clone(),
+                Location::FrameOffset(frame_offset),
+            );
+            if symbol_table.insert_variable(SymbolName::clone(&name), variable).is_none() {
                 return Err(ErrorKind::DuplicateSymbol(src_tag, name).into());
             }
-            frame_offset += parameter.type_name.size() as i8;
+            frame_offset += parameter.base_type.size().unwrap() as i8;
         }
 
         Ok(Block {

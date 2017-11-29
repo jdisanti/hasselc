@@ -37,7 +37,9 @@ fn get_options() -> Options {
                 .short("r")
                 .long("runtime")
                 .value_name("RUNTIME")
-                .help("Tells the compiler to use a pre-configured runtime environment")
+                .help(
+                    "Tells the compiler to use a pre-configured runtime environment",
+                )
                 .takes_value(true),
         )
         .arg(
@@ -77,9 +79,7 @@ fn get_options() -> Options {
                 .takes_value(true),
         )
         .arg(
-            clap::Arg::with_name("INPUT")
-                .help("Input source file to use")
-                .required(true),
+            clap::Arg::with_name("INPUT").help("Input source file to use").required(true),
         );
     let cli_matches = cli_app.get_matches();
 
@@ -139,9 +139,7 @@ fn main() {
                     return;
                 }
             };
-            if !file.write_all(compiler_output.asm.unwrap().as_bytes())
-                .is_ok()
-            {
+            if !file.write_all(compiler_output.asm.unwrap().as_bytes()).is_ok() {
                 println!("Failed to write to output file");
                 return;
             }

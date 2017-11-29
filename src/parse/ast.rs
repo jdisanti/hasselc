@@ -2,13 +2,13 @@ use std::sync::Arc;
 use lalrpop_util;
 use src_tag::{SrcTag, SrcTagged};
 use src_unit::SrcUnit;
-use types::Type;
+use type_expr::BaseType;
 use error;
 
 #[derive(Debug, Clone, Eq, PartialEq, new)]
 pub struct NameType {
     pub name: Arc<String>,
-    pub type_name: Type,
+    pub base_type: BaseType,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -23,6 +23,16 @@ pub enum BinaryOperator {
     GreaterThanEqual,
     Equal,
     NotEqual,
+}
+
+impl BinaryOperator {
+    pub fn is_arithmetic(&self) -> bool {
+        use self::BinaryOperator::*;
+        match *self {
+            Add | Sub | Mul | Div => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, new)]
@@ -74,7 +84,7 @@ pub struct DeclareFunctionData {
     pub tag: SrcTag,
     pub name: Arc<String>,
     pub parameters: Vec<NameType>,
-    pub return_type: Type,
+    pub return_type: BaseType,
     pub body: Vec<Expression>,
 }
 
@@ -179,7 +189,9 @@ impl Expression {
                 Err(err) => Err(translate_errors(src_unit, [err].iter()).into()),
             }
         } else {
-            Err(translate_errors(src_unit, errors.iter().map(|err| &err.error)).into())
+            Err(
+                translate_errors(src_unit, errors.iter().map(|err| &err.error)).into(),
+            )
         }
     }
 }
@@ -226,26 +238,28 @@ where
             lalrpop_util::ParseError::UnrecognizedToken {
                 ref token,
                 ref expected,
-            } => match *token {
-                Some((start, token, _end)) => {
-                    let (row, col) = SrcTag::new(0, start).row_col(&unit.source);
-                    messages.push(format!(
-                        "{}:{}:{}: unexpected token \"{}\". Expected one of: {:?}",
-                        unit.name,
-                        row,
-                        col,
-                        token.1,
-                        expected
-                    ));
+            } => {
+                match *token {
+                    Some((start, token, _end)) => {
+                        let (row, col) = SrcTag::new(0, start).row_col(&unit.source);
+                        messages.push(format!(
+                            "{}:{}:{}: unexpected token \"{}\". Expected one of: {:?}",
+                            unit.name,
+                            row,
+                            col,
+                            token.1,
+                            expected
+                        ));
+                    }
+                    None => {
+                        messages.push(format!(
+                            "{}: unexpected EOF; expected: {:?}",
+                            unit.name,
+                            expected
+                        ));
+                    }
                 }
-                None => {
-                    messages.push(format!(
-                        "{}: unexpected EOF; expected: {:?}",
-                        unit.name,
-                        expected
-                    ));
-                }
-            },
+            }
             lalrpop_util::ParseError::ExtraToken { ref token } => {
                 let (row, col) = SrcTag::new(0, token.0).row_col(&unit.source);
                 messages.push(format!(
@@ -282,12 +296,18 @@ mod test {
                 Box::new(Expression::BinaryOp(BinaryOpData::new(
                     SrcTag::new(0, 4),
                     BinaryOperator::Add,
-                    Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 4), 2))),
+                    Box::new(
+                        Expression::Number(NumberData::new(SrcTag::new(0, 4), 2)),
+                    ),
                     Box::new(Expression::BinaryOp(BinaryOpData::new(
                         SrcTag::new(0, 8),
                         BinaryOperator::Mul,
-                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 8), 9))),
-                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 12), 1))),
+                        Box::new(
+                            Expression::Number(NumberData::new(SrcTag::new(0, 8), 9)),
+                        ),
+                        Box::new(
+                            Expression::Number(NumberData::new(SrcTag::new(0, 12), 1)),
+                        ),
                     ))),
                 ))),
             )),
@@ -310,12 +330,18 @@ mod test {
                 Box::new(Expression::BinaryOp(BinaryOpData::new(
                     SrcTag::new(0, 4),
                     BinaryOperator::Mul,
-                    Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 4), 2))),
+                    Box::new(
+                        Expression::Number(NumberData::new(SrcTag::new(0, 4), 2)),
+                    ),
                     Box::new(Expression::BinaryOp(BinaryOpData::new(
                         SrcTag::new(0, 9),
                         BinaryOperator::Add,
-                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 9), 9))),
-                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 13), 1))),
+                        Box::new(
+                            Expression::Number(NumberData::new(SrcTag::new(0, 9), 9)),
+                        ),
+                        Box::new(
+                            Expression::Number(NumberData::new(SrcTag::new(0, 13), 1)),
+                        ),
                     ))),
                 ))),
             )),
@@ -341,14 +367,22 @@ mod test {
                     Box::new(Expression::BinaryOp(BinaryOpData::new(
                         SrcTag::new(0, 4),
                         BinaryOperator::Add,
-                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 4), 2))),
-                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 8), 1))),
+                        Box::new(
+                            Expression::Number(NumberData::new(SrcTag::new(0, 4), 2)),
+                        ),
+                        Box::new(
+                            Expression::Number(NumberData::new(SrcTag::new(0, 8), 1)),
+                        ),
                     ))),
                     Box::new(Expression::BinaryOp(BinaryOpData::new(
                         SrcTag::new(0, 12),
                         BinaryOperator::Sub,
-                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 12), 3))),
-                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 16), 1))),
+                        Box::new(
+                            Expression::Number(NumberData::new(SrcTag::new(0, 12), 3)),
+                        ),
+                        Box::new(
+                            Expression::Number(NumberData::new(SrcTag::new(0, 16), 1)),
+                        ),
                     ))),
                 ))),
             )),
@@ -365,7 +399,10 @@ mod test {
         let expected = vec![
             Expression::DeclareRegister(DeclareRegisterData::new(
                 SrcTag::new(0, 0),
-                NameType::new(Arc::new("test_register".into()), Type::U8),
+                NameType::new(
+                    Arc::new("test_register".into()),
+                    BaseType::U8,
+                ),
                 0x8000,
             )),
         ];

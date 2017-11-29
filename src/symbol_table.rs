@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use parse::ast::NameType;
-use types::{Type, TypedValue};
+use type_expr::BaseType;
 use std::fmt::Debug;
 
 #[derive(Debug, Copy, Clone)]
@@ -19,33 +19,44 @@ pub struct FunctionMetadata {
     pub name: SymbolName,
     pub location: Option<Location>,
     pub parameters: Vec<NameType>,
-    pub return_type: Type,
+    pub return_type: BaseType,
     pub frame_size: i8,
 }
 
 pub type FunctionMetadataPtr = Arc<RwLock<FunctionMetadata>>;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct Variable {
-    pub type_name: Type,
+    pub base_type: BaseType,
     pub location: Location,
 }
 
-impl Variable {
-    pub fn new(type_name: Type, location: Location) -> Variable {
-        Variable {
-            type_name: type_name,
-            location: location,
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum ConstantValue {
+    Number(i32),
+    Bytes(Arc<Vec<u8>>),
+}
+
+impl ConstantValue {
+    pub fn number(&self) -> i32 {
+        match *self {
+            ConstantValue::Number(num) => num,
+            _ => panic!("attempt to take a number from non-number constant value"),
         }
     }
 }
 
+#[derive(Debug, Clone, new)]
+pub struct Constant {
+    pub base_type: BaseType,
+    pub value: ConstantValue,
+}
+
 #[derive(Clone, Debug)]
 enum Symbol {
-    Constant(TypedValue),
+    Constant(Constant),
     Variable(Variable),
     Function(FunctionMetadataPtr),
-    Text(Arc<String>),
     Block,
 }
 
@@ -99,10 +110,15 @@ impl SymbolMap {
         }))
     }
 
-    fn texts<'a>(&'a self) -> Box<Iterator<Item = (SymbolRef, Arc<String>)> + 'a> {
+    fn data_constants<'a>(&'a self) -> Box<Iterator<Item = (SymbolRef, Arc<Vec<u8>>)> + 'a> {
         Box::new(self.by_ref.iter().filter_map(
             |(symbol_ref, symbol)| match *symbol {
-                Symbol::Text(ref text) => Some((*symbol_ref, Arc::clone(text))),
+                Symbol::Constant(ref constant) => {
+                    match constant.value {
+                        ConstantValue::Bytes(ref bytes) => Some((*symbol_ref, Arc::clone(bytes))),
+                        _ => None,
+                    }
+                }
                 _ => None,
             },
         ))
@@ -136,12 +152,18 @@ pub trait SymbolTable: Send + Sync + Debug {
 
     fn next_frame_offset(&mut self, local_size: usize) -> i8;
 
-    fn create_temporary(&mut self, typ: Type) -> SymbolRef;
-    fn create_temporary_location(&mut self, typ: Type) -> Location;
+    fn create_temporary(&mut self, base_type: &BaseType) -> SymbolRef;
+    fn create_temporary_location(&mut self, base_type: &BaseType) -> Location;
 
-    fn insert_constant(&mut self, symbol_name: SymbolName, value: TypedValue) -> Option<SymbolRef>;
-    fn constant_by_name(&self, symbol_name: &SymbolName) -> Option<TypedValue>;
-    fn constant(&self, symbol_ref: SymbolRef) -> Option<TypedValue>;
+    fn insert_constant(
+        &mut self,
+        symbol_name: SymbolName,
+        base_type: &BaseType,
+        value: ConstantValue,
+    ) -> Option<SymbolRef>;
+    fn insert_unnamed_constant(&mut self, base_type: &BaseType, value: ConstantValue) -> Option<SymbolRef>;
+    fn constant_by_name(&self, symbol_name: &SymbolName) -> Option<Constant>;
+    fn constant(&self, symbol_ref: SymbolRef) -> Option<Constant>;
 
     fn insert_function(&mut self, symbol_name: SymbolName, metadata: FunctionMetadataPtr) -> Option<SymbolRef>;
     fn function_by_name(&self, symbol_name: &SymbolName) -> Option<FunctionMetadataPtr>;
@@ -152,11 +174,10 @@ pub trait SymbolTable: Send + Sync + Debug {
     fn variable(&self, symbol_ref: SymbolRef) -> Option<Variable>;
     fn variables<'a>(&'a self) -> Box<Iterator<Item = &'a Variable> + 'a>;
 
-    fn insert_text(&mut self, text: Arc<String>) -> SymbolRef;
-    fn texts<'a>(&'a self) -> Box<Iterator<Item = (SymbolRef, Arc<String>)> + 'a>;
+    fn data_constants<'a>(&'a self) -> Box<Iterator<Item = (SymbolRef, Arc<Vec<u8>>)> + 'a>;
 
-    fn type_of(&self, symbol_ref: SymbolRef) -> Option<Type>;
-    fn type_of_by_name(&self, symbol_name: &SymbolName) -> Option<Type>;
+    fn type_of(&self, symbol_ref: SymbolRef) -> Option<BaseType>;
+    fn type_of_by_name(&self, symbol_name: &SymbolName) -> Option<BaseType>;
 
     fn handle_gen(&self) -> Arc<RwLock<HandleGenerator>>;
 }
@@ -182,8 +203,7 @@ impl SymbolTable for DefaultSymbolTable {
     fn new_block_name(&mut self) -> (SymbolName, SymbolRef) {
         let symbol_ref = self.handle_gen.write().unwrap().new_handle();
         let symbol_name = Arc::new(format!("__L{:06X}_", symbol_ref));
-        self.symbols
-            .insert(SymbolName::clone(&symbol_name), symbol_ref, Symbol::Block);
+        self.symbols.insert(SymbolName::clone(&symbol_name), symbol_ref, Symbol::Block);
         (symbol_name, symbol_ref)
     }
 
@@ -210,40 +230,59 @@ impl SymbolTable for DefaultSymbolTable {
         result
     }
 
-    fn create_temporary(&mut self, typ: Type) -> SymbolRef {
-        let next_location = self.next_frame_offset(typ.size());
+    fn create_temporary(&mut self, base_type: &BaseType) -> SymbolRef {
+        let next_location = self.next_frame_offset(base_type.size().unwrap());
         let symbol_name = SymbolName::new(format!("tmp#{}", next_location));
         let symbol_ref = self.handle_gen.write().unwrap().new_handle();
         self.symbols.insert(
             SymbolName::clone(&symbol_name),
             symbol_ref,
-            Symbol::Variable(Variable::new(typ, Location::FrameOffset(next_location))),
+            Symbol::Variable(Variable::new(
+                base_type.clone(),
+                Location::FrameOffset(next_location),
+            )),
         );
         symbol_ref
     }
 
-    fn create_temporary_location(&mut self, typ: Type) -> Location {
-        let symbol = self.create_temporary(typ);
+    fn create_temporary_location(&mut self, base_type: &BaseType) -> Location {
+        let symbol = self.create_temporary(base_type);
         self.variable(symbol).unwrap().location
     }
 
-    fn insert_constant(&mut self, symbol_name: SymbolName, value: TypedValue) -> Option<SymbolRef> {
+    fn insert_constant(
+        &mut self,
+        symbol_name: SymbolName,
+        base_type: &BaseType,
+        value: ConstantValue,
+    ) -> Option<SymbolRef> {
         let symbol_ref = self.handle_gen.write().unwrap().new_handle();
-        self.symbols
-            .insert(symbol_name, symbol_ref, Symbol::Constant(value))
+        self.symbols.insert(
+            symbol_name,
+            symbol_ref,
+            Symbol::Constant(Constant::new(base_type.clone(), value)),
+        )
     }
 
-    fn constant_by_name(&self, symbol_name: &SymbolName) -> Option<TypedValue> {
-        if let Some(&Symbol::Constant(val)) = self.symbols.find_by_name(symbol_name) {
-            Some(val)
+    fn insert_unnamed_constant(&mut self, base_type: &BaseType, value: ConstantValue) -> Option<SymbolRef> {
+        let name = Arc::new(format!(
+            "__UC{:06X}_",
+            self.handle_gen.write().unwrap().new_handle()
+        ));
+        self.insert_constant(name, base_type, value)
+    }
+
+    fn constant_by_name(&self, symbol_name: &SymbolName) -> Option<Constant> {
+        if let Some(&Symbol::Constant(ref val)) = self.symbols.find_by_name(symbol_name) {
+            Some(val.clone())
         } else {
             None
         }
     }
 
-    fn constant(&self, symbol_ref: SymbolRef) -> Option<TypedValue> {
-        if let Some(&Symbol::Constant(val)) = self.symbols.find_by_ref(symbol_ref) {
-            Some(val)
+    fn constant(&self, symbol_ref: SymbolRef) -> Option<Constant> {
+        if let Some(&Symbol::Constant(ref val)) = self.symbols.find_by_ref(symbol_ref) {
+            Some(val.clone())
         } else {
             None
         }
@@ -251,8 +290,7 @@ impl SymbolTable for DefaultSymbolTable {
 
     fn insert_function(&mut self, symbol_name: SymbolName, metadata: FunctionMetadataPtr) -> Option<SymbolRef> {
         let symbol_ref = self.handle_gen.write().unwrap().new_handle();
-        self.symbols
-            .insert(symbol_name, symbol_ref, Symbol::Function(metadata))
+        self.symbols.insert(symbol_name, symbol_ref, Symbol::Function(metadata))
     }
 
     fn function_by_name(&self, symbol_name: &SymbolName) -> Option<FunctionMetadataPtr> {
@@ -273,21 +311,20 @@ impl SymbolTable for DefaultSymbolTable {
 
     fn insert_variable(&mut self, symbol_name: SymbolName, variable: Variable) -> Option<SymbolRef> {
         let symbol_ref = self.handle_gen.write().unwrap().new_handle();
-        self.symbols
-            .insert(symbol_name, symbol_ref, Symbol::Variable(variable))
+        self.symbols.insert(symbol_name, symbol_ref, Symbol::Variable(variable))
     }
 
     fn variable_by_name(&self, symbol_name: &SymbolName) -> Option<Variable> {
-        if let Some(&Symbol::Variable(v)) = self.symbols.find_by_name(symbol_name) {
-            Some(v)
+        if let Some(&Symbol::Variable(ref v)) = self.symbols.find_by_name(symbol_name) {
+            Some(v.clone())
         } else {
             None
         }
     }
 
     fn variable(&self, symbol_ref: SymbolRef) -> Option<Variable> {
-        if let Some(&Symbol::Variable(v)) = self.symbols.find_by_ref(symbol_ref) {
-            Some(v)
+        if let Some(&Symbol::Variable(ref v)) = self.symbols.find_by_ref(symbol_ref) {
+            Some(v.clone())
         } else {
             None
         }
@@ -297,25 +334,16 @@ impl SymbolTable for DefaultSymbolTable {
         self.symbols.variables()
     }
 
-    fn insert_text(&mut self, text: Arc<String>) -> SymbolRef {
-        let symbol_ref = self.handle_gen.write().unwrap().new_handle();
-        let symbol_name = SymbolName::new(format!("__T{:06X}_", symbol_ref));
-        self.symbols
-            .insert(symbol_name, symbol_ref, Symbol::Text(text))
-            .unwrap()
+    fn data_constants<'a>(&'a self) -> Box<Iterator<Item = (SymbolRef, Arc<Vec<u8>>)> + 'a> {
+        self.symbols.data_constants()
     }
 
-    fn texts<'a>(&'a self) -> Box<Iterator<Item = (SymbolRef, Arc<String>)> + 'a> {
-        self.symbols.texts()
-    }
-
-    fn type_of(&self, symbol_ref: SymbolRef) -> Option<Type> {
+    fn type_of(&self, symbol_ref: SymbolRef) -> Option<BaseType> {
         if let Some(symbol) = self.symbols.find_by_ref(symbol_ref) {
             match *symbol {
-                Symbol::Constant(ref data) => Some(data.get_type()),
-                Symbol::Variable(ref data) => Some(data.type_name),
-                Symbol::Function(ref data) => Some(data.read().unwrap().return_type),
-                Symbol::Text(_) => Some(Type::ArrayU8),
+                Symbol::Constant(ref data) => Some(data.base_type.clone()),
+                Symbol::Variable(ref data) => Some(data.base_type.clone()),
+                Symbol::Function(ref data) => Some(data.read().unwrap().return_type.clone()),
                 Symbol::Block => None,
             }
         } else {
@@ -323,7 +351,7 @@ impl SymbolTable for DefaultSymbolTable {
         }
     }
 
-    fn type_of_by_name(&self, symbol_name: &SymbolName) -> Option<Type> {
+    fn type_of_by_name(&self, symbol_name: &SymbolName) -> Option<BaseType> {
         match self.symbols.get_ref(symbol_name) {
             Some(symbol_ref) => self.type_of(symbol_ref),
             None => None,
@@ -383,19 +411,28 @@ impl SymbolTable for ParentedSymbolTableWrapper {
         self.child.next_frame_offset(local_size)
     }
 
-    fn create_temporary(&mut self, typ: Type) -> SymbolRef {
-        self.child.create_temporary(typ)
+    fn create_temporary(&mut self, base_type: &BaseType) -> SymbolRef {
+        self.child.create_temporary(base_type)
     }
 
-    fn create_temporary_location(&mut self, typ: Type) -> Location {
-        self.child.create_temporary_location(typ)
+    fn create_temporary_location(&mut self, base_type: &BaseType) -> Location {
+        self.child.create_temporary_location(base_type)
     }
 
-    fn insert_constant(&mut self, symbol_name: SymbolName, value: TypedValue) -> Option<SymbolRef> {
-        self.child.insert_constant(symbol_name, value)
+    fn insert_constant(
+        &mut self,
+        symbol_name: SymbolName,
+        base_type: &BaseType,
+        value: ConstantValue,
+    ) -> Option<SymbolRef> {
+        self.child.insert_constant(symbol_name, base_type, value)
     }
 
-    fn constant_by_name(&self, symbol_name: &SymbolName) -> Option<TypedValue> {
+    fn insert_unnamed_constant(&mut self, base_type: &BaseType, value: ConstantValue) -> Option<SymbolRef> {
+        self.child.insert_unnamed_constant(base_type, value)
+    }
+
+    fn constant_by_name(&self, symbol_name: &SymbolName) -> Option<Constant> {
         if let Some(constant) = self.child.constant_by_name(symbol_name) {
             Some(constant)
         } else {
@@ -403,7 +440,7 @@ impl SymbolTable for ParentedSymbolTableWrapper {
         }
     }
 
-    fn constant(&self, symbol_ref: SymbolRef) -> Option<TypedValue> {
+    fn constant(&self, symbol_ref: SymbolRef) -> Option<Constant> {
         if let Some(constant) = self.child.constant(symbol_ref) {
             Some(constant)
         } else {
@@ -455,15 +492,11 @@ impl SymbolTable for ParentedSymbolTableWrapper {
         self.child.variables()
     }
 
-    fn insert_text(&mut self, text: Arc<String>) -> SymbolRef {
-        self.parent.write().unwrap().insert_text(text)
+    fn data_constants<'a>(&'a self) -> Box<Iterator<Item = (SymbolRef, Arc<Vec<u8>>)> + 'a> {
+        self.child.data_constants()
     }
 
-    fn texts<'a>(&'a self) -> Box<Iterator<Item = (SymbolRef, Arc<String>)> + 'a> {
-        self.child.texts()
-    }
-
-    fn type_of(&self, symbol_ref: SymbolRef) -> Option<Type> {
+    fn type_of(&self, symbol_ref: SymbolRef) -> Option<BaseType> {
         if let Some(typ) = self.child.type_of(symbol_ref) {
             Some(typ)
         } else {
@@ -471,7 +504,7 @@ impl SymbolTable for ParentedSymbolTableWrapper {
         }
     }
 
-    fn type_of_by_name(&self, symbol_name: &SymbolName) -> Option<Type> {
+    fn type_of_by_name(&self, symbol_name: &SymbolName) -> Option<BaseType> {
         if let Some(typ) = self.child.type_of_by_name(symbol_name) {
             Some(typ)
         } else {

@@ -98,11 +98,9 @@ impl Code {
     pub fn parameter(&self) -> &Parameter {
         use self::Code::*;
         match *self {
-            Adc(ref p) | And(ref p) | Beq(ref p) | Clc(ref p) | Cmp(ref p) | Eor(ref p) | Jmp(ref p) | Jsr(ref p)
-            | Lda(ref p) | Ldx(ref p) | Ldy(ref p) | Php(ref p) | Pla(ref p) | Ror(ref p) | Rts(ref p) | Sbc(ref p)
-            | Sec(ref p) | Sta(ref p) | Stx(ref p) | Sty(ref p) | Tax(ref p) | Tay(ref p) | Txa(ref p) | Tya(ref p) => {
-                p
-            }
+            Adc(ref p) | And(ref p) | Beq(ref p) | Clc(ref p) | Cmp(ref p) | Eor(ref p) | Jmp(ref p) | Jsr(ref p) |
+            Lda(ref p) | Ldx(ref p) | Ldy(ref p) | Php(ref p) | Pla(ref p) | Ror(ref p) | Rts(ref p) | Sbc(ref p) |
+            Sec(ref p) | Sta(ref p) | Stx(ref p) | Sty(ref p) | Tax(ref p) | Tay(ref p) | Txa(ref p) | Tya(ref p) => p,
             Comment(_) => unreachable!(),
             InlineAsm(_) => unreachable!(),
         }
@@ -186,11 +184,10 @@ pub fn to_asm(global_symbol_table: &SymbolTable, blocks: &[CodeBlock]) -> error:
     for block in blocks {
         asm.push_str(&block.to_asm(global_symbol_table).unwrap());
     }
-    for (symbol_ref, text) in global_symbol_table.texts() {
+    for (symbol_ref, bytes) in global_symbol_table.data_constants() {
         let symbol_name = global_symbol_table.get_symbol_name(symbol_ref).unwrap();
-        let bytes = text.as_bytes();
         write!(asm, "\n{}:\t.byte\t", symbol_name)?;
-        for byte in bytes {
+        for byte in bytes.iter() {
             write!(asm, "${:02X},", byte)?;
         }
         write!(asm, "$00\n")?;

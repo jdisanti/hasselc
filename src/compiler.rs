@@ -20,15 +20,20 @@ pub struct CompilerOutput {
 #[derive(Default, Builder, Debug)]
 #[builder(setter(into))]
 pub struct CompilerOptions {
-    #[builder(default)] pub optimize_llir: bool,
+    #[builder(default)]
+    pub optimize_llir: bool,
 
-    #[builder(default)] pub optimize_code: bool,
+    #[builder(default)]
+    pub optimize_code: bool,
 
-    #[builder(default)] pub vector_reset_label: Option<String>,
+    #[builder(default)]
+    pub vector_reset_label: Option<String>,
 
-    #[builder(default)] pub vector_irq_label: Option<String>,
+    #[builder(default)]
+    pub vector_irq_label: Option<String>,
 
-    #[builder(default)] pub vector_nmi_label: Option<String>,
+    #[builder(default)]
+    pub vector_nmi_label: Option<String>,
 }
 
 pub struct Compiler {
@@ -93,8 +98,8 @@ impl Compiler {
             compiler_output.code.as_ref().unwrap(),
         )?);
 
-        if self.options.vector_irq_label.is_some() || self.options.vector_nmi_label.is_some()
-            || self.options.vector_reset_label.is_some()
+        if self.options.vector_irq_label.is_some() || self.options.vector_nmi_label.is_some() ||
+            self.options.vector_reset_label.is_some()
         {
             compiler_output.asm.as_mut().unwrap().push_str(&format!(
                 "\n\
