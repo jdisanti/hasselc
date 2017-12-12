@@ -1,3 +1,4 @@
+mod binop;
 mod block;
 mod generator;
 mod optimizer;

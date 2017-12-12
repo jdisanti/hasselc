@@ -281,7 +281,8 @@ fn constant_eval_number(type_name: &BaseType, input: &ast::NumberData) -> error:
                 Ok(ConstantValue::Number(input.value))
             }
         }
-        BaseType::U16 | BaseType::Pointer(_) => {
+        BaseType::U16 |
+        BaseType::Pointer(_) => {
             let unsigned_val = input.value as usize;
             if unsigned_val > 0xFFFF {
                 Err(

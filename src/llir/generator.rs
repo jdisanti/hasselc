@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use error;
 use ir;
-use llir::{AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, CarryMode, CopyData, FrameBlock, GoToData,
-           ImmediateValue, InlineAsmData, JumpRoutineData, Location, MemoryData, ReturnData, RunBlock, SPOffset,
-           Statement, Value};
+use llir::{binop, AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, CarryMode, CopyData, FrameBlock,
+           GoToData, ImmediateValue, InlineAsmData, JumpRoutineData, Location, MemoryData, ReturnData, RunBlock,
+           SPOffset, Statement, Value};
 use parse::ast;
 use symbol_table::{self, SymbolName, SymbolRef, SymbolTable};
 use src_tag::{SrcTag, SrcTagged};
@@ -345,10 +345,10 @@ fn resolve_expr_to_value(
             }
         }
         ir::Expr::BinaryOp(ref data) => {
-            // TODO: Support 16-bit ops, and mixed 16-bit/8-bit ops
+            let dest_type = data.result_type.as_ref().unwrap();
             let dest = convert_location(
                 frame_ref,
-                &symbol_table.create_temporary_location(&BaseType::U8),
+                &symbol_table.create_temporary_location(dest_type),
             );
             let left_value = resolve_expr_to_value(statements, frame_ref, symbol_table, &*data.left)?;
             let right_value = resolve_expr_to_value(statements, frame_ref, symbol_table, &*data.right)?;
@@ -366,13 +366,32 @@ fn resolve_expr_to_value(
             let bin_op_inverted_data = BinaryOpData::new(
                 data.tag,
                 dest.clone(),
-                right_value,
-                left_value,
+                right_value.clone(),
+                left_value.clone(),
                 bin_op_data.carry_mode,
             );
             match data.op {
-                ast::BinaryOperator::Add => statements.push(Statement::Add(bin_op_data)),
-                ast::BinaryOperator::Sub => statements.push(Statement::Subtract(bin_op_data)),
+                ast::BinaryOperator::Add => {
+                    binop::add::generate_add(
+                        statements,
+                        data.tag,
+                        &dest_type,
+                        &dest,
+                        &left_value,
+                        &right_value,
+                    )?
+                }
+                ast::BinaryOperator::Sub => {
+                    binop::add::generate_sub(
+                        statements,
+                        data.tag,
+                        &dest_type,
+                        &dest,
+                        &left_value,
+                        &right_value,
+                    )?
+                }
+                // TODO: Add 16-bit and mixed 16-bit/8-bit support to remaining ops
                 ast::BinaryOperator::Equal => statements.push(Statement::CompareEq(bin_op_data)),
                 ast::BinaryOperator::NotEqual => statements.push(Statement::CompareNotEq(bin_op_data)),
                 ast::BinaryOperator::LessThan => statements.push(Statement::CompareLt(bin_op_data)),

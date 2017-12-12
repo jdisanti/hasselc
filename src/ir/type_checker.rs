@@ -119,7 +119,10 @@ impl TypeChecking for Expr {
                 let left_type = data.left.resolve_type(symbol_table)?;
                 let right_type = data.right.resolve_type(symbol_table)?;
                 match BaseType::choose_type(&left_type, &right_type) {
-                    Some(base_type) => Ok(base_type),
+                    Some(base_type) => {
+                        data.result_type = Some(base_type.clone());
+                        Ok(base_type)
+                    }
                     None => Err(
                         ErrorKind::TypeExprError(
                             data.tag,
