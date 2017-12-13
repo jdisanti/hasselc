@@ -25,7 +25,7 @@ use parse::ast::{
     TextData,
     WhileLoopData,
 };
-use type_expr::BaseType;
+use base_type::BaseType;
 use src_tag::SrcTag;
 use lalrpop_util::ErrorRecovery;
 use parse::unescape_string;

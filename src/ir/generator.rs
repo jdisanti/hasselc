@@ -4,7 +4,7 @@ use ir;
 use parse::ast;
 use src_tag::{SrcTag, SrcTagged};
 use symbol_table::{ConstantValue, FunctionMetadata, FunctionMetadataPtr, Location, SymbolName, SymbolTable, Variable};
-use type_expr::BaseType;
+use base_type::BaseType;
 
 pub fn generate(
     global_symbol_table: &Arc<RwLock<SymbolTable>>,

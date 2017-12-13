@@ -12,7 +12,7 @@ extern crate derive_new;
 extern crate error_chain;
 
 pub mod symbol_table;
-mod type_expr;
+mod base_type;
 pub mod code;
 pub mod compiler;
 pub mod error;

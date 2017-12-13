@@ -2,7 +2,7 @@ use std::sync::Arc;
 use lalrpop_util;
 use src_tag::{SrcTag, SrcTagged};
 use src_unit::SrcUnit;
-use type_expr::BaseType;
+use base_type::BaseType;
 use error;
 
 #[derive(Debug, Clone, Eq, PartialEq, new)]

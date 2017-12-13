@@ -1,7 +1,7 @@
 use error;
 use llir::{BinaryOpData, CarryMode, Location, Statement, Value};
 use src_tag::SrcTag;
-use type_expr::BaseType;
+use base_type::BaseType;
 
 pub fn generate_add(
     statements: &mut Vec<Statement>,

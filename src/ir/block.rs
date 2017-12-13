@@ -4,7 +4,7 @@ use parse::ast::BinaryOperator;
 use src_tag::{SrcTag, SrcTagged};
 use symbol_table::{DefaultSymbolTable, FunctionMetadata, FunctionMetadataPtr, Location, ParentedSymbolTableWrapper,
                    SymbolName, SymbolRef, SymbolTable, Variable};
-use type_expr::BaseType;
+use base_type::BaseType;
 
 #[derive(Debug, new)]
 pub struct ArrayIndexData {

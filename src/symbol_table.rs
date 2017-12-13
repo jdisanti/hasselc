@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use parse::ast::NameType;
-use type_expr::BaseType;
+use base_type::BaseType;
 use std::fmt::Debug;
 
 #[derive(Debug, Copy, Clone)]

@@ -6,7 +6,7 @@ use llir;
 use symbol_table::{SymbolName, SymbolRef};
 use src_tag::{SrcTag, SrcTagged};
 use src_unit::SrcUnits;
-use type_expr::BaseType;
+use base_type::BaseType;
 
 pub struct CodeBlockGenerator<'a> {
     llir_blocks: &'a [llir::FrameBlock],

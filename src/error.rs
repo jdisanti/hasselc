@@ -2,7 +2,7 @@ use std::sync::Arc;
 use compiler::CompilerOutput;
 use src_tag::SrcTag;
 use src_unit::SrcUnits;
-use type_expr::BaseType;
+use base_type::BaseType;
 
 error_chain! {
     types {

@@ -7,7 +7,7 @@ use llir::{binop, AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, Car
 use parse::ast;
 use symbol_table::{self, SymbolName, SymbolRef, SymbolTable};
 use src_tag::{SrcTag, SrcTagged};
-use type_expr::BaseType;
+use base_type::BaseType;
 
 const RETURN_LOCATION_LO: Location = Location::Global(0x0001);
 

@@ -2,7 +2,7 @@ use error::{self, ErrorKind};
 use ir::block::{Block, CallData, Expr, Statement};
 use src_tag::SrcTagged;
 use symbol_table::{SymbolName, SymbolTable};
-use type_expr::BaseType;
+use base_type::BaseType;
 
 pub trait TypeChecking {
     fn base_type(&self) -> Option<&BaseType>;

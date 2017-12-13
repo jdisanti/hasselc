@@ -2,7 +2,7 @@ use std::fmt;
 use std::sync::Arc;
 use src_tag::{SrcTag, SrcTagged};
 use symbol_table::{SymbolName, SymbolRef};
-use type_expr::BaseType;
+use base_type::BaseType;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Location {
