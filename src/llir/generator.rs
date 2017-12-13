@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use error;
 use ir;
+use llir::common::convert_location;
 use llir::{binop, AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, CarryMode, CopyData, FrameBlock,
            GoToData, ImmediateValue, InlineAsmData, JumpRoutineData, Location, MemoryData, ReturnData, RunBlock,
            SPOffset, Statement, Value};
@@ -241,6 +242,7 @@ fn resolve_expr_to_value(
                     Some(Arc::new(format!("{}[]", array_name))),
                 ))),
                 symbol_table::Location::FrameOffset(_) => {
+                    // Copy the pointer address to a new temporary
                     let addr = convert_location(
                         frame_ref,
                         &symbol_table.create_temporary_location(data.array_type.as_ref().unwrap()),
@@ -257,33 +259,21 @@ fn resolve_expr_to_value(
                         addr.clone(),
                     )?;
 
-                    // Do a full 16-bit addition to the indexed address
-                    statements.push(Statement::Add(BinaryOpData::new(
+                    // Add the index to the pointer temporary
+                    binop::add::generate_add(
+                        statements,
+                        symbol_table,
+                        frame_ref,
                         data.tag,
-                        addr.low_byte(),
-                        Value::Memory(MemoryData::new(
+                        &BaseType::U16,
+                        &addr,
+                        &Value::Memory(MemoryData::new(
                             BaseType::U16,
-                            addr.low_byte(),
-                            Some(
-                                Arc::new(format!("tmp_indexed_addr_lo:{}", array_name)),
-                            ),
+                            addr.clone(),
+                            Some(Arc::new(format!("tmp_{}[]", array_name))),
                         )),
-                        index_value,
-                        CarryMode::ClearCarry,
-                    )));
-                    statements.push(Statement::Add(BinaryOpData::new(
-                        data.tag,
-                        addr.high_byte(),
-                        Value::Memory(MemoryData::new(
-                            BaseType::U16,
-                            addr.high_byte(),
-                            Some(
-                                Arc::new(format!("tmp_indexed_addr_hi:{}", array_name)),
-                            ),
-                        )),
-                        Value::Immediate(BaseType::U8, ImmediateValue::Number(0)),
-                        CarryMode::DontCare,
-                    )));
+                        &index_value,
+                    )?;
 
                     Ok(Value::Memory(MemoryData::new(
                         data.array_type
@@ -374,6 +364,8 @@ fn resolve_expr_to_value(
                 ast::BinaryOperator::Add => {
                     binop::add::generate_add(
                         statements,
+                        symbol_table,
+                        frame_ref,
                         data.tag,
                         &dest_type,
                         &dest,
@@ -384,6 +376,8 @@ fn resolve_expr_to_value(
                 ast::BinaryOperator::Sub => {
                     binop::add::generate_sub(
                         statements,
+                        symbol_table,
+                        frame_ref,
                         data.tag,
                         &dest_type,
                         &dest,
@@ -518,13 +512,5 @@ fn offset_call(calling_frame: SymbolRef, value: Value) -> Value {
             None,
         )),
         _ => value,
-    }
-}
-
-fn convert_location(frame: SymbolRef, input: &symbol_table::Location) -> Location {
-    match *input {
-        symbol_table::Location::UndeterminedGlobal => unreachable!(),
-        symbol_table::Location::Global(addr) => Location::Global(addr),
-        symbol_table::Location::FrameOffset(offset) => Location::FrameOffset(frame, offset),
     }
 }

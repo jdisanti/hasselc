@@ -110,7 +110,7 @@ impl Value {
             }
             Immediate(_, _) => unreachable!(),
             Memory(ref data) => Memory(MemoryData::new(
-                data.base_type.clone(),
+                BaseType::U8,
                 data.location.high_byte(),
                 data.debug.as_ref().map(|n| Arc::new(format!("hi:{}", n))),
             )),
@@ -139,7 +139,7 @@ impl Value {
             }
             Immediate(_, _) => unreachable!(),
             Memory(ref data) => Memory(MemoryData::new(
-                data.base_type.clone(),
+                BaseType::U8,
                 data.location.low_byte(),
                 data.debug.as_ref().map(|n| Arc::new(format!("lo:{}", n))),
             )),
