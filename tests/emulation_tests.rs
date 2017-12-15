@@ -331,6 +331,8 @@ pub fn word_test_unoptimized() {
     assert_eq!(0x01u8, emulator.cpu.bus.read_byte(0x0203));
     assert_eq!(0x04u8, emulator.cpu.bus.read_byte(0x0204));
     assert_eq!(0x00u8, emulator.cpu.bus.read_byte(0x0205));
+    assert_eq!(0x58u8, emulator.cpu.bus.read_byte(0x0206));
+    assert_eq!(0x02u8, emulator.cpu.bus.read_byte(0x0207));
 }
 
 #[test]
@@ -342,6 +344,8 @@ pub fn word_test_optimized() {
     assert_eq!(0x01u8, emulator.cpu.bus.read_byte(0x0203));
     assert_eq!(0x04u8, emulator.cpu.bus.read_byte(0x0204));
     assert_eq!(0x00u8, emulator.cpu.bus.read_byte(0x0205));
+    assert_eq!(0x58u8, emulator.cpu.bus.read_byte(0x0206));
+    assert_eq!(0x02u8, emulator.cpu.bus.read_byte(0x0207));
 }
 
 #[test]

@@ -1,5 +1,6 @@
 mod binop;
 mod block;
+mod builder;
 mod common;
 mod generator;
 mod optimizer;

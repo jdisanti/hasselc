@@ -4,6 +4,7 @@ register data_stack_pointer: u8 @ 0x0000;
 register output1: u16 @ 0x0200;
 register output2: u16 @ 0x0202;
 register output3: u16 @ 0x0204;
+register output4: u16 @ 0x0206;
 
 const test_str: &[u8] = "test";
 
@@ -14,6 +15,7 @@ data_stack_pointer = 3;
 output1 = test1();
 output2 = test2(1, 0xFF);
 output3 = strlen16(test_str);
+output4 = test4();
 
 goto halt;
 
@@ -31,6 +33,18 @@ def strlen16(str: &[u8]): u16
         index = index + 1;
     end
     return index;
+end
+
+def test4(): u16
+    var result: u16 = 0;
+    var index: u16 = 1000;
+    const end_index: u16 = 1300;
+
+    while index != end_index do
+        index = index + 1;
+        result = result + 2;
+    end
+    return result;
 end
 
 def halt(): void

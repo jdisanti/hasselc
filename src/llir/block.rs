@@ -213,15 +213,42 @@ pub struct AddToDataStackPointerData {
     pub offset: SPOffset,
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, new)]
+pub enum BranchFlag {
+    /// Branch based on the zero flag
+    Zero,
+    /// Branch based on the carry flag
+    Carry,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, new)]
+pub struct CompareBranchData {
+    pub tag: SrcTag,
+    pub left: Value,
+    pub right: Value,
+    pub branch_flag: BranchFlag,
+    pub branch_set: Option<SymbolRef>,
+    pub branch_clear: Option<SymbolRef>,
+}
+
 #[derive(Clone, Eq, PartialEq)]
 pub enum Statement {
     Add(BinaryOpData),
     AddToDataStackPointer(AddToDataStackPointerData),
+
+    CompareBranch(CompareBranchData),
+
+    #[deprecated]
     BranchIfZero(BranchIfZeroData),
+    #[deprecated]
     CompareEq(BinaryOpData),
+    #[deprecated]
     CompareNotEq(BinaryOpData),
+    #[deprecated]
     CompareLt(BinaryOpData),
+    #[deprecated]
     CompareGte(BinaryOpData),
+
     Copy(CopyData),
     GoTo(GoToData),
     InlineAsm(InlineAsmData),
@@ -253,6 +280,7 @@ impl SrcTagged for Statement {
             CompareLt(ref d) |
             CompareGte(ref d) |
             Subtract(ref d) => d.tag,
+            CompareBranch(ref d) => d.tag,
             AddToDataStackPointer(ref d) => d.tag,
             BranchIfZero(ref d) => d.tag,
             Copy(ref d) => d.tag,
@@ -283,6 +311,18 @@ impl fmt::Debug for Statement {
                     "branch to {:?} if {:?} == 0",
                     data.destination,
                     data.value
+                )?
+            }
+            Statement::CompareBranch(ref data) => {
+                write!(
+                    f,
+                    "compare {:?} and {:?}; branch to {:?} on {:?} set, and to {:?} on {:?} clear",
+                    data.left,
+                    data.right,
+                    data.branch_set,
+                    data.branch_flag,
+                    data.branch_clear,
+                    data.branch_flag,
                 )?
             }
             Statement::CompareEq(ref data) => {

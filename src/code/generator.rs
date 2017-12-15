@@ -104,6 +104,26 @@ impl<'a> CodeGenerator<'a> {
                         Global::UnresolvedSymbol(data.destination),
                     )));
                 }
+                llir::Statement::CompareBranch(ref data) => {
+                    let cmp_param = self.prepare_binary_op(&data.left, &data.right)?;
+                    self.code.push(Code::Cmp(cmp_param));
+
+                    if let Some(branch_set) = data.branch_set {
+                        let param = Parameter::Absolute(Global::UnresolvedSymbol(branch_set));
+                        self.code.push(match data.branch_flag {
+                            llir::BranchFlag::Zero => Code::Beq(param),
+                            llir::BranchFlag::Carry => Code::Bcs(param),
+                        });
+                    }
+
+                    if let Some(branch_clear) = data.branch_clear {
+                        let param = Parameter::Absolute(Global::UnresolvedSymbol(branch_clear));
+                        self.code.push(match data.branch_flag {
+                            llir::BranchFlag::Zero => Code::Bne(param),
+                            llir::BranchFlag::Carry => Code::Bcc(param),
+                        });
+                    }
+                }
                 llir::Statement::CompareEq(ref data) => {
                     self.generate_binary_op(data, |registers, body, param, _carry| {
                         body.push(Code::Cmp(param));
@@ -175,6 +195,18 @@ impl<'a> CodeGenerator<'a> {
         Ok(self.code)
     }
 
+    fn prepare_binary_op(&mut self, left: &llir::Value, right: &llir::Value) -> error::Result<Parameter> {
+        // TODO: Choose left or right to go into accum based on least work
+        self.load_into_accum(left)?;
+        match *right {
+            llir::Value::Immediate(ref _base_type, ref val) => Ok(Parameter::Immediate(val.number() as u8)),
+            llir::Value::Memory(ref data) => {
+                self.load_stack_pointer_if_necessary(&data.location)?;
+                Ok(self.location_to_parameter(&data.location)?)
+            }
+        }
+    }
+
     fn generate_binary_op<F>(&mut self, binary_op: &llir::BinaryOpData, code_gen: F) -> error::Result<()>
     where
         F: Fn(&mut RegisterAllocator,
@@ -182,28 +214,13 @@ impl<'a> CodeGenerator<'a> {
            Parameter,
            llir::CarryMode) -> (),
     {
-        // TODO: Choose left or right to go into accum based on least work
-        self.load_into_accum(&binary_op.left)?;
-        match binary_op.right {
-            llir::Value::Immediate(ref base_type, ref val) => {
-                code_gen(
-                    &mut self.registers,
-                    &mut self.code,
-                    Parameter::Immediate(val.number() as u8),
-                    binary_op.carry_mode,
-                );
-            }
-            llir::Value::Memory(ref data) => {
-                self.load_stack_pointer_if_necessary(&data.location)?;
-                let param = self.location_to_parameter(&data.location)?;
-                code_gen(
-                    &mut self.registers,
-                    &mut self.code,
-                    param,
-                    binary_op.carry_mode,
-                );
-            }
-        }
+        let param = self.prepare_binary_op(&binary_op.left, &binary_op.right)?;
+        code_gen(
+            &mut self.registers,
+            &mut self.code,
+            param,
+            binary_op.carry_mode,
+        );
         self.store_accum(&binary_op.destination)?;
         Ok(())
     }
@@ -221,7 +238,7 @@ impl<'a> CodeGenerator<'a> {
         }
 
         match *value {
-            llir::Value::Immediate(ref base_type, ref val) => {
+            llir::Value::Immediate(ref _base_type, ref val) => {
                 self.registers.load(
                     &mut self.code,
                     register,

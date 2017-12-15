@@ -6,6 +6,7 @@ Compiler TODO
 - [X] String constants
 - [X] CLI for compiling arbitrary files
 - [X] Configurable runtime environment
+- [X] 16-bit comparison
 - [ ] Conditions: && and ||
 
 ### Other items
@@ -21,7 +22,8 @@ Compiler TODO
 - [X] Arrays and pointers
 - [ ] 16-bit numbers
   - [X] Return/assign support
-  - [ ] Addition/subtraction
+  - [X] Addition/subtraction
+  - [X] Comparison
   - [ ] Multiplication/division
   - [ ] 16-bit value arrays
 - [ ] Multiply and divide

@@ -67,7 +67,10 @@ impl Parameter {
 pub enum Code {
     Adc(Parameter),
     And(Parameter),
+    Bcc(Parameter),
+    Bcs(Parameter),
     Beq(Parameter),
+    Bne(Parameter),
     Clc(Parameter),
     Cmp(Parameter),
     Eor(Parameter),
@@ -98,9 +101,10 @@ impl Code {
     pub fn parameter(&self) -> &Parameter {
         use self::Code::*;
         match *self {
-            Adc(ref p) | And(ref p) | Beq(ref p) | Clc(ref p) | Cmp(ref p) | Eor(ref p) | Jmp(ref p) | Jsr(ref p) |
-            Lda(ref p) | Ldx(ref p) | Ldy(ref p) | Php(ref p) | Pla(ref p) | Ror(ref p) | Rts(ref p) | Sbc(ref p) |
-            Sec(ref p) | Sta(ref p) | Stx(ref p) | Sty(ref p) | Tax(ref p) | Tay(ref p) | Txa(ref p) | Tya(ref p) => p,
+            Adc(ref p) | And(ref p) | Bcc(ref p) | Bcs(ref p) | Beq(ref p) | Bne(ref p) | Clc(ref p) | Cmp(ref p) |
+            Eor(ref p) | Jmp(ref p) | Jsr(ref p) | Lda(ref p) | Ldx(ref p) | Ldy(ref p) | Php(ref p) | Pla(ref p) |
+            Ror(ref p) | Rts(ref p) | Sbc(ref p) | Sec(ref p) | Sta(ref p) | Stx(ref p) | Sty(ref p) | Tax(ref p) |
+            Tay(ref p) | Txa(ref p) | Tya(ref p) => p,
             Comment(_) => unreachable!(),
             InlineAsm(_) => unreachable!(),
         }
@@ -108,7 +112,7 @@ impl Code {
 
     pub fn is_branch(&self) -> bool {
         match *self {
-            Code::Beq(_) | Code::Jsr(_) | Code::Rts(_) | Code::Jmp(_) => true,
+            Code::Beq(_) | Code::Bne(_) | Code::Jsr(_) | Code::Rts(_) | Code::Jmp(_) => true,
             _ => false,
         }
     }
@@ -117,7 +121,10 @@ impl Code {
         match *self {
             Code::Adc(ref p) => format!("ADC\t{}", p.to_asm(global_symbol_table)),
             Code::And(ref p) => format!("AND\t{}", p.to_asm(global_symbol_table)),
+            Code::Bcc(ref p) => format!("BCC\t{}", p.to_asm(global_symbol_table)),
+            Code::Bcs(ref p) => format!("BCS\t{}", p.to_asm(global_symbol_table)),
             Code::Beq(ref p) => format!("BEQ\t{}", p.to_asm(global_symbol_table)),
+            Code::Bne(ref p) => format!("BNE\t{}", p.to_asm(global_symbol_table)),
             Code::Clc(ref p) => format!("CLC\t{}", p.to_asm(global_symbol_table)),
             Code::Cmp(ref p) => format!("CMP\t{}", p.to_asm(global_symbol_table)),
             Code::Eor(ref p) => format!("EOR\t{}", p.to_asm(global_symbol_table)),

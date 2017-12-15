@@ -1,10 +1,10 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use error;
 use ir;
+use llir::builder::RunBuilder;
 use llir::common::convert_location;
-use llir::{binop, AddToDataStackPointerData, BinaryOpData, BranchIfZeroData, CarryMode, CopyData, FrameBlock,
-           GoToData, ImmediateValue, InlineAsmData, JumpRoutineData, Location, MemoryData, ReturnData, RunBlock,
-           SPOffset, Statement, Value};
+use llir::{binop, AddToDataStackPointerData, BranchIfZeroData, CopyData, FrameBlock, GoToData, ImmediateValue,
+           InlineAsmData, JumpRoutineData, Location, MemoryData, ReturnData, RunBlock, SPOffset, Statement, Value};
 use parse::ast;
 use symbol_table::{self, SymbolName, SymbolRef, SymbolTable};
 use src_tag::{SrcTag, SrcTagged};
@@ -28,7 +28,7 @@ pub fn generate_llir(input: &[ir::Block]) -> error::Result<Vec<FrameBlock>> {
             },
         );
         block.runs = generate_runs(
-            &mut *irblock.symbol_table.write().unwrap(),
+            Arc::clone(&irblock.symbol_table),
             irblock.symbol,
             &irblock.body,
         )?;
@@ -47,33 +47,19 @@ fn calculate_frame_size(symbol_table: &SymbolTable) -> i8 {
 }
 
 fn generate_runs(
-    symbol_table: &mut SymbolTable,
+    symbol_table: Arc<RwLock<SymbolTable>>,
     frame_ref: SymbolRef,
     input: &[ir::Statement],
 ) -> error::Result<Vec<RunBlock>> {
-    let mut blocks = Vec::new();
-    let (block_name, block_ref) = symbol_table.new_block_name();
-    let mut current_block = RunBlock::new(block_name, block_ref);
-
+    let mut run_builder = RunBuilder::new(Arc::clone(&symbol_table));
     for irstmt in input {
         match *irstmt {
             ir::Statement::Assign(ref data) => {
-                let right_value = resolve_expr_to_value(
-                    &mut current_block.statements,
-                    frame_ref,
-                    symbol_table,
-                    &data.right_value,
-                )?;
-
-                let left_location = resolve_expr_to_location(
-                    &mut current_block.statements,
-                    frame_ref,
-                    symbol_table,
-                    &data.left_value,
-                )?;
+                let right_value = resolve_expr_to_value(&mut run_builder, frame_ref, &data.right_value)?;
+                let left_location = resolve_expr_to_location(&mut run_builder, frame_ref, &data.left_value)?;
 
                 generate_copy(
-                    &mut current_block.statements,
+                    &mut run_builder,
                     data.tag,
                     data.value_type.as_ref().unwrap(),
                     right_value,
@@ -81,86 +67,90 @@ fn generate_runs(
                 )?;
             }
             ir::Statement::Call(ref data) => {
-                generate_function_call(&mut current_block.statements, frame_ref, symbol_table, data)?;
+                generate_function_call(&mut run_builder, frame_ref, data)?;
             }
             ir::Statement::Conditional(ref data) => {
-                let mut true_blocks = generate_runs(symbol_table, frame_ref, &data.when_true)?;
-                let false_blocks = generate_runs(symbol_table, frame_ref, &data.when_false)?;
+                let _start_condition_block_ref = run_builder.new_block().block_ref;
+                let condition = resolve_expr_to_value(&mut run_builder, frame_ref, &data.condition)?;
+                let end_condition_block_ref = run_builder.current_block().block_ref;
 
-                let after_both_block = RunBlock::new_tup(symbol_table.new_block_name());
-                let last_true_block_index = true_blocks.len() - 1;
-                true_blocks[last_true_block_index].statements.push(Statement::GoTo(
-                    GoToData::new(data.tag, after_both_block.symbol),
+                let true_block_ref = run_builder.append_blocks(generate_runs(
+                    Arc::clone(&symbol_table),
+                    frame_ref,
+                    &data.when_true,
+                )?);
+                let false_block_ref = run_builder.append_blocks(generate_runs(
+                    Arc::clone(&symbol_table),
+                    frame_ref,
+                    &data.when_false,
+                )?);
+                let after_both_block_ref = run_builder.new_block().symbol();
+
+                run_builder.block(true_block_ref).add_statement(Statement::GoTo(
+                    GoToData::new(data.tag, after_both_block_ref),
                 ));
 
-                let condition = resolve_expr_to_value(
-                    &mut current_block.statements,
-                    frame_ref,
-                    symbol_table,
-                    &data.condition,
-                )?;
-                current_block.statements.push(Statement::BranchIfZero(BranchIfZeroData::new(
-                    data.tag,
-                    condition,
-                    false_blocks[0].symbol,
-                )));
-
-                blocks.push(current_block);
-                blocks.extend(true_blocks);
-                blocks.extend(false_blocks);
-                blocks.push(after_both_block);
-                current_block = RunBlock::new_tup(symbol_table.new_block_name());
+                let false_block_symbol = run_builder.block(false_block_ref).symbol();
+                run_builder.block(end_condition_block_ref).add_statement(
+                    Statement::BranchIfZero(
+                        BranchIfZeroData::new(
+                            data.tag,
+                            condition,
+                            false_block_symbol,
+                        ),
+                    ),
+                );
+                run_builder.new_block();
             }
             ir::Statement::InlineAsm(ref data) => {
-                current_block.statements.push(Statement::InlineAsm(
+                run_builder.current_block().add_statement(Statement::InlineAsm(
                     InlineAsmData::new(data.tag, Arc::clone(&data.asm)),
                 ));
             }
             ir::Statement::WhileLoop(ref data) => {
-                let mut condition_block = RunBlock::new_tup(symbol_table.new_block_name());
-                let mut body_blocks = generate_runs(symbol_table, frame_ref, &data.body)?;
-                let after_body_block = RunBlock::new_tup(symbol_table.new_block_name());
-
-                let condition = resolve_expr_to_value(
-                    &mut condition_block.statements,
+                let start_condition_block_ref = run_builder.new_block().block_ref;
+                let start_condition_block_symbol = run_builder.block(start_condition_block_ref).symbol();
+                let condition = resolve_expr_to_value(&mut run_builder, frame_ref, &data.condition)?;
+                let end_condition_block_ref = run_builder.current_block().block_ref;
+                let body_block_ref = run_builder.append_blocks(generate_runs(
+                    Arc::clone(&symbol_table),
                     frame_ref,
-                    symbol_table,
-                    &data.condition,
-                )?;
+                    &data.body,
+                )?);
+                let after_body_block_symbol = run_builder.new_block().symbol();
 
-                condition_block.statements.push(Statement::BranchIfZero(BranchIfZeroData::new(
-                    data.tag,
-                    condition,
-                    after_body_block.symbol,
-                )));
+                {
+                    let mut end_condition_block = run_builder.block(end_condition_block_ref);
+                    end_condition_block.add_statement(Statement::BranchIfZero(BranchIfZeroData::new(
+                        data.tag,
+                        condition,
+                        after_body_block_symbol,
+                    )));
+                }
 
-                let last_body_block_index = body_blocks.len() - 1;
-                body_blocks[last_body_block_index].statements.push(Statement::GoTo(
-                    GoToData::new(data.tag, condition_block.symbol),
+                run_builder.block(body_block_ref).add_statement(Statement::GoTo(
+                    GoToData::new(data.tag, start_condition_block_symbol),
                 ));
-
-                blocks.push(current_block);
-                blocks.push(condition_block);
-                blocks.extend(body_blocks);
-                blocks.push(after_body_block);
-                current_block = RunBlock::new_tup(symbol_table.new_block_name());
+                run_builder.new_block();
             }
             ir::Statement::Return(ref data) => {
                 if let Some(ref expr) = data.value {
-                    let value = resolve_expr_to_value(&mut current_block.statements, frame_ref, symbol_table, expr)?;
+                    let value = resolve_expr_to_value(&mut run_builder, frame_ref, expr)?;
                     generate_copy(
-                        &mut current_block.statements,
+                        &mut run_builder,
                         data.tag,
                         data.value_type.as_ref().unwrap(),
                         value,
                         RETURN_LOCATION_LO,
                     )?;
                 }
-                current_block.statements.push(Statement::Return(ReturnData::new(data.tag)));
+                run_builder.current_block().add_statement(
+                    Statement::Return(ReturnData::new(data.tag)),
+                );
             }
             ir::Statement::GoTo(ref data) => {
-                if let Some(symbol_ref) = symbol_table.find_symbol(&data.destination) {
-                    current_block.statements.push(
+                if let Some(symbol_ref) = symbol_table.read().unwrap().find_symbol(&data.destination) {
+                    run_builder.current_block().add_statement(
                         Statement::GoTo(GoToData::new(data.tag, symbol_ref)),
                     );
                 } else {
@@ -173,29 +163,29 @@ fn generate_runs(
         }
     }
 
-    blocks.push(current_block);
-    Ok(blocks)
+    Ok(run_builder.build())
 }
 
 fn generate_copy(
-    statements: &mut Vec<Statement>,
+    run_builder: &mut RunBuilder,
     tag: SrcTag,
     value_type: &BaseType,
     value: Value,
     destination: Location,
 ) -> error::Result<()> {
+    let mut block = run_builder.current_block();
     match *value_type {
         BaseType::Bool | BaseType::U8 => {
-            statements.push(Statement::Copy(CopyData::new(tag, destination, value)));
+            block.add_statement(Statement::Copy(CopyData::new(tag, destination, value)));
         }
         BaseType::U16 |
         BaseType::Pointer(_) => {
-            statements.push(Statement::Copy(CopyData::new(
+            block.add_statement(Statement::Copy(CopyData::new(
                 tag,
                 destination.high_byte(),
                 Value::high_byte(&value),
             )));
-            statements.push(Statement::Copy(CopyData::new(
+            block.add_statement(Statement::Copy(CopyData::new(
                 tag,
                 destination.low_byte(),
                 Value::low_byte(&value),
@@ -207,28 +197,23 @@ fn generate_copy(
 }
 
 fn resolve_expr_to_location(
-    statements: &mut Vec<Statement>,
+    run_builder: &mut RunBuilder,
     frame_ref: SymbolRef,
-    symbol_table: &mut SymbolTable,
     expr: &ir::Expr,
 ) -> error::Result<Location> {
-    match resolve_expr_to_value(statements, frame_ref, symbol_table, expr)? {
+    match resolve_expr_to_value(run_builder, frame_ref, expr)? {
         Value::Immediate(_, _) => Err(error::ErrorKind::InvalidLeftValue(expr.src_tag()).into()),
         Value::Memory(data) => Ok(data.location),
     }
 }
 
-fn resolve_expr_to_value(
-    statements: &mut Vec<Statement>,
-    frame_ref: SymbolRef,
-    symbol_table: &mut SymbolTable,
-    expr: &ir::Expr,
-) -> error::Result<Value> {
+fn resolve_expr_to_value(run_builder: &mut RunBuilder, frame_ref: SymbolRef, expr: &ir::Expr) -> error::Result<Value> {
+    let symbol_table = Arc::clone(run_builder.symbol_table());
     match *expr {
         ir::Expr::ArrayIndex(ref data) => {
-            let array = symbol_table.variable(data.array).unwrap();
-            let array_name = symbol_table.get_symbol_name(data.array).unwrap();
-            let index_value = resolve_expr_to_value(statements, frame_ref, symbol_table, &data.index)?;
+            let array = symbol_table.write().unwrap().variable(data.array).unwrap();
+            let array_name = symbol_table.write().unwrap().get_symbol_name(data.array).unwrap();
+            let index_value = resolve_expr_to_value(run_builder, frame_ref, &data.index)?;
             match array.location {
                 symbol_table::Location::UndeterminedGlobal => unreachable!(),
                 symbol_table::Location::Global(addr) => Ok(Value::Memory(MemoryData::new(
@@ -245,10 +230,12 @@ fn resolve_expr_to_value(
                     // Copy the pointer address to a new temporary
                     let addr = convert_location(
                         frame_ref,
-                        &symbol_table.create_temporary_location(data.array_type.as_ref().unwrap()),
+                        &symbol_table.write().unwrap().create_temporary_location(
+                            data.array_type.as_ref().unwrap(),
+                        ),
                     );
                     generate_copy(
-                        statements,
+                        run_builder,
                         data.tag,
                         data.array_type.as_ref().unwrap(),
                         Value::Memory(MemoryData::new(
@@ -260,9 +247,8 @@ fn resolve_expr_to_value(
                     )?;
 
                     // Add the index to the pointer temporary
-                    binop::add::generate_add(
-                        statements,
-                        symbol_table,
+                    binop::BinopGenerator::new(
+                        run_builder,
                         frame_ref,
                         data.tag,
                         &BaseType::U16,
@@ -273,7 +259,7 @@ fn resolve_expr_to_value(
                             Some(Arc::new(format!("tmp_{}[]", array_name))),
                         )),
                         &index_value,
-                    )?;
+                    ).generate(ast::BinaryOperator::Add)?;
 
                     Ok(Value::Memory(MemoryData::new(
                         data.array_type
@@ -296,7 +282,7 @@ fn resolve_expr_to_value(
             ImmediateValue::Number(data.value),
         )),
         ir::Expr::Symbol(ref data) => {
-            if let Some(ref variable) = symbol_table.variable(data.symbol) {
+            if let Some(ref variable) = symbol_table.read().unwrap().variable(data.symbol) {
                 match variable.base_type {
                     BaseType::Pointer(_) => {
                         match variable.location {
@@ -308,17 +294,29 @@ fn resolve_expr_to_value(
                             _ => Ok(Value::Memory(MemoryData::new(
                                 BaseType::U16,
                                 convert_location(frame_ref, &variable.location),
-                                Some(symbol_table.get_symbol_name(data.symbol).unwrap()),
+                                Some(
+                                    symbol_table
+                                        .read()
+                                        .unwrap()
+                                        .get_symbol_name(data.symbol)
+                                        .unwrap(),
+                                ),
                             ))),
                         }
                     }
                     _ => Ok(Value::Memory(MemoryData::new(
                         variable.base_type.clone(),
                         convert_location(frame_ref, &variable.location),
-                        Some(symbol_table.get_symbol_name(data.symbol).unwrap()),
+                        Some(
+                            symbol_table
+                                .read()
+                                .unwrap()
+                                .get_symbol_name(data.symbol)
+                                .unwrap(),
+                        ),
                     ))),
                 }
-            } else if let Some(ref constant) = symbol_table.constant(data.symbol) {
+            } else if let Some(ref constant) = symbol_table.read().unwrap().constant(data.symbol) {
                 if constant.base_type.is_pointer() {
                     Ok(Value::Immediate(
                         data.value_type.as_ref().unwrap().clone(),
@@ -338,76 +336,37 @@ fn resolve_expr_to_value(
             let dest_type = data.result_type.as_ref().unwrap();
             let dest = convert_location(
                 frame_ref,
-                &symbol_table.create_temporary_location(dest_type),
+                &symbol_table.write().unwrap().create_temporary_location(dest_type),
             );
-            let left_value = resolve_expr_to_value(statements, frame_ref, symbol_table, &*data.left)?;
-            let right_value = resolve_expr_to_value(statements, frame_ref, symbol_table, &*data.right)?;
-            let bin_op_data = BinaryOpData::new(
+
+            let left_value = resolve_expr_to_value(run_builder, frame_ref, &*data.left)?;
+            let right_value = resolve_expr_to_value(run_builder, frame_ref, &*data.right)?;
+
+            binop::BinopGenerator::new(
+                run_builder,
+                frame_ref,
                 data.tag,
-                dest.clone(),
-                left_value.clone(),
-                right_value.clone(),
-                match data.op {
-                    ast::BinaryOperator::Add => CarryMode::ClearCarry,
-                    ast::BinaryOperator::Sub => CarryMode::SetCarry,
-                    _ => CarryMode::DontCare,
-                },
-            );
-            let bin_op_inverted_data = BinaryOpData::new(
-                data.tag,
-                dest.clone(),
-                right_value.clone(),
-                left_value.clone(),
-                bin_op_data.carry_mode,
-            );
-            match data.op {
-                ast::BinaryOperator::Add => {
-                    binop::add::generate_add(
-                        statements,
-                        symbol_table,
-                        frame_ref,
-                        data.tag,
-                        &dest_type,
-                        &dest,
-                        &left_value,
-                        &right_value,
-                    )?
-                }
-                ast::BinaryOperator::Sub => {
-                    binop::add::generate_sub(
-                        statements,
-                        symbol_table,
-                        frame_ref,
-                        data.tag,
-                        &dest_type,
-                        &dest,
-                        &left_value,
-                        &right_value,
-                    )?
-                }
-                // TODO: Add 16-bit and mixed 16-bit/8-bit support to remaining ops
-                ast::BinaryOperator::Equal => statements.push(Statement::CompareEq(bin_op_data)),
-                ast::BinaryOperator::NotEqual => statements.push(Statement::CompareNotEq(bin_op_data)),
-                ast::BinaryOperator::LessThan => statements.push(Statement::CompareLt(bin_op_data)),
-                ast::BinaryOperator::LessThanEqual => statements.push(Statement::CompareGte(bin_op_inverted_data)),
-                ast::BinaryOperator::GreaterThan => statements.push(Statement::CompareLt(bin_op_inverted_data)),
-                ast::BinaryOperator::GreaterThanEqual => statements.push(Statement::CompareGte(bin_op_data)),
-                _ => unimplemented!(),
-            };
+                dest_type,
+                &dest,
+                &left_value,
+                &right_value,
+            ).generate(data.op)?;
+
             Ok(Value::Memory(MemoryData::new(BaseType::U8, dest, None)))
         }
-        ir::Expr::Call(ref data) => generate_function_call(statements, frame_ref, symbol_table, data),
+        ir::Expr::Call(ref data) => generate_function_call(run_builder, frame_ref, data),
     }
 }
 
 fn generate_function_call(
-    statements: &mut Vec<Statement>,
+    run_builder: &mut RunBuilder,
     frame_ref: SymbolRef,
-    symbol_table: &mut SymbolTable,
     call_data: &ir::CallData,
 ) -> error::Result<Value> {
-    if let Some(function_ref) = symbol_table.find_symbol(&call_data.function) {
-        let function = symbol_table.function_by_name(&call_data.function).unwrap();
+    let symbol_table = Arc::clone(run_builder.symbol_table());
+    let optional_function_ref = symbol_table.read().unwrap().find_symbol(&call_data.function);
+    if let Some(function_ref) = optional_function_ref {
+        let function = symbol_table.read().unwrap().function_by_name(&call_data.function).unwrap();
         let metadata = function.read().unwrap();
         if metadata.parameters.len() != call_data.arguments.len() {
             return Err(
@@ -423,14 +382,9 @@ fn generate_function_call(
         // Push arguments to the stack
         let mut argument_values = Vec::new();
         for argument in &call_data.arguments {
-            argument_values.push(resolve_expr_to_value(
-                statements,
-                frame_ref,
-                symbol_table,
-                argument,
-            )?)
+            argument_values.push(resolve_expr_to_value(run_builder, frame_ref, argument)?)
         }
-        statements.push(Statement::AddToDataStackPointer(
+        run_builder.current_block().add_statement(Statement::AddToDataStackPointer(
             AddToDataStackPointerData::new(
                 call_data.tag,
                 SPOffset::FrameSize(function_ref),
@@ -440,7 +394,7 @@ fn generate_function_call(
             let mut frame_offset = 0;
             for (i, argument_value) in argument_values.into_iter().enumerate() {
                 generate_copy(
-                    statements,
+                    run_builder,
                     call_data.tag,
                     &argument_value.value_type(),
                     offset_call(function_ref, argument_value),
@@ -452,13 +406,15 @@ fn generate_function_call(
         }
 
         // Jump to the routine
-        statements.push(Statement::JumpRoutine(JumpRoutineData::new(
-            call_data.tag,
-            Location::UnresolvedGlobal(function_ref),
-        )));
+        run_builder.current_block().add_statement(
+            Statement::JumpRoutine(JumpRoutineData::new(
+                call_data.tag,
+                Location::UnresolvedGlobal(function_ref),
+            )),
+        );
 
         // Restore the stack pointer
-        statements.push(Statement::AddToDataStackPointer(
+        run_builder.current_block().add_statement(Statement::AddToDataStackPointer(
             AddToDataStackPointerData::new(
                 call_data.tag,
                 SPOffset::NegativeFrameSize(function_ref),
@@ -468,10 +424,10 @@ fn generate_function_call(
         if call_data.return_type.as_ref().unwrap().size().is_some() {
             let dest = convert_location(
                 frame_ref,
-                &symbol_table.create_temporary_location(&BaseType::U8),
+                &symbol_table.write().unwrap().create_temporary_location(&BaseType::U8),
             );
             generate_copy(
-                statements,
+                run_builder,
                 call_data.tag,
                 call_data.return_type.as_ref().unwrap(),
                 Value::Memory(MemoryData::new(
