@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use llir::{RunBlock, Statement};
-use symbol_table::{SymbolName, SymbolRef, SymbolTable};
+use symbol_table::{SymbolRef, SymbolTable};
 
 pub type BlockRef = usize;
 
