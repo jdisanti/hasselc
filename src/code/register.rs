@@ -228,7 +228,7 @@ impl RegisterAllocator {
 
     pub fn save_all_and_reset(&mut self, code: &mut Vec<Code>) {
         self.save_all_now(code);
-        for mut value in &mut self.values {
+        for value in &mut self.values {
             value.reset();
         }
         self.save_locations = [Vec::new(), Vec::new(), Vec::new()];

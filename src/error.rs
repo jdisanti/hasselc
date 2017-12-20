@@ -14,6 +14,7 @@ error_chain! {
 
     foreign_links {
         FmtError(::std::fmt::Error);
+        AssemblerError(::hassel_asm::error::Error);
     }
 
     errors {

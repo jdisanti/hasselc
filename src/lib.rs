@@ -11,6 +11,8 @@ extern crate derive_new;
 #[macro_use]
 extern crate error_chain;
 
+extern crate hassel_asm;
+
 pub mod symbol_table;
 mod base_type;
 pub mod code;

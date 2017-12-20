@@ -1,5 +1,5 @@
 [package]
-name = "compiler"
+name = "hasselc"
 version = "0.1.0"
 authors = ["John DiSanti <johndisanti@gmail.com>"]
 build = "build.rs"
@@ -16,5 +16,8 @@ lalrpop-util = "0.13.1"
 num-traits = "0.1"
 regex = "0.2.1"
 
-[dev-dependencies.emulator]
-path = "../emulator"
+[dependencies.hassel_asm]
+path = "../hassel_asm"
+
+[dev-dependencies.hassel_emu]
+path = "../hassel_emu"

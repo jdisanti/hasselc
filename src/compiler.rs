@@ -1,4 +1,6 @@
 use std::sync::{Arc, RwLock};
+use hassel_asm::Assembler;
+
 use ir;
 use llir;
 use code;
@@ -15,6 +17,7 @@ pub struct CompilerOutput {
     pub llir: Option<Vec<llir::FrameBlock>>,
     pub code: Option<Vec<code::CodeBlock>>,
     pub asm: Option<String>,
+    pub bytes: Option<Vec<u8>>,
 }
 
 #[derive(Default, Builder, Debug)]
@@ -69,6 +72,7 @@ impl Compiler {
             llir: None,
             code: None,
             asm: None,
+            bytes: None,
         };
 
         match ir::generate(
@@ -127,6 +131,11 @@ impl Compiler {
             ));
         }
 
+        let mut assembler = Assembler::new();
+        assembler.parse_unit("intermediate assembly", compiler_output.asm.as_ref().unwrap())?;
+        let assembler_output = assembler.assemble()?;
+
+        compiler_output.bytes = assembler_output.bytes;
         Ok(compiler_output)
     }
 }

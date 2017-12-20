@@ -1,14 +1,13 @@
-extern crate compiler;
-extern crate emulator;
+extern crate hasselc;
+extern crate hassel_emu;
 
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::fs;
-use std::process;
 use std::io::prelude::*;
-use emulator::cpu::Cpu;
-use emulator::bus::{Bus, PlaceholderBus};
-use compiler::error;
+use hassel_emu::cpu::Cpu;
+use hassel_emu::bus::{Bus, PlaceholderBus};
+use hasselc::error;
 
 pub const ROM_SIZE: usize = 0x2000;
 
@@ -58,25 +57,15 @@ fn compile(
     program: &str,
     optimize_llir: bool,
     optimize_code: bool,
-) -> error::Result<compiler::CompilerOutput> {
-    let compiler_options = compiler::CompilerOptionsBuilder::default()
+) -> error::Result<hasselc::CompilerOutput> {
+    let compiler_options = hasselc::CompilerOptionsBuilder::default()
         .optimize_llir(optimize_llir)
         .optimize_code(optimize_code)
         .build()
         .unwrap();
-    let mut compiler = compiler::Compiler::new(compiler_options);
+    let mut compiler = hasselc::Compiler::new(compiler_options);
     compiler.parse_unit(name, program)?;
     compiler.compile()
-}
-
-#[cfg(target_os = "windows")]
-fn assembler_name() -> &'static str {
-    "../assembler/asm.bat"
-}
-
-#[cfg(not(target_os = "windows"))]
-fn assembler_name() -> &'static str {
-    "../assembler/asm"
 }
 
 fn assemble(name: &str, program: &str, optimize_llir: bool, optimize_code: bool) -> Vec<u8> {
@@ -97,16 +86,9 @@ fn assemble(name: &str, program: &str, optimize_llir: bool, optimize_code: bool)
     file.write_all(compiler_output.asm.unwrap().as_bytes()).unwrap();
     drop(file);
 
-    let assemble_result = process::Command::new(assembler_name())
-        .arg("-o")
-        .arg(format!("test_output/{}.rom", name))
-        .arg(format!("test_output/{}.s", name))
-        .stdout(process::Stdio::piped())
-        .status()
-        .unwrap();
-    if !assemble_result.success() {
-        panic!("assembly failed");
-    }
+    let mut file = fs::File::create(format!("test_output/{}.rom", name)).unwrap();
+    file.write_all(compiler_output.bytes.as_ref().unwrap()).unwrap();
+    drop(file);
 
     let mut code = Vec::new();
     let mut file = fs::File::open(format!("test_output/{}.rom", name)).unwrap();

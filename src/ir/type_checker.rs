@@ -271,15 +271,15 @@ impl TypeChecking for Statement {
                 }
             }
             Conditional(ref mut data) => {
-                for mut statement in &mut data.when_true {
+                for statement in &mut data.when_true {
                     statement.imply_type(base_type);
                 }
-                for mut statement in &mut data.when_false {
+                for statement in &mut data.when_false {
                     statement.imply_type(base_type);
                 }
             }
             WhileLoop(ref mut data) => {
-                for mut statement in &mut data.body {
+                for statement in &mut data.body {
                     statement.imply_type(base_type);
                 }
             }
@@ -317,10 +317,10 @@ impl TypeChecking for Statement {
                         ErrorKind::TypeExprError(data.tag, "Condition can't evaluate to a boolean".into()).into(),
                     );
                 }
-                for mut statement in &mut data.when_true {
+                for statement in &mut data.when_true {
                     statement.resolve_type(symbol_table)?;
                 }
-                for mut statement in &mut data.when_false {
+                for statement in &mut data.when_false {
                     statement.resolve_type(symbol_table)?;
                 }
             }
@@ -336,7 +336,7 @@ impl TypeChecking for Statement {
                         ErrorKind::TypeExprError(data.tag, "Condition can't evaluate to a boolean".into()).into(),
                     );
                 }
-                for mut statement in &mut data.body {
+                for statement in &mut data.body {
                     statement.resolve_type(symbol_table)?;
                 }
             }
@@ -350,7 +350,7 @@ pub fn resolve_types(blocks: &mut Vec<Block>) -> error::Result<()> {
     for block in blocks {
         let symbol_table = &*block.symbol_table.read().unwrap();
         let return_type = block.metadata.read().unwrap().return_type.clone();
-        for mut statement in &mut block.body {
+        for statement in &mut block.body {
             statement.infer_types(symbol_table)?;
             statement.imply_type(&return_type);
             statement.resolve_type(symbol_table)?;

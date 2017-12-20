@@ -1,4 +1,4 @@
-extern crate compiler;
+extern crate hasselc;
 
 extern crate clap;
 
@@ -6,8 +6,8 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::process;
 
-use compiler::{Compiler, CompilerOptions, CompilerOptionsBuilder};
-use compiler::error;
+use hasselc::{Compiler, CompilerOptions, CompilerOptionsBuilder};
+use hasselc::error;
 
 fn die(err: &error::Error) -> ! {
     println!("{}", err.0);
