@@ -4,7 +4,7 @@ use hassel_asm::Assembler;
 use ir;
 use llir;
 use code;
-use error::{self, to_compiler_error};
+use error::{self, ErrorKind, to_compiler_error};
 use parse::ast;
 use symbol_table::{DefaultSymbolTable, HandleGenerator, SymbolTable};
 use src_unit::SrcUnits;
@@ -107,11 +107,10 @@ impl Compiler {
         {
             compiler_output.asm.as_mut().unwrap().push_str(&format!(
                 "\n\
-                 .advance\t$FFFA\n\
                  .org\t$FFFA\n\
-                 .word\t{}\n\
-                 .word\t{}\n\
-                 .word\t{}\n\
+                 .vector\t{}\n\
+                 .vector\t{}\n\
+                 .vector\t{}\n\
                  ",
                 self.options
                     .vector_nmi_label
@@ -132,7 +131,12 @@ impl Compiler {
         }
 
         let mut assembler = Assembler::new();
-        assembler.parse_unit("intermediate assembly", compiler_output.asm.as_ref().unwrap())?;
+        match assembler.parse_unit("intermediate assembly", compiler_output.asm.as_ref().unwrap()) {
+            Ok(_) => { }
+            Err(err) => {
+                panic!("----\n{}\n----\ngenerated invalid assembly: {}", compiler_output.asm.as_ref().unwrap(), err);
+            }
+        }
         let assembler_output = assembler.assemble()?;
 
         compiler_output.bytes = assembler_output.bytes;
