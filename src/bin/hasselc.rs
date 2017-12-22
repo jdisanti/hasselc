@@ -130,22 +130,25 @@ fn main() {
 
     let compiler_output = handle_result(compiler.compile());
 
-    match options.output_name {
-        Some(output_file_name) => {
-            let mut file = match File::create(output_file_name) {
-                Ok(file) => file,
-                Err(e) => {
-                    println!("Failed to create output file: {}", e);
-                    return;
-                }
-            };
-            if !file.write_all(compiler_output.asm.unwrap().as_bytes()).is_ok() {
-                println!("Failed to write to output file");
-                return;
-            }
+    let output_file_name = options.output_name.unwrap_or_else(|| "out.rom".into());
+    let asm_file_name = format!("{}.s", output_file_name);
+    let asm_map_file_name = format!("{}.s.map", output_file_name);
+
+    save_bytes(&output_file_name, &compiler_output.bytes.unwrap());
+    save_bytes(&asm_file_name, &compiler_output.asm.as_ref().unwrap().as_bytes());
+    save_bytes(&asm_map_file_name, &compiler_output.asm_map.as_ref().unwrap().as_bytes());
+}
+
+fn save_bytes(file_name: &str, bytes: &[u8]) {
+    let mut file = match File::create(file_name) {
+        Ok(file) => file,
+        Err(e) => {
+            println!("Failed to create output file: {}", e);
+            process::exit(1);
         }
-        None => {
-            println!("{}", compiler_output.asm.unwrap());
-        }
+    };
+    if !file.write_all(bytes).is_ok() {
+        println!("Failed to write to output file");
+        process::exit(1);
     }
 }

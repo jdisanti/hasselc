@@ -17,6 +17,7 @@ pub struct CompilerOutput {
     pub llir: Option<Vec<llir::FrameBlock>>,
     pub code: Option<Vec<code::CodeBlock>>,
     pub asm: Option<String>,
+    pub asm_map: Option<String>,
     pub bytes: Option<Vec<u8>>,
 }
 
@@ -72,6 +73,7 @@ impl Compiler {
             llir: None,
             code: None,
             asm: None,
+            asm_map: None,
             bytes: None,
         };
 
@@ -139,6 +141,7 @@ impl Compiler {
         }
         let assembler_output = assembler.assemble()?;
 
+        compiler_output.asm_map = assembler_output.source_map;
         compiler_output.bytes = assembler_output.bytes;
         Ok(compiler_output)
     }
