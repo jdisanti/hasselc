@@ -110,10 +110,10 @@ impl Code {
     pub fn parameter(&self) -> &Parameter {
         use self::Code::*;
         match *self {
-            Adc(ref p) | And(ref p) | Bcc(ref p) | Bcs(ref p) | Beq(ref p) | Bne(ref p) | Clc(ref p) | Cmp(ref p) |
-            Eor(ref p) | Jmp(ref p) | Jsr(ref p) | Lda(ref p) | Ldx(ref p) | Ldy(ref p) | Php(ref p) | Pla(ref p) |
-            Ror(ref p) | Rts(ref p) | Sbc(ref p) | Sec(ref p) | Sta(ref p) | Stx(ref p) | Sty(ref p) | Tax(ref p) |
-            Tay(ref p) | Txa(ref p) | Tya(ref p) => p,
+            Adc(ref p) | And(ref p) | Bcc(ref p) | Bcs(ref p) | Beq(ref p) | Bne(ref p) | Clc(ref p) | Cmp(ref p)
+            | Eor(ref p) | Jmp(ref p) | Jsr(ref p) | Lda(ref p) | Ldx(ref p) | Ldy(ref p) | Php(ref p) | Pla(ref p)
+            | Ror(ref p) | Rts(ref p) | Sbc(ref p) | Sec(ref p) | Sta(ref p) | Stx(ref p) | Sty(ref p) | Tax(ref p)
+            | Tay(ref p) | Txa(ref p) | Tya(ref p) => p,
             Comment(_) => unreachable!(),
             InlineAsm(_) => unreachable!(),
         }

@@ -10,12 +10,9 @@
 extern crate hasselc;
 extern crate hassel_emu;
 
-use std::rc::Rc;
-use std::cell::RefCell;
 use std::fs;
 use std::io::prelude::*;
-use hassel_emu::cpu::Cpu;
-use hassel_emu::bus::{Bus, PlaceholderBus};
+use hassel_emu::{Cpu, MemoryMap};
 use hasselc::error;
 
 pub const ROM_SIZE: usize = 0x2000;
@@ -37,17 +34,21 @@ impl Emulator {
 
         Emulator {
             cpu: Box::new(Cpu::new(
-                rom,
-                Rc::new(
-                    RefCell::new(PlaceholderBus::new("mock_peripherals".into())),
-                ),
+                MemoryMap::builder()
+                    .ram(0x0000, 0xDFFF)
+                    .rom(0xE000, 0xFFFF, rom)
+                    .build()
             )),
             last_pc: 0,
         }
     }
 
+    pub fn memory(&self) -> &MemoryMap {
+        &self.cpu.memory()
+    }
+
     pub fn is_halted(&self) -> bool {
-        self.last_pc == self.cpu.reg_pc()
+        self.last_pc == self.cpu.registers().pc
     }
 
     pub fn reset(&mut self) {
@@ -55,9 +56,8 @@ impl Emulator {
     }
 
     pub fn step(&mut self) -> usize {
-        println!("{}", self.cpu.debug_next_instruction());
-        self.last_pc = self.cpu.reg_pc();
-        self.cpu.next_instruction()
+        self.last_pc = self.cpu.registers().pc;
+        self.cpu.step()
     }
 }
 
@@ -150,141 +150,141 @@ macro_rules! emulate {
 #[test]
 pub fn test1_unoptimized() {
     let emulator = emulate!(unoptimized: test1);
-    assert_eq!(20u8, emulator.cpu.bus.read_byte(0x0001));
+    assert_eq!(20u8, emulator.memory().debug_read().byte(0x0001));
 }
 
 #[test]
 pub fn test1_optimized() {
     let emulator = emulate!(optimized: test1);
-    assert_eq!(20u8, emulator.cpu.bus.read_byte(0x0001));
+    assert_eq!(20u8, emulator.memory().debug_read().byte(0x0001));
 }
 
 #[test]
 pub fn simple_arg_test_unoptimized() {
     let emulator = emulate!(unoptimized: simple_arg_test);
-    assert_eq!(20u8, emulator.cpu.bus.read_byte(0x0200));
-    assert_eq!(30u8, emulator.cpu.bus.read_byte(0x0201));
-    assert_eq!(40u8, emulator.cpu.bus.read_byte(0x0001));
+    assert_eq!(20u8, emulator.memory().debug_read().byte(0x0200));
+    assert_eq!(30u8, emulator.memory().debug_read().byte(0x0201));
+    assert_eq!(40u8, emulator.memory().debug_read().byte(0x0001));
 }
 
 #[test]
 pub fn simple_arg_test_optimized() {
     let emulator = emulate!(optimized: simple_arg_test);
-    assert_eq!(20u8, emulator.cpu.bus.read_byte(0x0200));
-    assert_eq!(30u8, emulator.cpu.bus.read_byte(0x0201));
-    assert_eq!(40u8, emulator.cpu.bus.read_byte(0x0001));
+    assert_eq!(20u8, emulator.memory().debug_read().byte(0x0200));
+    assert_eq!(30u8, emulator.memory().debug_read().byte(0x0201));
+    assert_eq!(40u8, emulator.memory().debug_read().byte(0x0001));
 }
 
 #[test]
 pub fn two_calls_test_unoptimized() {
     let emulator = emulate!(unoptimized: two_calls_test);
-    assert_eq!(21u8, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(21u8, emulator.memory().debug_read().byte(0x0200));
 }
 
 #[test]
 pub fn two_calls_test_optimized() {
     let emulator = emulate!(optimized: two_calls_test);
-    assert_eq!(21u8, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(21u8, emulator.memory().debug_read().byte(0x0200));
 }
 
 #[test]
 pub fn three_calls_test_unoptimized() {
     let emulator = emulate!(unoptimized: three_calls_test);
-    assert_eq!(45u8, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(45u8, emulator.memory().debug_read().byte(0x0200));
 }
 
 #[test]
 pub fn three_calls_test_optimized() {
     let emulator = emulate!(optimized: three_calls_test);
-    assert_eq!(45u8, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(45u8, emulator.memory().debug_read().byte(0x0200));
 }
 
 #[test]
 pub fn simple_branch_test_unoptimized() {
     let emulator = emulate!(unoptimized: simple_branch_test);
-    assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
-    assert_eq!(6u8, emulator.cpu.bus.read_byte(0x0201));
+    assert_eq!(5u8, emulator.memory().debug_read().byte(0x0200));
+    assert_eq!(6u8, emulator.memory().debug_read().byte(0x0201));
 }
 
 #[test]
 pub fn simple_branch_test_optimized() {
     let emulator = emulate!(optimized: simple_branch_test);
-    assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
-    assert_eq!(6u8, emulator.cpu.bus.read_byte(0x0201));
+    assert_eq!(5u8, emulator.memory().debug_read().byte(0x0200));
+    assert_eq!(6u8, emulator.memory().debug_read().byte(0x0201));
 }
 
 #[test]
 pub fn recursion_test_unoptimized() {
     let emulator = emulate!(unoptimized: recursion_test);
-    assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(5u8, emulator.memory().debug_read().byte(0x0200));
 }
 
 #[test]
 pub fn recursion_test_optimized() {
     let emulator = emulate!(optimized: recursion_test);
-    assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(5u8, emulator.memory().debug_read().byte(0x0200));
 }
 
 #[test]
 pub fn while_loop_test_unoptimized() {
     let emulator = emulate!(unoptimized: while_loop_test);
-    assert_eq!(10u8, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(10u8, emulator.memory().debug_read().byte(0x0200));
 }
 
 #[test]
 pub fn while_loop_test_optimized() {
     let emulator = emulate!(optimized: while_loop_test);
-    assert_eq!(10u8, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(10u8, emulator.memory().debug_read().byte(0x0200));
 }
 
 #[test]
 pub fn comparison_test_unoptimized() {
     let emulator = emulate!(unoptimized: comparison_test);
-    assert_eq!(1u8, emulator.cpu.bus.read_byte(0x0200), "eq_true");
-    assert_eq!(0u8, emulator.cpu.bus.read_byte(0x0201), "eq_false");
-    assert_eq!(1u8, emulator.cpu.bus.read_byte(0x0202), "neq_true");
-    assert_eq!(0u8, emulator.cpu.bus.read_byte(0x0203), "neq_false");
-    assert_eq!(1u8, emulator.cpu.bus.read_byte(0x0204), "lt_true");
-    assert_eq!(0u8, emulator.cpu.bus.read_byte(0x0205), "lt_false");
-    assert_eq!(1u8, emulator.cpu.bus.read_byte(0x0206), "lte_true");
-    assert_eq!(0u8, emulator.cpu.bus.read_byte(0x0207), "lte_false");
-    assert_eq!(1u8, emulator.cpu.bus.read_byte(0x0208), "gt_true");
-    assert_eq!(0u8, emulator.cpu.bus.read_byte(0x0209), "gt_false");
-    assert_eq!(1u8, emulator.cpu.bus.read_byte(0x020A), "gte_true");
-    assert_eq!(0u8, emulator.cpu.bus.read_byte(0x020B), "gte_false");
+    assert_eq!(1u8, emulator.memory().debug_read().byte(0x0200), "eq_true");
+    assert_eq!(0u8, emulator.memory().debug_read().byte(0x0201), "eq_false");
+    assert_eq!(1u8, emulator.memory().debug_read().byte(0x0202), "neq_true");
+    assert_eq!(0u8, emulator.memory().debug_read().byte(0x0203), "neq_false");
+    assert_eq!(1u8, emulator.memory().debug_read().byte(0x0204), "lt_true");
+    assert_eq!(0u8, emulator.memory().debug_read().byte(0x0205), "lt_false");
+    assert_eq!(1u8, emulator.memory().debug_read().byte(0x0206), "lte_true");
+    assert_eq!(0u8, emulator.memory().debug_read().byte(0x0207), "lte_false");
+    assert_eq!(1u8, emulator.memory().debug_read().byte(0x0208), "gt_true");
+    assert_eq!(0u8, emulator.memory().debug_read().byte(0x0209), "gt_false");
+    assert_eq!(1u8, emulator.memory().debug_read().byte(0x020A), "gte_true");
+    assert_eq!(0u8, emulator.memory().debug_read().byte(0x020B), "gte_false");
 }
 
 #[test]
 pub fn comparison_test_optimized() {
     let emulator = emulate!(optimized: comparison_test);
-    assert_eq!(1u8, emulator.cpu.bus.read_byte(0x0200), "eq_true");
-    assert_eq!(0u8, emulator.cpu.bus.read_byte(0x0201), "eq_false");
-    assert_eq!(1u8, emulator.cpu.bus.read_byte(0x0202), "neq_true");
-    assert_eq!(0u8, emulator.cpu.bus.read_byte(0x0203), "neq_false");
-    assert_eq!(1u8, emulator.cpu.bus.read_byte(0x0204), "lt_true");
-    assert_eq!(0u8, emulator.cpu.bus.read_byte(0x0205), "lt_false");
-    assert_eq!(1u8, emulator.cpu.bus.read_byte(0x0206), "lte_true");
-    assert_eq!(0u8, emulator.cpu.bus.read_byte(0x0207), "lte_false");
-    assert_eq!(1u8, emulator.cpu.bus.read_byte(0x0208), "gt_true");
-    assert_eq!(0u8, emulator.cpu.bus.read_byte(0x0209), "gt_false");
-    assert_eq!(1u8, emulator.cpu.bus.read_byte(0x020A), "gte_true");
-    assert_eq!(0u8, emulator.cpu.bus.read_byte(0x020B), "gte_false");
+    assert_eq!(1u8, emulator.memory().debug_read().byte(0x0200), "eq_true");
+    assert_eq!(0u8, emulator.memory().debug_read().byte(0x0201), "eq_false");
+    assert_eq!(1u8, emulator.memory().debug_read().byte(0x0202), "neq_true");
+    assert_eq!(0u8, emulator.memory().debug_read().byte(0x0203), "neq_false");
+    assert_eq!(1u8, emulator.memory().debug_read().byte(0x0204), "lt_true");
+    assert_eq!(0u8, emulator.memory().debug_read().byte(0x0205), "lt_false");
+    assert_eq!(1u8, emulator.memory().debug_read().byte(0x0206), "lte_true");
+    assert_eq!(0u8, emulator.memory().debug_read().byte(0x0207), "lte_false");
+    assert_eq!(1u8, emulator.memory().debug_read().byte(0x0208), "gt_true");
+    assert_eq!(0u8, emulator.memory().debug_read().byte(0x0209), "gt_false");
+    assert_eq!(1u8, emulator.memory().debug_read().byte(0x020A), "gte_true");
+    assert_eq!(0u8, emulator.memory().debug_read().byte(0x020B), "gte_false");
 }
 
 #[test]
 pub fn conditions_test_unoptimized() {
     let emulator = emulate!(unoptimized: conditions_test);
-    assert_eq!(42u8, emulator.cpu.bus.read_byte(0x0200));
-    assert_eq!(49u8, emulator.cpu.bus.read_byte(0x0201));
-    assert_eq!(22u8, emulator.cpu.bus.read_byte(0x0202));
+    assert_eq!(42u8, emulator.memory().debug_read().byte(0x0200));
+    assert_eq!(49u8, emulator.memory().debug_read().byte(0x0201));
+    assert_eq!(22u8, emulator.memory().debug_read().byte(0x0202));
 }
 
 #[test]
 pub fn conditions_test_optimized() {
     let emulator = emulate!(optimized: conditions_test);
-    assert_eq!(42u8, emulator.cpu.bus.read_byte(0x0200), "output1");
-    assert_eq!(49u8, emulator.cpu.bus.read_byte(0x0201), "output2");
-    assert_eq!(22u8, emulator.cpu.bus.read_byte(0x0202), "output3");
+    assert_eq!(42u8, emulator.memory().debug_read().byte(0x0200), "output1");
+    assert_eq!(49u8, emulator.memory().debug_read().byte(0x0201), "output2");
+    assert_eq!(22u8, emulator.memory().debug_read().byte(0x0202), "output3");
 }
 
 #[test]
@@ -300,93 +300,93 @@ pub fn no_op_test_optimized() {
 #[test]
 pub fn constants_test_unoptimized() {
     let emulator = emulate!(unoptimized: constants_test);
-    assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
-    assert_eq!(15u8, emulator.cpu.bus.read_byte(0x0201));
-    assert_eq!(3u8, emulator.cpu.bus.read_byte(0x0202));
+    assert_eq!(5u8, emulator.memory().debug_read().byte(0x0200));
+    assert_eq!(15u8, emulator.memory().debug_read().byte(0x0201));
+    assert_eq!(3u8, emulator.memory().debug_read().byte(0x0202));
 }
 
 #[test]
 pub fn constants_test_optimized() {
     let emulator = emulate!(optimized: constants_test);
-    assert_eq!(5u8, emulator.cpu.bus.read_byte(0x0200));
-    assert_eq!(15u8, emulator.cpu.bus.read_byte(0x0201));
-    assert_eq!(3u8, emulator.cpu.bus.read_byte(0x0202));
+    assert_eq!(5u8, emulator.memory().debug_read().byte(0x0200));
+    assert_eq!(15u8, emulator.memory().debug_read().byte(0x0201));
+    assert_eq!(3u8, emulator.memory().debug_read().byte(0x0202));
 }
 
 #[test]
 pub fn word_test_unoptimized() {
     let emulator = emulate!(unoptimized: word_test);
-    assert_eq!(0xBBu8, emulator.cpu.bus.read_byte(0x0200));
-    assert_eq!(0xAAu8, emulator.cpu.bus.read_byte(0x0201));
-    assert_eq!(0x00u8, emulator.cpu.bus.read_byte(0x0202));
-    assert_eq!(0x01u8, emulator.cpu.bus.read_byte(0x0203));
-    assert_eq!(0x04u8, emulator.cpu.bus.read_byte(0x0204));
-    assert_eq!(0x00u8, emulator.cpu.bus.read_byte(0x0205));
-    assert_eq!(0x58u8, emulator.cpu.bus.read_byte(0x0206));
-    assert_eq!(0x02u8, emulator.cpu.bus.read_byte(0x0207));
+    assert_eq!(0xBBu8, emulator.memory().debug_read().byte(0x0200));
+    assert_eq!(0xAAu8, emulator.memory().debug_read().byte(0x0201));
+    assert_eq!(0x00u8, emulator.memory().debug_read().byte(0x0202));
+    assert_eq!(0x01u8, emulator.memory().debug_read().byte(0x0203));
+    assert_eq!(0x04u8, emulator.memory().debug_read().byte(0x0204));
+    assert_eq!(0x00u8, emulator.memory().debug_read().byte(0x0205));
+    assert_eq!(0x58u8, emulator.memory().debug_read().byte(0x0206));
+    assert_eq!(0x02u8, emulator.memory().debug_read().byte(0x0207));
 }
 
 #[test]
 pub fn word_test_optimized() {
     let emulator = emulate!(optimized: word_test);
-    assert_eq!(0xBBu8, emulator.cpu.bus.read_byte(0x0200));
-    assert_eq!(0xAAu8, emulator.cpu.bus.read_byte(0x0201));
-    assert_eq!(0x00u8, emulator.cpu.bus.read_byte(0x0202));
-    assert_eq!(0x01u8, emulator.cpu.bus.read_byte(0x0203));
-    assert_eq!(0x04u8, emulator.cpu.bus.read_byte(0x0204));
-    assert_eq!(0x00u8, emulator.cpu.bus.read_byte(0x0205));
-    assert_eq!(0x58u8, emulator.cpu.bus.read_byte(0x0206));
-    assert_eq!(0x02u8, emulator.cpu.bus.read_byte(0x0207));
+    assert_eq!(0xBBu8, emulator.memory().debug_read().byte(0x0200));
+    assert_eq!(0xAAu8, emulator.memory().debug_read().byte(0x0201));
+    assert_eq!(0x00u8, emulator.memory().debug_read().byte(0x0202));
+    assert_eq!(0x01u8, emulator.memory().debug_read().byte(0x0203));
+    assert_eq!(0x04u8, emulator.memory().debug_read().byte(0x0204));
+    assert_eq!(0x00u8, emulator.memory().debug_read().byte(0x0205));
+    assert_eq!(0x58u8, emulator.memory().debug_read().byte(0x0206));
+    assert_eq!(0x02u8, emulator.memory().debug_read().byte(0x0207));
 }
 
 #[test]
 pub fn array_test_unoptimized() {
     let emulator = emulate!(unoptimized: array_test);
     for i in 0..10u16 {
-        assert_eq!((i + 1) as u8, emulator.cpu.bus.read_byte(0x0200 + i));
+        assert_eq!((i + 1) as u8, emulator.memory().debug_read().byte(0x0200 + i));
     }
-    assert_eq!(6, emulator.cpu.bus.read_byte(0x0250));
+    assert_eq!(6, emulator.memory().debug_read().byte(0x0250));
 }
 
 #[test]
 pub fn array_test_optimized() {
     let emulator = emulate!(optimized: array_test);
     for i in 0..10u16 {
-        assert_eq!((i + 1) as u8, emulator.cpu.bus.read_byte(0x0200 + i));
+        assert_eq!((i + 1) as u8, emulator.memory().debug_read().byte(0x0200 + i));
     }
-    assert_eq!(6, emulator.cpu.bus.read_byte(0x0250));
+    assert_eq!(6, emulator.memory().debug_read().byte(0x0250));
 }
 
 #[test]
 pub fn string_test_unoptimized() {
     let emulator = emulate!(unoptimized: string_test);
-    assert_eq!(12, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(12, emulator.memory().debug_read().byte(0x0200));
 }
 
 #[test]
 pub fn string_test_optimized() {
     let emulator = emulate!(optimized: string_test);
-    assert_eq!(12, emulator.cpu.bus.read_byte(0x0200));
+    assert_eq!(12, emulator.memory().debug_read().byte(0x0200));
 }
 
 #[test]
 pub fn memcpy_test_unoptimized() {
     let emulator = emulate!(unoptimized: memcpy_test);
-    assert_eq!('h', emulator.cpu.bus.read_byte(0x0200) as char);
-    assert_eq!('e', emulator.cpu.bus.read_byte(0x0201) as char);
-    assert_eq!('l', emulator.cpu.bus.read_byte(0x0202) as char);
-    assert_eq!('l', emulator.cpu.bus.read_byte(0x0203) as char);
-    assert_eq!('o', emulator.cpu.bus.read_byte(0x0204) as char);
-    assert_eq!(0, emulator.cpu.bus.read_byte(0x0205));
+    assert_eq!('h', emulator.memory().debug_read().byte(0x0200) as char);
+    assert_eq!('e', emulator.memory().debug_read().byte(0x0201) as char);
+    assert_eq!('l', emulator.memory().debug_read().byte(0x0202) as char);
+    assert_eq!('l', emulator.memory().debug_read().byte(0x0203) as char);
+    assert_eq!('o', emulator.memory().debug_read().byte(0x0204) as char);
+    assert_eq!(0, emulator.memory().debug_read().byte(0x0205));
 }
 
 #[test]
 pub fn memcpy_test_optimized() {
     let emulator = emulate!(optimized: memcpy_test);
-    assert_eq!('h', emulator.cpu.bus.read_byte(0x0200) as char);
-    assert_eq!('e', emulator.cpu.bus.read_byte(0x0201) as char);
-    assert_eq!('l', emulator.cpu.bus.read_byte(0x0202) as char);
-    assert_eq!('l', emulator.cpu.bus.read_byte(0x0203) as char);
-    assert_eq!('o', emulator.cpu.bus.read_byte(0x0204) as char);
-    assert_eq!(0, emulator.cpu.bus.read_byte(0x0205));
+    assert_eq!('h', emulator.memory().debug_read().byte(0x0200) as char);
+    assert_eq!('e', emulator.memory().debug_read().byte(0x0201) as char);
+    assert_eq!('l', emulator.memory().debug_read().byte(0x0202) as char);
+    assert_eq!('l', emulator.memory().debug_read().byte(0x0203) as char);
+    assert_eq!('o', emulator.memory().debug_read().byte(0x0204) as char);
+    assert_eq!(0, emulator.memory().debug_read().byte(0x0205));
 }

@@ -91,32 +91,24 @@ impl Value {
         use self::Value::*;
         // 16-bit values on the 6502 are in little-endian
         match *value {
-            Immediate(BaseType::U16, ref val) => {
-                match *val {
-                    ImmediateValue::Number(num) => {
-                        Immediate(
-                            BaseType::U8,
-                            ImmediateValue::Number(((((num as u16) & 0xFF00) >> 8) as u8) as i32),
-                        )
-                    }
-                    ImmediateValue::Symbol(ref _sym) => unimplemented!(),
-                }
-            }
-            Immediate(BaseType::Pointer(_), ref val) => {
-                match *val {
-                    ImmediateValue::Number(num) => {
-                        Immediate(
-                            BaseType::U8,
-                            ImmediateValue::Number(((((num as u16) & 0xFF00) >> 8) as u8) as i32),
-                        )
-                    }
-                    ImmediateValue::Symbol(ref sym) => Value::Memory(MemoryData::new(
-                        BaseType::U8,
-                        Location::UnresolvedGlobalHighByte(*sym),
-                        None,
-                    )),
-                }
-            }
+            Immediate(BaseType::U16, ref val) => match *val {
+                ImmediateValue::Number(num) => Immediate(
+                    BaseType::U8,
+                    ImmediateValue::Number(((((num as u16) & 0xFF00) >> 8) as u8) as i32),
+                ),
+                ImmediateValue::Symbol(ref _sym) => unimplemented!(),
+            },
+            Immediate(BaseType::Pointer(_), ref val) => match *val {
+                ImmediateValue::Number(num) => Immediate(
+                    BaseType::U8,
+                    ImmediateValue::Number(((((num as u16) & 0xFF00) >> 8) as u8) as i32),
+                ),
+                ImmediateValue::Symbol(ref sym) => Value::Memory(MemoryData::new(
+                    BaseType::U8,
+                    Location::UnresolvedGlobalHighByte(*sym),
+                    None,
+                )),
+            },
             Immediate(_, _) => unreachable!(),
             Memory(ref data) => Memory(MemoryData::new(
                 BaseType::U8,
@@ -130,22 +122,18 @@ impl Value {
         use self::Value::*;
         // 16-bit values on the 6502 are in little-endian
         match *value {
-            Immediate(BaseType::U16, ref val) => {
-                match *val {
-                    ImmediateValue::Number(num) => Immediate(BaseType::U8, ImmediateValue::Number((num as u8) as i32)),
-                    ImmediateValue::Symbol(ref _sym) => unimplemented!(),
-                }
-            }
-            Immediate(BaseType::Pointer(_), ref val) => {
-                match *val {
-                    ImmediateValue::Number(num) => Immediate(BaseType::U8, ImmediateValue::Number((num as u8) as i32)),
-                    ImmediateValue::Symbol(ref sym) => Value::Memory(MemoryData::new(
-                        BaseType::U8,
-                        Location::UnresolvedGlobalLowByte(*sym),
-                        None,
-                    )),
-                }
-            }
+            Immediate(BaseType::U16, ref val) => match *val {
+                ImmediateValue::Number(num) => Immediate(BaseType::U8, ImmediateValue::Number((num as u8) as i32)),
+                ImmediateValue::Symbol(ref _sym) => unimplemented!(),
+            },
+            Immediate(BaseType::Pointer(_), ref val) => match *val {
+                ImmediateValue::Number(num) => Immediate(BaseType::U8, ImmediateValue::Number((num as u8) as i32)),
+                ImmediateValue::Symbol(ref sym) => Value::Memory(MemoryData::new(
+                    BaseType::U8,
+                    Location::UnresolvedGlobalLowByte(*sym),
+                    None,
+                )),
+            },
             Immediate(_, _) => unreachable!(),
             Memory(ref data) => Memory(MemoryData::new(
                 BaseType::U8,
@@ -247,16 +235,11 @@ pub enum Statement {
 
     CompareBranch(CompareBranchData),
 
-    #[deprecated]
-    BranchIfZero(BranchIfZeroData),
-    #[deprecated]
-    CompareEq(BinaryOpData),
-    #[deprecated]
-    CompareNotEq(BinaryOpData),
-    #[deprecated]
-    CompareLt(BinaryOpData),
-    #[deprecated]
-    CompareGte(BinaryOpData),
+    #[deprecated] BranchIfZero(BranchIfZeroData),
+    #[deprecated] CompareEq(BinaryOpData),
+    #[deprecated] CompareNotEq(BinaryOpData),
+    #[deprecated] CompareLt(BinaryOpData),
+    #[deprecated] CompareGte(BinaryOpData),
 
     Copy(CopyData),
     GoTo(GoToData),
@@ -270,10 +253,7 @@ impl Statement {
     pub fn is_branch(&self) -> bool {
         use self::Statement::*;
         match *self {
-            BranchIfZero(_) |
-            GoTo(_) |
-            JumpRoutine { .. } |
-            Return { .. } => true,
+            BranchIfZero(_) | GoTo(_) | JumpRoutine { .. } | Return { .. } => true,
             _ => false,
         }
     }
@@ -283,12 +263,8 @@ impl SrcTagged for Statement {
     fn src_tag(&self) -> SrcTag {
         use self::Statement::*;
         match *self {
-            Add(ref d) |
-            CompareEq(ref d) |
-            CompareNotEq(ref d) |
-            CompareLt(ref d) |
-            CompareGte(ref d) |
-            Subtract(ref d) => d.tag,
+            Add(ref d) | CompareEq(ref d) | CompareNotEq(ref d) | CompareLt(ref d) | CompareGte(ref d)
+            | Subtract(ref d) => d.tag,
             CompareBranch(ref d) => d.tag,
             AddToDataStackPointer(ref d) => d.tag,
             BranchIfZero(ref d) => d.tag,
@@ -304,86 +280,52 @@ impl SrcTagged for Statement {
 impl fmt::Debug for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            Statement::Add(ref data) => {
-                write!(
-                    f,
-                    "add {:?} + {:?} => {:?}",
-                    data.left,
-                    data.right,
-                    data.destination
-                )?
-            }
+            Statement::Add(ref data) => write!(
+                f,
+                "add {:?} + {:?} => {:?}",
+                data.left, data.right, data.destination
+            )?,
             Statement::AddToDataStackPointer(ref offset) => write!(f, "add_dsp {:?}", offset)?,
-            Statement::BranchIfZero(ref data) => {
-                write!(
-                    f,
-                    "branch to {:?} if {:?} == 0",
-                    data.destination,
-                    data.value
-                )?
-            }
-            Statement::CompareBranch(ref data) => {
-                write!(
-                    f,
-                    "compare {:?} and {:?}; branch to {:?} on {:?} set, and to {:?} on {:?} clear",
-                    data.left,
-                    data.right,
-                    data.branch_set,
-                    data.branch_flag,
-                    data.branch_clear,
-                    data.branch_flag,
-                )?
-            }
-            Statement::CompareEq(ref data) => {
-                write!(
-                    f,
-                    "compare {:?} == {:?} => {:?}",
-                    data.left,
-                    data.right,
-                    data.destination
-                )?
-            }
-            Statement::CompareNotEq(ref data) => {
-                write!(
-                    f,
-                    "compare {:?} != {:?} => {:?}",
-                    data.left,
-                    data.right,
-                    data.destination
-                )?
-            }
-            Statement::CompareLt(ref data) => {
-                write!(
-                    f,
-                    "compare {:?} < {:?} => {:?}",
-                    data.left,
-                    data.right,
-                    data.destination
-                )?
-            }
-            Statement::CompareGte(ref data) => {
-                write!(
-                    f,
-                    "compare {:?} >= {:?} => {:?}",
-                    data.left,
-                    data.right,
-                    data.destination
-                )?
-            }
+            Statement::BranchIfZero(ref data) => write!(
+                f,
+                "branch to {:?} if {:?} == 0",
+                data.destination, data.value
+            )?,
+            Statement::CompareBranch(ref data) => write!(
+                f,
+                "compare {:?} and {:?}; branch to {:?} on {:?} set, and to {:?} on {:?} clear",
+                data.left, data.right, data.branch_set, data.branch_flag, data.branch_clear, data.branch_flag,
+            )?,
+            Statement::CompareEq(ref data) => write!(
+                f,
+                "compare {:?} == {:?} => {:?}",
+                data.left, data.right, data.destination
+            )?,
+            Statement::CompareNotEq(ref data) => write!(
+                f,
+                "compare {:?} != {:?} => {:?}",
+                data.left, data.right, data.destination
+            )?,
+            Statement::CompareLt(ref data) => write!(
+                f,
+                "compare {:?} < {:?} => {:?}",
+                data.left, data.right, data.destination
+            )?,
+            Statement::CompareGte(ref data) => write!(
+                f,
+                "compare {:?} >= {:?} => {:?}",
+                data.left, data.right, data.destination
+            )?,
             Statement::Copy(ref data) => write!(f, "copy {:?} => {:?}", data.value, data.destination)?,
             Statement::GoTo(ref data) => write!(f, "goto {}", data.destination)?,
             Statement::InlineAsm(_) => write!(f, "inline_asm")?,
             Statement::JumpRoutine(ref location) => write!(f, "jsr {:?}", location)?,
             Statement::Return(_) => write!(f, "rts")?,
-            Statement::Subtract(ref data) => {
-                write!(
-                    f,
-                    "subtract {:?} - {:?} => {:?}",
-                    data.left,
-                    data.right,
-                    data.destination
-                )?
-            }
+            Statement::Subtract(ref data) => write!(
+                f,
+                "subtract {:?} - {:?} => {:?}",
+                data.left, data.right, data.destination
+            )?,
         }
         Ok(())
     }

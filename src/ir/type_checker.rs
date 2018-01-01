@@ -116,14 +116,10 @@ impl TypeChecking for Expr {
     fn resolve_type(&mut self, symbol_table: &SymbolTable) -> error::Result<BaseType> {
         use ir::block::Expr::*;
         match *self {
-            Number(ref data) => {
-                match data.value_type {
-                    Some(ref base_type) => Ok(base_type.clone()),
-                    None => Err(
-                        ErrorKind::TypeExprError(data.tag, "Can't infer type of number".into()).into(),
-                    ),
-                }
-            }
+            Number(ref data) => match data.value_type {
+                Some(ref base_type) => Ok(base_type.clone()),
+                None => Err(ErrorKind::TypeExprError(data.tag, "Can't infer type of number".into()).into()),
+            },
             BinaryOp(ref mut data) => {
                 let left_type = data.left.resolve_type(symbol_table)?;
                 let right_type = data.right.resolve_type(symbol_table)?;
@@ -132,38 +128,34 @@ impl TypeChecking for Expr {
                         data.result_type = Some(base_type.clone());
                         Ok(base_type)
                     }
-                    None => Err(
-                        ErrorKind::TypeExprError(
-                            data.tag,
-                            format!(
-                                "Can't perform arithmetic between {} and {}",
-                                left_type,
-                                right_type
-                            ),
-                        ).into(),
-                    ),
+                    None => Err(ErrorKind::TypeExprError(
+                        data.tag,
+                        format!(
+                            "Can't perform arithmetic between {} and {}",
+                            left_type, right_type
+                        ),
+                    ).into()),
                 }
             }
             Call(ref mut data) => data.resolve_type(symbol_table),
             ArrayIndex(ref mut data) => {
                 if !data.array_type.as_ref().unwrap().can_index() {
-                    Err(
-                        ErrorKind::TypeExprError(
-                            data.tag,
-                            format!("Can't index {}", data.array_type.as_ref().unwrap()),
-                        ).into(),
-                    )
+                    Err(ErrorKind::TypeExprError(
+                        data.tag,
+                        format!("Can't index {}", data.array_type.as_ref().unwrap()),
+                    ).into())
                 } else if data.index.base_type().is_none() {
-                    Err(
-                        ErrorKind::TypeExprError(
-                            data.index.src_tag(),
-                            "Can't infer type of array index".into(),
-                        ).into(),
-                    )
+                    Err(ErrorKind::TypeExprError(
+                        data.index.src_tag(),
+                        "Can't infer type of array index".into(),
+                    ).into())
                 } else {
-                    Ok(
-                        data.array_type.as_ref().unwrap().underlying_type().unwrap().clone(),
-                    )
+                    Ok(data.array_type
+                        .as_ref()
+                        .unwrap()
+                        .underlying_type()
+                        .unwrap()
+                        .clone())
                 }
             }
             Symbol(ref data) => Ok(data.value_type.as_ref().unwrap().clone()),
@@ -181,14 +173,12 @@ impl TypeChecking for CallData {
             self.return_type = Some(function.read().unwrap().return_type.clone());
             let expected_arg_count = function.read().unwrap().parameters.len();
             if self.arguments.len() != expected_arg_count {
-                return Err(
-                    ErrorKind::ExpectedNArgumentsGotM(
-                        self.tag,
-                        SymbolName::clone(&self.function),
-                        expected_arg_count,
-                        self.arguments.len(),
-                    ).into(),
-                );
+                return Err(ErrorKind::ExpectedNArgumentsGotM(
+                    self.tag,
+                    SymbolName::clone(&self.function),
+                    expected_arg_count,
+                    self.arguments.len(),
+                ).into());
             }
             for (index, argument) in self.arguments.iter_mut().enumerate() {
                 argument.infer_types(symbol_table)?;
@@ -197,9 +187,7 @@ impl TypeChecking for CallData {
                 }
             }
         } else {
-            return Err(
-                ErrorKind::SymbolNotFound(self.tag, SymbolName::clone(&self.function)).into(),
-            );
+            return Err(ErrorKind::SymbolNotFound(self.tag, SymbolName::clone(&self.function)).into());
         }
         Ok(())
     }
@@ -213,17 +201,15 @@ impl TypeChecking for CallData {
             for (index, argument) in self.arguments.iter_mut().enumerate() {
                 let argument_type = argument.resolve_type(symbol_table)?;
                 if !argument_type.can_assign_into(&function.read().unwrap().parameters[index].base_type) {
-                    return Err(
-                        ErrorKind::TypeExprError(
-                            argument.src_tag(),
-                            format!(
-                                "Argument {} expected {} but got a {}",
-                                index + 1,
-                                function.read().unwrap().parameters[index].base_type,
-                                argument_type
-                            ),
-                        ).into(),
-                    );
+                    return Err(ErrorKind::TypeExprError(
+                        argument.src_tag(),
+                        format!(
+                            "Argument {} expected {} but got a {}",
+                            index + 1,
+                            function.read().unwrap().parameters[index].base_type,
+                            argument_type
+                        ),
+                    ).into());
                 }
             }
             Ok(self.return_type.as_ref().unwrap().clone())
@@ -287,11 +273,9 @@ impl TypeChecking for Statement {
                     statement.imply_type(base_type);
                 }
             }
-            WhileLoop(ref mut data) => {
-                for statement in &mut data.body {
-                    statement.imply_type(base_type);
-                }
-            }
+            WhileLoop(ref mut data) => for statement in &mut data.body {
+                statement.imply_type(base_type);
+            },
             _ => {}
         }
     }
@@ -307,12 +291,10 @@ impl TypeChecking for Statement {
 
                 let right_type = data.right_value.resolve_type(symbol_table)?;
                 if !right_type.can_assign_into(&left_type) {
-                    return Err(
-                        ErrorKind::TypeExprError(
-                            data.tag,
-                            format!("Can't assign {} into {}", right_type, left_type),
-                        ).into(),
-                    );
+                    return Err(ErrorKind::TypeExprError(
+                        data.tag,
+                        format!("Can't assign {} into {}", right_type, left_type),
+                    ).into());
                 }
                 data.value_type = Some(left_type);
             }

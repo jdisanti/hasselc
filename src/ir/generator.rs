@@ -57,9 +57,7 @@ pub fn generate(
                     function.body.extend(body_ir);
                     blocks.push(function);
                 } else {
-                    return Err(
-                        ErrorKind::DuplicateSymbol(data.tag, Arc::clone(&symbol_name)).into(),
-                    );
+                    return Err(ErrorKind::DuplicateSymbol(data.tag, Arc::clone(&symbol_name)).into());
                 }
             }
             ast::Expression::Org(ref data) => {
@@ -103,9 +101,12 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
         ast::Expression::Assignment(ref data) => {
             let left_value = generate_expression(symbol_table, &data.left_value)?;
             let right_value = generate_expression(symbol_table, &data.right_value)?;
-            statements.push(ir::Statement::Assign(
-                ir::AssignData::new(data.tag, None, left_value, right_value),
-            ));
+            statements.push(ir::Statement::Assign(ir::AssignData::new(
+                data.tag,
+                None,
+                left_value,
+                right_value,
+            )));
         }
         ast::Expression::Break => {
             unimplemented!("ir_gen: break");
@@ -141,34 +142,29 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
                 )
                 .is_none()
             {
-                return Err(
-                    ErrorKind::DuplicateSymbol(data.tag, SymbolName::clone(&data.name_type.name)).into(),
-                );
+                return Err(ErrorKind::DuplicateSymbol(data.tag, SymbolName::clone(&data.name_type.name)).into());
             }
         }
         ast::Expression::DeclareRegister(ref data) => {
             if data.location < 0 || data.location > 0xFFFF {
-                return Err(
-                    ErrorKind::OutOfBounds(data.tag, data.location as isize, 0, 0xFFFF).into(),
-                );
+                return Err(ErrorKind::OutOfBounds(data.tag, data.location as isize, 0, 0xFFFF).into());
             }
             let symbol_name = SymbolName::clone(&data.name_type.name);
             let variable = Variable::new(
                 data.name_type.base_type.clone(),
                 Location::Global(data.location as u16),
             );
-            if symbol_table.insert_variable(symbol_name, variable).is_none() {
-                return Err(
-                    ErrorKind::DuplicateSymbol(data.tag, SymbolName::clone(&data.name_type.name)).into(),
-                );
+            if symbol_table
+                .insert_variable(symbol_name, variable)
+                .is_none()
+            {
+                return Err(ErrorKind::DuplicateSymbol(data.tag, SymbolName::clone(&data.name_type.name)).into());
             }
         }
         ast::Expression::DeclareVariable(ref data) => {
             let symbol_name = SymbolName::clone(&data.name_type.name);
             if data.name_type.base_type.size().is_none() {
-                return Err(
-                    ErrorKind::TypeMustHaveSize(data.tag, SymbolName::clone(&data.name_type.name)).into(),
-                );
+                return Err(ErrorKind::TypeMustHaveSize(data.tag, SymbolName::clone(&data.name_type.name)).into());
             }
 
             let next_location = symbol_table.next_frame_offset(data.name_type.base_type.size().unwrap());
@@ -180,43 +176,45 @@ fn generate_statement_ir(symbol_table: &mut SymbolTable, input: &ast::Expression
                 let assignment = ir::Statement::Assign(ir::AssignData::new(
                     data.tag,
                     None,
-                    ir::Expr::Symbol(
-                        ir::SymbolData::new(data.tag, symbol_ref, None),
-                    ),
+                    ir::Expr::Symbol(ir::SymbolData::new(data.tag, symbol_ref, None)),
                     generate_expression(symbol_table, &data.value)?,
                 ));
                 statements.push(assignment);
             } else {
-                return Err(
-                    ErrorKind::DuplicateSymbol(data.tag, SymbolName::clone(&data.name_type.name)).into(),
-                );
+                return Err(ErrorKind::DuplicateSymbol(data.tag, SymbolName::clone(&data.name_type.name)).into());
             }
         }
         ast::Expression::GoTo(ref data) => {
-            statements.push(ir::Statement::GoTo(
-                ir::GoToData::new(data.tag, Arc::clone(&data.destination)),
-            ));
+            statements.push(ir::Statement::GoTo(ir::GoToData::new(
+                data.tag,
+                Arc::clone(&data.destination),
+            )));
         }
         ast::Expression::InlineAsm(ref data) => {
-            statements.push(ir::Statement::InlineAsm(
-                ir::InlineAsmData::new(data.tag, Arc::clone(&data.asm)),
-            ));
+            statements.push(ir::Statement::InlineAsm(ir::InlineAsmData::new(
+                data.tag,
+                Arc::clone(&data.asm),
+            )));
         }
         ast::Expression::Return(ref data) => {
             let value = match data.value {
                 Some(ref val) => Some(generate_expression(symbol_table, val)?),
                 None => None,
             };
-            statements.push(ir::Statement::Return(
-                ir::ReturnData::new(data.tag, None, value),
-            ));
+            statements.push(ir::Statement::Return(ir::ReturnData::new(
+                data.tag,
+                None,
+                value,
+            )));
         }
         ast::Expression::WhileLoop(ref data) => {
             let condition = generate_expression(symbol_table, &data.condition)?;
             let body = generate_statement_irs(symbol_table, &data.body)?;
-            statements.push(ir::Statement::WhileLoop(
-                ir::WhileLoopData::new(data.tag, condition, body),
-            ));
+            statements.push(ir::Statement::WhileLoop(ir::WhileLoopData::new(
+                data.tag,
+                condition,
+                body,
+            )));
         }
         ast::Expression::Comment => {}
         ast::Expression::ArrayIndex(_) => unreachable!("array_index"),
@@ -249,14 +247,10 @@ fn constant_eval(
                 BaseType::Void => Err(ErrorKind::ConstCantBeVoid(data.tag).into()),
             }
         }
-        ast::Expression::Name(ref data) => {
-            match symbol_table.constant_by_name(&data.name) {
-                Some(constant) => Ok(constant.value.clone()),
-                None => Err(
-                    ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.name)).into(),
-                ),
-            }
-        }
+        ast::Expression::Name(ref data) => match symbol_table.constant_by_name(&data.name) {
+            Some(constant) => Ok(constant.value.clone()),
+            None => Err(ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.name)).into()),
+        },
         ast::Expression::Number(ref data) => constant_eval_number(base_type, data),
         ast::Expression::Text(ref data) => {
             if let BaseType::Pointer(_) = *base_type {
@@ -264,13 +258,11 @@ fn constant_eval(
                 bytes.extend(data.value.as_bytes().iter());
                 Ok(ConstantValue::Bytes(Arc::new(bytes)))
             } else {
-                Err(
-                    ErrorKind::TypeError(
-                        data.tag,
-                        BaseType::Pointer(Box::new(BaseType::U8)),
-                        base_type.clone(),
-                    ).into(),
-                )
+                Err(ErrorKind::TypeError(
+                    data.tag,
+                    BaseType::Pointer(Box::new(BaseType::U8)),
+                    base_type.clone(),
+                ).into())
             }
         }
         _ => Err(ErrorKind::ConstEvaluationFailed(input.src_tag()).into()),
@@ -283,20 +275,15 @@ fn constant_eval_number(type_name: &BaseType, input: &ast::NumberData) -> error:
         BaseType::U8 => {
             let unsigned_val = input.value as usize;
             if unsigned_val > 0xFF {
-                Err(
-                    ErrorKind::OutOfBounds(input.tag, input.value as isize, 0, 0xFF).into(),
-                )
+                Err(ErrorKind::OutOfBounds(input.tag, input.value as isize, 0, 0xFF).into())
             } else {
                 Ok(ConstantValue::Number(input.value))
             }
         }
-        BaseType::U16 |
-        BaseType::Pointer(_) => {
+        BaseType::U16 | BaseType::Pointer(_) => {
             let unsigned_val = input.value as usize;
             if unsigned_val > 0xFFFF {
-                Err(
-                    ErrorKind::OutOfBounds(input.tag, input.value as isize, 0, 0xFFFF).into(),
-                )
+                Err(ErrorKind::OutOfBounds(input.tag, input.value as isize, 0, 0xFFFF).into())
             } else {
                 Ok(ConstantValue::Number(input.value))
             }
@@ -357,9 +344,7 @@ fn generate_expression(symbol_table: &SymbolTable, input: &ast::Expression) -> e
                     None,
                 )))
             } else {
-                Err(
-                    ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.array)).into(),
-                )
+                Err(ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.array)).into())
             }
         }
         ast::Expression::BinaryOp(ref data) => Ok(ir::Expr::BinaryOp(ir::BinaryOpData::new(
@@ -371,24 +356,29 @@ fn generate_expression(symbol_table: &SymbolTable, input: &ast::Expression) -> e
         ))),
         ast::Expression::Name(ref data) => {
             if let Some(symbol_ref) = symbol_table.find_symbol(&data.name) {
-                Ok(ir::Expr::Symbol(
-                    ir::SymbolData::new(data.tag, symbol_ref, None),
-                ))
+                Ok(ir::Expr::Symbol(ir::SymbolData::new(
+                    data.tag,
+                    symbol_ref,
+                    None,
+                )))
             } else {
-                Err(
-                    ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.name)).into(),
-                )
+                Err(ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.name)).into())
             }
         }
-        ast::Expression::Number(ref data) => Ok(ir::Expr::Number(
-            ir::NumberData::new(data.tag, data.value, None),
-        )),
+        ast::Expression::Number(ref data) => Ok(ir::Expr::Number(ir::NumberData::new(
+            data.tag,
+            data.value,
+            None,
+        ))),
         ast::Expression::CallFunction(ref data) => {
             let function = SymbolName::clone(&data.name);
             let args = generate_expressions(symbol_table, &data.arguments)?;
-            Ok(ir::Expr::Call(
-                ir::CallData::new(data.tag, function, args, None),
-            ))
+            Ok(ir::Expr::Call(ir::CallData::new(
+                data.tag,
+                function,
+                args,
+                None,
+            )))
         }
         _ => panic!("not an expression: {:?}", input),
     }

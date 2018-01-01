@@ -198,9 +198,7 @@ impl Expression {
                 Err(err) => Err(translate_errors(src_unit, [err].iter()).into()),
             }
         } else {
-            Err(
-                translate_errors(src_unit, errors.iter().map(|err| &err.error)).into(),
-            )
+            Err(translate_errors(src_unit, errors.iter().map(|err| &err.error)).into())
         }
     }
 }
@@ -247,28 +245,21 @@ where
             lalrpop_util::ParseError::UnrecognizedToken {
                 ref token,
                 ref expected,
-            } => {
-                match *token {
-                    Some((start, token, _end)) => {
-                        let (row, col) = SrcTag::new(0, start).row_col(&unit.source);
-                        messages.push(format!(
-                            "{}:{}:{}: unexpected token \"{}\". Expected one of: {:?}",
-                            unit.name,
-                            row,
-                            col,
-                            token.1,
-                            expected
-                        ));
-                    }
-                    None => {
-                        messages.push(format!(
-                            "{}: unexpected EOF; expected: {:?}",
-                            unit.name,
-                            expected
-                        ));
-                    }
+            } => match *token {
+                Some((start, token, _end)) => {
+                    let (row, col) = SrcTag::new(0, start).row_col(&unit.source);
+                    messages.push(format!(
+                        "{}:{}:{}: unexpected token \"{}\". Expected one of: {:?}",
+                        unit.name, row, col, token.1, expected
+                    ));
                 }
-            }
+                None => {
+                    messages.push(format!(
+                        "{}: unexpected EOF; expected: {:?}",
+                        unit.name, expected
+                    ));
+                }
+            },
             lalrpop_util::ParseError::ExtraToken { ref token } => {
                 let (row, col) = SrcTag::new(0, token.0).row_col(&unit.source);
                 messages.push(format!(
@@ -299,24 +290,19 @@ mod test {
         let expected = vec![
             Expression::Assignment(AssignmentData::new(
                 SrcTag::new(0, 0),
-                Box::new(Expression::Name(
-                    NameData::new(SrcTag::new(0, 0), Arc::new("a".into())),
-                )),
+                Box::new(Expression::Name(NameData::new(
+                    SrcTag::new(0, 0),
+                    Arc::new("a".into()),
+                ))),
                 Box::new(Expression::BinaryOp(BinaryOpData::new(
                     SrcTag::new(0, 4),
                     BinaryOperator::Add,
-                    Box::new(
-                        Expression::Number(NumberData::new(SrcTag::new(0, 4), 2)),
-                    ),
+                    Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 4), 2))),
                     Box::new(Expression::BinaryOp(BinaryOpData::new(
                         SrcTag::new(0, 8),
                         BinaryOperator::Mul,
-                        Box::new(
-                            Expression::Number(NumberData::new(SrcTag::new(0, 8), 9)),
-                        ),
-                        Box::new(
-                            Expression::Number(NumberData::new(SrcTag::new(0, 12), 1)),
-                        ),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 8), 9))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 12), 1))),
                     ))),
                 ))),
             )),
@@ -333,24 +319,19 @@ mod test {
         let expected = vec![
             Expression::Assignment(AssignmentData::new(
                 SrcTag::new(0, 0),
-                Box::new(Expression::Name(
-                    NameData::new(SrcTag::new(0, 0), Arc::new("a".into())),
-                )),
+                Box::new(Expression::Name(NameData::new(
+                    SrcTag::new(0, 0),
+                    Arc::new("a".into()),
+                ))),
                 Box::new(Expression::BinaryOp(BinaryOpData::new(
                     SrcTag::new(0, 4),
                     BinaryOperator::Mul,
-                    Box::new(
-                        Expression::Number(NumberData::new(SrcTag::new(0, 4), 2)),
-                    ),
+                    Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 4), 2))),
                     Box::new(Expression::BinaryOp(BinaryOpData::new(
                         SrcTag::new(0, 9),
                         BinaryOperator::Add,
-                        Box::new(
-                            Expression::Number(NumberData::new(SrcTag::new(0, 9), 9)),
-                        ),
-                        Box::new(
-                            Expression::Number(NumberData::new(SrcTag::new(0, 13), 1)),
-                        ),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 9), 9))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 13), 1))),
                     ))),
                 ))),
             )),
@@ -367,31 +348,24 @@ mod test {
         let expected = vec![
             Expression::Assignment(AssignmentData::new(
                 SrcTag::new(0, 0),
-                Box::new(Expression::Name(
-                    NameData::new(SrcTag::new(0, 0), Arc::new("a".into())),
-                )),
+                Box::new(Expression::Name(NameData::new(
+                    SrcTag::new(0, 0),
+                    Arc::new("a".into()),
+                ))),
                 Box::new(Expression::BinaryOp(BinaryOpData::new(
                     SrcTag::new(0, 4),
                     BinaryOperator::GreaterThan,
                     Box::new(Expression::BinaryOp(BinaryOpData::new(
                         SrcTag::new(0, 4),
                         BinaryOperator::Add,
-                        Box::new(
-                            Expression::Number(NumberData::new(SrcTag::new(0, 4), 2)),
-                        ),
-                        Box::new(
-                            Expression::Number(NumberData::new(SrcTag::new(0, 8), 1)),
-                        ),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 4), 2))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 8), 1))),
                     ))),
                     Box::new(Expression::BinaryOp(BinaryOpData::new(
                         SrcTag::new(0, 12),
                         BinaryOperator::Sub,
-                        Box::new(
-                            Expression::Number(NumberData::new(SrcTag::new(0, 12), 3)),
-                        ),
-                        Box::new(
-                            Expression::Number(NumberData::new(SrcTag::new(0, 16), 1)),
-                        ),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 12), 3))),
+                        Box::new(Expression::Number(NumberData::new(SrcTag::new(0, 16), 1))),
                     ))),
                 ))),
             )),
@@ -408,10 +382,7 @@ mod test {
         let expected = vec![
             Expression::DeclareRegister(DeclareRegisterData::new(
                 SrcTag::new(0, 0),
-                NameType::new(
-                    Arc::new("test_register".into()),
-                    BaseType::U8,
-                ),
+                NameType::new(Arc::new("test_register".into()), BaseType::U8),
                 0x8000,
             )),
         ];

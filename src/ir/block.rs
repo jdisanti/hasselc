@@ -190,7 +190,10 @@ impl Block {
                 parameter.base_type.clone(),
                 Location::FrameOffset(frame_offset),
             );
-            if symbol_table.insert_variable(SymbolName::clone(&name), variable).is_none() {
+            if symbol_table
+                .insert_variable(SymbolName::clone(&name), variable)
+                .is_none()
+            {
                 return Err(ErrorKind::DuplicateSymbol(src_tag, name).into());
             }
             frame_offset += parameter.base_type.size().unwrap() as i8;

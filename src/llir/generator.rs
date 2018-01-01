@@ -95,26 +95,30 @@ fn generate_runs(
                 )?);
                 let after_both_block_ref = run_builder.new_block().symbol();
 
-                run_builder.block(true_block_ref).add_statement(Statement::GoTo(
-                    GoToData::new(data.tag, after_both_block_ref),
-                ));
+                run_builder
+                    .block(true_block_ref)
+                    .add_statement(Statement::GoTo(GoToData::new(
+                        data.tag,
+                        after_both_block_ref,
+                    )));
 
                 let false_block_symbol = run_builder.block(false_block_ref).symbol();
-                run_builder.block(end_condition_block_ref).add_statement(
-                    Statement::BranchIfZero(
-                        BranchIfZeroData::new(
-                            data.tag,
-                            condition,
-                            false_block_symbol,
-                        ),
-                    ),
-                );
+                run_builder
+                    .block(end_condition_block_ref)
+                    .add_statement(Statement::BranchIfZero(BranchIfZeroData::new(
+                        data.tag,
+                        condition,
+                        false_block_symbol,
+                    )));
                 run_builder.new_block();
             }
             ir::Statement::InlineAsm(ref data) => {
-                run_builder.current_block().add_statement(Statement::InlineAsm(
-                    InlineAsmData::new(data.tag, Arc::clone(&data.asm)),
-                ));
+                run_builder
+                    .current_block()
+                    .add_statement(Statement::InlineAsm(InlineAsmData::new(
+                        data.tag,
+                        Arc::clone(&data.asm),
+                    )));
             }
             ir::Statement::WhileLoop(ref data) => {
                 let start_condition_block_ref = run_builder.new_block().block_ref;
@@ -137,9 +141,12 @@ fn generate_runs(
                     )));
                 }
 
-                run_builder.block(body_block_ref).add_statement(Statement::GoTo(
-                    GoToData::new(data.tag, start_condition_block_symbol),
-                ));
+                run_builder
+                    .block(body_block_ref)
+                    .add_statement(Statement::GoTo(GoToData::new(
+                        data.tag,
+                        start_condition_block_symbol,
+                    )));
                 run_builder.new_block();
             }
             ir::Statement::Return(ref data) => {
@@ -153,19 +160,17 @@ fn generate_runs(
                         RETURN_LOCATION_LO,
                     )?;
                 }
-                run_builder.current_block().add_statement(
-                    Statement::Return(ReturnData::new(data.tag)),
-                );
+                run_builder
+                    .current_block()
+                    .add_statement(Statement::Return(ReturnData::new(data.tag)));
             }
             ir::Statement::GoTo(ref data) => {
                 if let Some(symbol_ref) = symbol_table.read().unwrap().find_symbol(&data.destination) {
-                    run_builder.current_block().add_statement(
-                        Statement::GoTo(GoToData::new(data.tag, symbol_ref)),
-                    );
+                    run_builder
+                        .current_block()
+                        .add_statement(Statement::GoTo(GoToData::new(data.tag, symbol_ref)));
                 } else {
-                    return Err(
-                        error::ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.destination)).into(),
-                    );
+                    return Err(error::ErrorKind::SymbolNotFound(data.tag, SymbolName::clone(&data.destination)).into());
                 }
             }
             _ => unimplemented!("llir_gen: generate_runs statement"),
@@ -187,8 +192,7 @@ fn generate_copy(
         BaseType::Bool | BaseType::U8 => {
             block.add_statement(Statement::Copy(CopyData::new(tag, destination, value)));
         }
-        BaseType::U16 |
-        BaseType::Pointer(_) => {
+        BaseType::U16 | BaseType::Pointer(_) => {
             block.add_statement(Statement::Copy(CopyData::new(
                 tag,
                 destination.high_byte(),
@@ -221,7 +225,11 @@ fn resolve_expr_to_value(run_builder: &mut RunBuilder, frame_ref: SymbolRef, exp
     match *expr {
         ir::Expr::ArrayIndex(ref data) => {
             let array = symbol_table.write().unwrap().variable(data.array).unwrap();
-            let array_name = symbol_table.write().unwrap().get_symbol_name(data.array).unwrap();
+            let array_name = symbol_table
+                .write()
+                .unwrap()
+                .get_symbol_name(data.array)
+                .unwrap();
             let index_value = resolve_expr_to_value(run_builder, frame_ref, &data.index)?;
             match array.location {
                 symbol_table::Location::UndeterminedGlobal => unreachable!(),
@@ -239,9 +247,10 @@ fn resolve_expr_to_value(run_builder: &mut RunBuilder, frame_ref: SymbolRef, exp
                     // Copy the pointer address to a new temporary
                     let addr = convert_location(
                         frame_ref,
-                        &symbol_table.write().unwrap().create_temporary_location(
-                            data.array_type.as_ref().unwrap(),
-                        ),
+                        &symbol_table
+                            .write()
+                            .unwrap()
+                            .create_temporary_location(data.array_type.as_ref().unwrap()),
                     );
                     generate_copy(
                         run_builder,
@@ -345,7 +354,10 @@ fn resolve_expr_to_value(run_builder: &mut RunBuilder, frame_ref: SymbolRef, exp
             let dest_type = data.result_type.as_ref().unwrap();
             let dest = convert_location(
                 frame_ref,
-                &symbol_table.write().unwrap().create_temporary_location(dest_type),
+                &symbol_table
+                    .write()
+                    .unwrap()
+                    .create_temporary_location(dest_type),
             );
 
             let left_value = resolve_expr_to_value(run_builder, frame_ref, &*data.left)?;
@@ -373,19 +385,24 @@ fn generate_function_call(
     call_data: &ir::CallData,
 ) -> error::Result<Value> {
     let symbol_table = Arc::clone(run_builder.symbol_table());
-    let optional_function_ref = symbol_table.read().unwrap().find_symbol(&call_data.function);
+    let optional_function_ref = symbol_table
+        .read()
+        .unwrap()
+        .find_symbol(&call_data.function);
     if let Some(function_ref) = optional_function_ref {
-        let function = symbol_table.read().unwrap().function_by_name(&call_data.function).unwrap();
+        let function = symbol_table
+            .read()
+            .unwrap()
+            .function_by_name(&call_data.function)
+            .unwrap();
         let metadata = function.read().unwrap();
         if metadata.parameters.len() != call_data.arguments.len() {
-            return Err(
-                error::ErrorKind::ExpectedNArgumentsGotM(
-                    call_data.tag,
-                    SymbolName::clone(&call_data.function),
-                    metadata.parameters.len(),
-                    call_data.arguments.len(),
-                ).into(),
-            );
+            return Err(error::ErrorKind::ExpectedNArgumentsGotM(
+                call_data.tag,
+                SymbolName::clone(&call_data.function),
+                metadata.parameters.len(),
+                call_data.arguments.len(),
+            ).into());
         }
 
         // Push arguments to the stack
@@ -393,12 +410,11 @@ fn generate_function_call(
         for argument in &call_data.arguments {
             argument_values.push(resolve_expr_to_value(run_builder, frame_ref, argument)?)
         }
-        run_builder.current_block().add_statement(Statement::AddToDataStackPointer(
-            AddToDataStackPointerData::new(
-                call_data.tag,
-                SPOffset::FrameSize(function_ref),
-            ),
-        ));
+        run_builder
+            .current_block()
+            .add_statement(Statement::AddToDataStackPointer(
+                AddToDataStackPointerData::new(call_data.tag, SPOffset::FrameSize(function_ref)),
+            ));
         if !metadata.parameters.is_empty() {
             let mut frame_offset = 0;
             for (i, argument_value) in argument_values.into_iter().enumerate() {
@@ -415,25 +431,27 @@ fn generate_function_call(
         }
 
         // Jump to the routine
-        run_builder.current_block().add_statement(
-            Statement::JumpRoutine(JumpRoutineData::new(
+        run_builder
+            .current_block()
+            .add_statement(Statement::JumpRoutine(JumpRoutineData::new(
                 call_data.tag,
                 Location::UnresolvedGlobal(function_ref),
-            )),
-        );
+            )));
 
         // Restore the stack pointer
-        run_builder.current_block().add_statement(Statement::AddToDataStackPointer(
-            AddToDataStackPointerData::new(
-                call_data.tag,
-                SPOffset::NegativeFrameSize(function_ref),
-            ),
-        ));
+        run_builder
+            .current_block()
+            .add_statement(Statement::AddToDataStackPointer(
+                AddToDataStackPointerData::new(call_data.tag, SPOffset::NegativeFrameSize(function_ref)),
+            ));
 
         if call_data.return_type.as_ref().unwrap().size().is_some() {
             let dest = convert_location(
                 frame_ref,
-                &symbol_table.write().unwrap().create_temporary_location(&BaseType::U8),
+                &symbol_table
+                    .write()
+                    .unwrap()
+                    .create_temporary_location(&BaseType::U8),
             );
             generate_copy(
                 run_builder,
@@ -460,9 +478,7 @@ fn generate_function_call(
             )))
         }
     } else {
-        Err(
-            error::ErrorKind::SymbolNotFound(call_data.tag, SymbolName::clone(&call_data.function)).into(),
-        )
+        Err(error::ErrorKind::SymbolNotFound(call_data.tag, SymbolName::clone(&call_data.function)).into())
     }
 }
 

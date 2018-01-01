@@ -14,7 +14,7 @@ use base_type::BaseType;
 use error;
 use llir::builder::RunBuilder;
 use llir::common::convert_location;
-use llir::{CopyData, ImmediateValue, MemoryData, Location, Statement, Value};
+use llir::{CopyData, ImmediateValue, Location, MemoryData, Statement, Value};
 use parse::ast::BinaryOperator;
 use src_tag::SrcTag;
 use symbol_table::SymbolRef;
@@ -86,20 +86,26 @@ impl<'a> TypeCoercer<'a> {
     fn convert_u8_into_u16(&mut self, value: &Value) -> error::Result<Value> {
         let temp_addr = convert_location(
             self.frame_ref,
-            &self.run_builder.symbol_table().write().unwrap().create_temporary_location(
-                &BaseType::U16,
-            ),
+            &self.run_builder
+                .symbol_table()
+                .write()
+                .unwrap()
+                .create_temporary_location(&BaseType::U16),
         );
-        self.run_builder.current_block().add_statement(Statement::Copy(CopyData::new(
-            self.src_tag,
-            temp_addr.high_byte(),
-            Value::Immediate(BaseType::U8, ImmediateValue::Number(0)),
-        )));
-        self.run_builder.current_block().add_statement(Statement::Copy(CopyData::new(
-            self.src_tag,
-            temp_addr.low_byte(),
-            value.clone(),
-        )));
+        self.run_builder
+            .current_block()
+            .add_statement(Statement::Copy(CopyData::new(
+                self.src_tag,
+                temp_addr.high_byte(),
+                Value::Immediate(BaseType::U8, ImmediateValue::Number(0)),
+            )));
+        self.run_builder
+            .current_block()
+            .add_statement(Statement::Copy(CopyData::new(
+                self.src_tag,
+                temp_addr.low_byte(),
+                value.clone(),
+            )));
         Ok(Value::Memory(MemoryData::new(
             BaseType::U16,
             temp_addr,

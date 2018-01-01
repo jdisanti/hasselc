@@ -93,17 +93,17 @@ error_chain! {
 pub fn to_compiler_error(src_units: &SrcUnits, err: Error, compiler_output: CompilerOutput) -> Error {
     use self::ErrorKind::*;
     let (name, row_col) = match err.0 {
-        ConstCantBeVoid(ref src_tag, ..) |
-        ConstEvaluationFailed(ref src_tag, ..) |
-        DuplicateSymbol(ref src_tag, ..) |
-        ExpectedNArgumentsGotM(ref src_tag, ..) |
-        InvalidLeftValue(ref src_tag, ..) |
-        MustReturnAValue(ref src_tag, ..) |
-        OrgOutOfRange(ref src_tag, ..) |
-        OutOfBounds(ref src_tag, ..) |
-        SymbolNotFound(ref src_tag, ..) |
-        TypeExprError(ref src_tag, ..) |
-        TypeError(ref src_tag, ..) => (
+        ConstCantBeVoid(ref src_tag, ..)
+        | ConstEvaluationFailed(ref src_tag, ..)
+        | DuplicateSymbol(ref src_tag, ..)
+        | ExpectedNArgumentsGotM(ref src_tag, ..)
+        | InvalidLeftValue(ref src_tag, ..)
+        | MustReturnAValue(ref src_tag, ..)
+        | OrgOutOfRange(ref src_tag, ..)
+        | OutOfBounds(ref src_tag, ..)
+        | SymbolNotFound(ref src_tag, ..)
+        | TypeExprError(ref src_tag, ..)
+        | TypeError(ref src_tag, ..) => (
             src_units.name(src_tag.unit).clone(),
             src_tag.row_col(src_units.source(src_tag.unit)),
         ),

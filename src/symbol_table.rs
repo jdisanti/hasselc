@@ -120,17 +120,17 @@ impl SymbolMap {
     }
 
     fn data_constants<'a>(&'a self) -> Box<Iterator<Item = (SymbolRef, Arc<Vec<u8>>)> + 'a> {
-        Box::new(self.by_ref.iter().filter_map(
-            |(symbol_ref, symbol)| match *symbol {
-                Symbol::Constant(ref constant) => {
-                    match constant.value {
+        Box::new(
+            self.by_ref
+                .iter()
+                .filter_map(|(symbol_ref, symbol)| match *symbol {
+                    Symbol::Constant(ref constant) => match constant.value {
                         ConstantValue::Bytes(ref bytes) => Some((*symbol_ref, Arc::clone(bytes))),
                         _ => None,
-                    }
-                }
-                _ => None,
-            },
-        ))
+                    },
+                    _ => None,
+                }),
+        )
     }
 }
 
@@ -212,7 +212,8 @@ impl SymbolTable for DefaultSymbolTable {
     fn new_block_name(&mut self) -> (SymbolName, SymbolRef) {
         let symbol_ref = self.handle_gen.write().unwrap().new_handle();
         let symbol_name = Arc::new(format!("__L{:06X}_", symbol_ref));
-        self.symbols.insert(SymbolName::clone(&symbol_name), symbol_ref, Symbol::Block);
+        self.symbols
+            .insert(SymbolName::clone(&symbol_name), symbol_ref, Symbol::Block);
         (symbol_name, symbol_ref)
     }
 
@@ -299,7 +300,8 @@ impl SymbolTable for DefaultSymbolTable {
 
     fn insert_function(&mut self, symbol_name: SymbolName, metadata: FunctionMetadataPtr) -> Option<SymbolRef> {
         let symbol_ref = self.handle_gen.write().unwrap().new_handle();
-        self.symbols.insert(symbol_name, symbol_ref, Symbol::Function(metadata))
+        self.symbols
+            .insert(symbol_name, symbol_ref, Symbol::Function(metadata))
     }
 
     fn function_by_name(&self, symbol_name: &SymbolName) -> Option<FunctionMetadataPtr> {
@@ -320,7 +322,8 @@ impl SymbolTable for DefaultSymbolTable {
 
     fn insert_variable(&mut self, symbol_name: SymbolName, variable: Variable) -> Option<SymbolRef> {
         let symbol_ref = self.handle_gen.write().unwrap().new_handle();
-        self.symbols.insert(symbol_name, symbol_ref, Symbol::Variable(variable))
+        self.symbols
+            .insert(symbol_name, symbol_ref, Symbol::Variable(variable))
     }
 
     fn variable_by_name(&self, symbol_name: &SymbolName) -> Option<Variable> {

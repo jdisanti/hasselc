@@ -13,7 +13,7 @@ use hassel_asm::Assembler;
 use ir;
 use llir;
 use code;
-use error::{self, ErrorKind, to_compiler_error};
+use error::{self, to_compiler_error, ErrorKind};
 use parse::ast;
 use symbol_table::{DefaultSymbolTable, HandleGenerator, SymbolTable};
 use src_unit::SrcUnits;
@@ -33,20 +33,15 @@ pub struct CompilerOutput {
 #[derive(Default, Builder, Debug)]
 #[builder(setter(into))]
 pub struct CompilerOptions {
-    #[builder(default)]
-    pub optimize_llir: bool,
+    #[builder(default)] pub optimize_llir: bool,
 
-    #[builder(default)]
-    pub optimize_code: bool,
+    #[builder(default)] pub optimize_code: bool,
 
-    #[builder(default)]
-    pub vector_reset_label: Option<String>,
+    #[builder(default)] pub vector_reset_label: Option<String>,
 
-    #[builder(default)]
-    pub vector_irq_label: Option<String>,
+    #[builder(default)] pub vector_irq_label: Option<String>,
 
-    #[builder(default)]
-    pub vector_nmi_label: Option<String>,
+    #[builder(default)] pub vector_nmi_label: Option<String>,
 }
 
 pub struct Compiler {
@@ -99,10 +94,8 @@ impl Compiler {
             compiler_output.llir = Some(llir::optimize_llir(compiler_output.llir.as_ref().unwrap())?);
         }
 
-        compiler_output.code = Some(code::CodeBlockGenerator::new(
-            &self.src_units,
-            compiler_output.llir.as_ref().unwrap(),
-        ).generate()?);
+        compiler_output.code =
+            Some(code::CodeBlockGenerator::new(&self.src_units, compiler_output.llir.as_ref().unwrap()).generate()?);
 
         if self.options.optimize_code {
             compiler_output.code = Some(code::optimize_code(compiler_output.code.as_ref().unwrap())?);
@@ -113,8 +106,8 @@ impl Compiler {
             compiler_output.code.as_ref().unwrap(),
         )?);
 
-        if self.options.vector_irq_label.is_some() || self.options.vector_nmi_label.is_some() ||
-            self.options.vector_reset_label.is_some()
+        if self.options.vector_irq_label.is_some() || self.options.vector_nmi_label.is_some()
+            || self.options.vector_reset_label.is_some()
         {
             compiler_output.asm.as_mut().unwrap().push_str(&format!(
                 "\n\
@@ -142,10 +135,17 @@ impl Compiler {
         }
 
         let mut assembler = Assembler::new();
-        match assembler.parse_unit("intermediate assembly", compiler_output.asm.as_ref().unwrap()) {
-            Ok(_) => { }
+        match assembler.parse_unit(
+            "intermediate assembly",
+            compiler_output.asm.as_ref().unwrap(),
+        ) {
+            Ok(_) => {}
             Err(err) => {
-                panic!("----\n{}\n----\ngenerated invalid assembly: {}", compiler_output.asm.as_ref().unwrap(), err);
+                panic!(
+                    "----\n{}\n----\ngenerated invalid assembly: {}",
+                    compiler_output.asm.as_ref().unwrap(),
+                    err
+                );
             }
         }
         let assembler_output = assembler.assemble()?;

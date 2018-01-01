@@ -72,30 +72,22 @@ impl BaseType {
             true
         } else {
             match *self {
-                Pointer(_) => {
-                    match *into {
-                        U16 => true,
-                        _ => false,
-                    }
-                }
-                U16 => {
-                    match *into {
-                        Pointer(_) => true,
-                        _ => false,
-                    }
-                }
-                U8 => {
-                    match *into {
-                        Pointer(_) | U16 => true,
-                        _ => false,
-                    }
-                }
-                Bool => {
-                    match *into {
-                        U8 | U16 => true,
-                        _ => false,
-                    }
-                }
+                Pointer(_) => match *into {
+                    U16 => true,
+                    _ => false,
+                },
+                U16 => match *into {
+                    Pointer(_) => true,
+                    _ => false,
+                },
+                U8 => match *into {
+                    Pointer(_) | U16 => true,
+                    _ => false,
+                },
+                Bool => match *into {
+                    U8 | U16 => true,
+                    _ => false,
+                },
                 Void => false,
             }
         }
@@ -107,30 +99,22 @@ impl BaseType {
             true
         } else {
             match *self {
-                Pointer(_) => {
-                    match *into {
-                        U16 | U8 | Bool => true,
-                        _ => false,
-                    }
-                }
-                U16 => {
-                    match *into {
-                        Pointer(_) | U8 | Bool => true,
-                        _ => false,
-                    }
-                }
-                U8 => {
-                    match *into {
-                        Pointer(_) | U16 | Bool => true,
-                        _ => false,
-                    }
-                }
-                Bool => {
-                    match *into {
-                        U8 | U16 => true,
-                        _ => false,
-                    }
-                }
+                Pointer(_) => match *into {
+                    U16 | U8 | Bool => true,
+                    _ => false,
+                },
+                U16 => match *into {
+                    Pointer(_) | U8 | Bool => true,
+                    _ => false,
+                },
+                U8 => match *into {
+                    Pointer(_) | U16 | Bool => true,
+                    _ => false,
+                },
+                Bool => match *into {
+                    U8 | U16 => true,
+                    _ => false,
+                },
                 Void => false,
             }
         }
@@ -142,18 +126,14 @@ impl BaseType {
             true
         } else {
             match *self {
-                Pointer(_) => {
-                    match *with {
-                        U16 => true,
-                        _ => false,
-                    }
-                }
-                U16 => {
-                    match *with {
-                        Pointer(_) => true,
-                        _ => false,
-                    }
-                }
+                Pointer(_) => match *with {
+                    U16 => true,
+                    _ => false,
+                },
+                U16 => match *with {
+                    Pointer(_) => true,
+                    _ => false,
+                },
                 U8 | Bool | Void => false,
             }
         }

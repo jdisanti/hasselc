@@ -25,10 +25,7 @@ impl<'a> AddGenerator<'a> {
                 self.binop.frame_ref,
                 self.binop.src_tag,
             );
-            type_coercer.coerce_values_to_same_types(
-                self.binop.left_value,
-                self.binop.right_value,
-            )?
+            type_coercer.coerce_values_to_same_types(self.binop.left_value, self.binop.right_value)?
         };
 
         if actual_left.value_type() == BaseType::U16 {
@@ -95,11 +92,14 @@ impl<'a> AddGenerator<'a> {
                 CarryMode::ClearCarry
             },
         );
-        self.binop.run_builder.current_block().add_statement(if subtract {
-            Statement::Subtract(bin_op_data)
-        } else {
-            Statement::Add(bin_op_data)
-        });
+        self.binop
+            .run_builder
+            .current_block()
+            .add_statement(if subtract {
+                Statement::Subtract(bin_op_data)
+            } else {
+                Statement::Add(bin_op_data)
+            });
         Ok(())
     }
 }

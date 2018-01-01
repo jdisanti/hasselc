@@ -26,10 +26,7 @@ impl<'a> CompareGenerator<'a> {
                 self.binop.frame_ref,
                 self.binop.src_tag,
             );
-            type_coercer.coerce_values_to_same_types(
-                self.binop.left_value,
-                self.binop.right_value,
-            )?
+            type_coercer.coerce_values_to_same_types(self.binop.left_value, self.binop.right_value)?
         };
 
         if actual_left.value_type() == BaseType::U16 {
@@ -90,18 +87,17 @@ impl<'a> CompareGenerator<'a> {
         let set_block_symbol = self.binop.run_builder.block(set_block_ref).symbol();
         let after_block_symbol = self.binop.run_builder.new_block().symbol();
 
-        self.binop.run_builder.block(compare_block_ref).add_statement(
-            Statement::CompareBranch(
-                CompareBranchData::new(
-                    self.binop.src_tag,
-                    left.clone(),
-                    right.clone(),
-                    flag,
-                    Some(set_block_symbol),
-                    None,
-                ),
-            ),
-        );
+        self.binop
+            .run_builder
+            .block(compare_block_ref)
+            .add_statement(Statement::CompareBranch(CompareBranchData::new(
+                self.binop.src_tag,
+                left.clone(),
+                right.clone(),
+                flag,
+                Some(set_block_symbol),
+                None,
+            )));
 
         self.binop
             .run_builder
@@ -111,17 +107,19 @@ impl<'a> CompareGenerator<'a> {
                 self.binop.dest.clone(),
                 imm_bool(!set_value),
             )))
-            .add_statement(Statement::GoTo(
-                GoToData::new(self.binop.src_tag, after_block_symbol),
-            ));
+            .add_statement(Statement::GoTo(GoToData::new(
+                self.binop.src_tag,
+                after_block_symbol,
+            )));
 
-        self.binop.run_builder.block(set_block_ref).add_statement(
-            Statement::Copy(CopyData::new(
+        self.binop
+            .run_builder
+            .block(set_block_ref)
+            .add_statement(Statement::Copy(CopyData::new(
                 self.binop.src_tag,
                 self.binop.dest.clone(),
                 imm_bool(set_value),
-            )),
-        );
+            )));
 
         Ok(())
     }
@@ -140,31 +138,29 @@ impl<'a> CompareGenerator<'a> {
         let clear_block_symbol = self.binop.run_builder.block(clear_block_ref).symbol();
         let after_block_symbol = self.binop.run_builder.new_block().symbol();
 
-        self.binop.run_builder.block(first_compare_block_ref).add_statement(
-            Statement::CompareBranch(
-                CompareBranchData::new(
-                    self.binop.src_tag,
-                    Value::high_byte(left),
-                    Value::high_byte(right),
-                    flag,
-                    None,
-                    Some(clear_block_symbol),
-                ),
-            ),
-        );
+        self.binop
+            .run_builder
+            .block(first_compare_block_ref)
+            .add_statement(Statement::CompareBranch(CompareBranchData::new(
+                self.binop.src_tag,
+                Value::high_byte(left),
+                Value::high_byte(right),
+                flag,
+                None,
+                Some(clear_block_symbol),
+            )));
 
-        self.binop.run_builder.block(second_compare_block_ref).add_statement(
-            Statement::CompareBranch(
-                CompareBranchData::new(
-                    self.binop.src_tag,
-                    Value::low_byte(left),
-                    Value::low_byte(right),
-                    flag,
-                    None,
-                    Some(clear_block_symbol),
-                ),
-            ),
-        );
+        self.binop
+            .run_builder
+            .block(second_compare_block_ref)
+            .add_statement(Statement::CompareBranch(CompareBranchData::new(
+                self.binop.src_tag,
+                Value::low_byte(left),
+                Value::low_byte(right),
+                flag,
+                None,
+                Some(clear_block_symbol),
+            )));
 
         self.binop
             .run_builder
@@ -174,17 +170,19 @@ impl<'a> CompareGenerator<'a> {
                 self.binop.dest.clone(),
                 imm_bool(set_value),
             )))
-            .add_statement(Statement::GoTo(
-                GoToData::new(self.binop.src_tag, after_block_symbol),
-            ));
+            .add_statement(Statement::GoTo(GoToData::new(
+                self.binop.src_tag,
+                after_block_symbol,
+            )));
 
-        self.binop.run_builder.block(clear_block_ref).add_statement(
-            Statement::Copy(CopyData::new(
+        self.binop
+            .run_builder
+            .block(clear_block_ref)
+            .add_statement(Statement::Copy(CopyData::new(
                 self.binop.src_tag,
                 self.binop.dest.clone(),
                 imm_bool(!set_value),
-            )),
-        );
+            )));
 
         Ok(())
     }

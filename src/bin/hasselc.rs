@@ -46,9 +46,7 @@ fn get_options() -> Options {
                 .short("r")
                 .long("runtime")
                 .value_name("RUNTIME")
-                .help(
-                    "Tells the compiler to use a pre-configured runtime environment",
-                )
+                .help("Tells the compiler to use a pre-configured runtime environment")
                 .takes_value(true),
         )
         .arg(
@@ -88,7 +86,9 @@ fn get_options() -> Options {
                 .takes_value(true),
         )
         .arg(
-            clap::Arg::with_name("INPUT").help("Input source file to use").required(true),
+            clap::Arg::with_name("INPUT")
+                .help("Input source file to use")
+                .required(true),
         );
     let cli_matches = cli_app.get_matches();
 
@@ -144,8 +144,14 @@ fn main() {
     let asm_map_file_name = format!("{}.s.map", output_file_name);
 
     save_bytes(&output_file_name, &compiler_output.bytes.unwrap());
-    save_bytes(&asm_file_name, &compiler_output.asm.as_ref().unwrap().as_bytes());
-    save_bytes(&asm_map_file_name, &compiler_output.asm_map.as_ref().unwrap().as_bytes());
+    save_bytes(
+        &asm_file_name,
+        &compiler_output.asm.as_ref().unwrap().as_bytes(),
+    );
+    save_bytes(
+        &asm_map_file_name,
+        &compiler_output.asm_map.as_ref().unwrap().as_bytes(),
+    );
 }
 
 fn save_bytes(file_name: &str, bytes: &[u8]) {
